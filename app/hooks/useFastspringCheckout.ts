@@ -10,7 +10,7 @@ declare global {
     fastspring?: {
       builder: {
         push: (data: Record<string, any>) => void;
-        checkout: () => void;
+        checkout: (sessionId?: string) => void;
         reset: () => void;
       };
     };
