@@ -74,7 +74,17 @@ export default function RootLayout({
           src="https://sbl.onfastspring.com/sbl/1.0.7/fastspring-builder.min.js"
           strategy="afterInteractive"
           data-storefront="qbenterprise.onfastspring.com/popup-quickbooks-enterprise"
+          data-popup-closed="onFSPopupClosed"
         />
+        <Script id="fs-callback" strategy="afterInteractive">
+          {`
+            window.onFSPopupClosed = function(orderReference) {
+              if (orderReference && orderReference.id) {
+                window.location.href = '/payment-success?reference=' + orderReference.id;
+              }
+            };
+          `}
+        </Script>
         <Providers>
           <Suspense fallback={<Loader/>}>
           <main className="pb-24">
