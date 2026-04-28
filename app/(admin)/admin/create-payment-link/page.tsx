@@ -171,19 +171,26 @@ export default function QuickBooksPaymentLinkCreator() {
                   <span>{selectedYears}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Price:</span>
-                  
-                  <span>${(parseFloat(totalPrice) - parseFloat(discountAmount)) || '0.00'}</span>
+                  <span>Base Price:</span>
+                  <span>${parseFloat(totalPrice || '0').toFixed(2)}</span>
                 </div>
                 {discountAmount && (
                   <div className="flex justify-between">
                     <span>Discount:</span>
-                    <span className="text-red-500">-${discountAmount}</span>
+                    <span className="text-red-500">-${parseFloat(discountAmount).toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>${calculateTotal().toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax (8.4%):</span>
+                  <span>${(calculateTotal() * 0.084).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between font-bold border-t pt-2 mt-2">
                   <span>Total Price:</span>
-                  <span>${totalPrice || '0.00'}</span>
+                  <span>${(calculateTotal() * 1.084).toFixed(2)}</span>
                 </div>
               </div>
             </div>
