@@ -2,7 +2,6 @@ import toast from "react-hot-toast"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
-const LINK_EXPIRY_MINUTES = 30
 
 const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }: { noLinkRedirection: boolean, enableToast: boolean, noLoginRedir?: boolean}) => {
   const searchParams = useSearchParams()
@@ -32,14 +31,6 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       const parsed = JSON.parse(atob(paymentBase64))
       console.log(parsed)
       setPaymentObj({...parsed, total: parsed.total*100})
-      // ✅ Only push if needed — prevent redirect loop
-      const timeDiff = Date.now() - parsed.time
-      if(timeDiff > LINK_EXPIRY_MINUTES * 60 * 1000){
-        if (enableToast) toast.error('Payment link expired')
-        setPaymentObj({ error: 'Payment link expired' })
-        if (!noLinkRedirection) router.push('/link-expired')
-        return
-      }
       if(!noLoginRedir) router.push('/login?payment=' + paymentBase64)
 
     } catch (error) {
