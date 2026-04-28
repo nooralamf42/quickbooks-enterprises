@@ -62,18 +62,10 @@ export default function OrderSummary() {
           </div>
         )}
 
-        <div className="border-t border-gray-200 pt-4 space-y-2">
-          <div className="flex justify-between items-center text-gray-600">
-            <span>Subtotal</span>
-            <span className="font-medium text-gray-900">${(total / 100).toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between items-center text-gray-600">
-            <span>Tax (8.4%)</span>
-            <span className="font-medium text-gray-900">${((total / 100) * 0.084).toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between items-center border-t border-gray-200 pt-2 mt-2">
+        <div className="border-t border-gray-200 pt-4">
+          <div className="flex justify-between items-center">
             <span className="text-lg font-semibold text-gray-900">Total due today</span>
-            <span className="text-lg font-bold text-gray-900">${((total / 100) * 1.084).toFixed(2)}</span>
+            <span className="text-lg font-bold text-gray-900">${total / 100}</span>
           </div>
         </div>
 
