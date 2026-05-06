@@ -89,7 +89,7 @@ export default function CheckoutForm() {
     return (
         <div className="min-h-screen py-8 px-5">
             <div className="max-w-7xl mx-auto">
-                <img className='max-w-[200px] mb-10 mt-5' src="https://i.ibb.co/01k55Ck/quickbooks-logo.png" alt="Logo" />
+                <img className='max-w-[200px] mb-10 mt-5' src="/quickbooks_logo.png" alt="Logo" />
                 <div className="mb-8 mt-10">
                     <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Payment</h1>
                     <p className="text-gray-600">Enter billing information to proceed.</p>
