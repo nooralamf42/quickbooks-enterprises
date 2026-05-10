@@ -18,7 +18,7 @@ export default function OrderSummary() {
   if (paymentObj == null) return <Loader/>
 
   const { edition, year, total, user, disc } = paymentObj
-  const displayEdition = edition.charAt(0).toUpperCase() + edition.slice(1)
+  const displayEdition = edition.toLowerCase() === 'fsp' ? 'FSP' : edition.charAt(0).toUpperCase() + edition.slice(1)
   const imagePath = `/${edition.toLowerCase()}_${year}y.webp`
 
   return (

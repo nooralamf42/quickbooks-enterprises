@@ -30,7 +30,8 @@ export default function QuickBooksPaymentLinkCreator() {
     { name: 'Silver', value: 'silver' },
     { name: 'Gold', value: 'gold' },
     { name: 'Platinum', value: 'platinum' },
-    { name: 'Diamond', value: 'diamond' }
+    { name: 'Diamond', value: 'diamond' },
+    { name: 'FSP', value: 'fsp' }
   ]
 
   const yearOptions = [
@@ -160,7 +161,7 @@ export default function QuickBooksPaymentLinkCreator() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>Edition:</span>
-                  <span>QuickBooks 24.0 {selectedEdition}</span>
+                  <span>QuickBooks 24.0 {selectedEdition === 'fsp' ? 'FSP' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Users:</span>
