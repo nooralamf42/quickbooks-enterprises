@@ -55,19 +55,23 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const paymentObj = {
-      user: users,
-      edition: selectedEdition,
-      year: selectedYears,
-      disc: Number(discountAmount) || 0,
-      total: calculateTotal(),
-      time: Date.now()
-    }
+    const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F' }
+    const shortEdition = editionMap[selectedEdition] || 'S'
 
-    console.log(paymentObj)
+    const uStr = users.toString(36)
+    const yStr = selectedYears.toString(36)
+    const dVal = Math.round((Number(discountAmount) || 0) * 100)
+    const dStr = dVal.toString(36)
+    const tVal = Math.round(calculateTotal() * 100)
+    const tStr = tVal.toString(36)
+
+    // Example output: 1S1K0M4bk
+    const paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}`
+
+    console.log("Encoded payment string:", paymentString)
 
     const base = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin
-    setPaymentLink(`${base}/checkout?payment=` + btoa(JSON.stringify(paymentObj)))
+    setPaymentLink(`${base}/pay/${paymentString}`)
   }
 
   return (
@@ -173,18 +177,17 @@ export default function QuickBooksPaymentLinkCreator() {
                 </div>
                 <div className="flex justify-between">
                   <span>Price:</span>
-                  
-                  <span>${(parseFloat(totalPrice) - parseFloat(discountAmount)) || '0.00'}</span>
+                  <span>${totalPrice || '0.00'}</span>
                 </div>
-                {discountAmount && (
+                {parseFloat(discountAmount) > 0 && (
                   <div className="flex justify-between">
                     <span>Discount:</span>
                     <span className="text-red-500">-${discountAmount}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
+                <div className="flex justify-between font-semibold mt-2 pt-2 border-t">
                   <span>Total Price:</span>
-                  <span>${totalPrice || '0.00'}</span>
+                  <span>${calculateTotal() || '0.00'}</span>
                 </div>
               </div>
             </div>
