@@ -30,7 +30,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
     try {
       let decodedString = paymentBase64;
       
-      const customFormatRegex = /^([0-9a-z]+)([SGPDF])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)$/i;
+      const customFormatRegex = /^([0-9a-z]+)([SGPDF])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)$/;
       const match = decodedString.match(customFormatRegex);
 
       // If it doesn't contain a dash and doesn't match the new custom format, it must be base64 encoded
