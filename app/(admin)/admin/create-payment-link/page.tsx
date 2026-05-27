@@ -274,6 +274,13 @@ Address: 28 CHURCH ST, STE 14 #5838, WINCHESTER, MA, 01890
 By making a payment to QB Enterprise, you acknowledge that you have read, understood, and agree to be bound by these Terms, including the no-refund and no-chargeback provisions and the liability for legal fees arising from a chargeback.`;
 
       // --- RENDER TERMS AND CONDITIONS (PAGINATED) ---
+      
+      // Draw QB ENTERPRISE Header on the First Page
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(22)
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+      doc.text('QB ENTERPRISE', 20, 25)
+
       doc.setFont('Helvetica', 'normal');
       doc.setFontSize(10);
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
@@ -281,7 +288,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       // Set width to 160 to prevent bold text from spilling off the edge
       const lines = doc.splitTextToSize(termsText, 160); 
       
-      let cursorY = 20;
+      // Start lower on the first page to make room for the header
+      let cursorY = 40;
       const marginY = 280; // Bottom margin
 
       drawWatermark();
@@ -309,7 +317,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         if (cursorY >= marginY && i < lines.length - 1) {
           doc.addPage();
           drawWatermark();
-          cursorY = 20; // reset cursor
+          cursorY = 20; // reset cursor higher for subsequent pages since they don't have the big header
         }
       }
 
@@ -322,28 +330,24 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         doc.line(20, y, 190, y)
       }
 
-      // --- HEADER ---
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(22)
-      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-      doc.text('QB ENTERPRISE', 20, 25)
-
+      // --- CERTIFICATE HEADER ---
       doc.setFontSize(14)
       doc.setFont('Helvetica', 'bold')
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
-      doc.text('CERTIFICATE OF CONSENT & PURCHASE AGREEMENT', 100, 45, { align: 'center' })
+      doc.text('CERTIFICATE OF CONSENT & PURCHASE AGREEMENT', 100, 35, { align: 'center' })
       
-      drawDivider(52)
+      drawDivider(42)
 
       // --- SIGNATURE METADATA ---
       doc.setFontSize(10)
       doc.setFont('Helvetica', 'bold')
-      doc.text('ELECTRONIC SIGNATURE METADATA', 20, 60)
+      doc.text('ELECTRONIC SIGNATURE METADATA', 20, 50)
 
       doc.setFont('Helvetica', 'normal')
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
       
-      const metaY = 67
+      // Shift metaY up since we removed the main header from this page
+      const metaY = 57
       doc.text(`Consent Record ID:   ${log._id}`, 20, metaY)
       doc.text(`Timestamp (UTC):    ${new Date(log.agreedTimestamp).toUTCString()}`, 20, metaY + 6)
       doc.text(`IP Address:         ${log.ipAddress}`, 20, metaY + 12)
