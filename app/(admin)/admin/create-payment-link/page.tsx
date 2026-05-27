@@ -171,6 +171,151 @@ export default function QuickBooksPaymentLinkCreator() {
       const darkColor = [33, 37, 41]
       const grayColor = [108, 117, 125]
 
+      // Extract initials for watermark
+      const firstInitial = log.firstName ? log.firstName.charAt(0).toUpperCase() : '';
+      const lastInitial = log.lastName ? log.lastName.charAt(0).toUpperCase() : '';
+      const initials = `${firstInitial}${lastInitial}`;
+      const watermarkText = `Initial: ${initials}`;
+
+      const drawWatermark = () => {
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(18);
+        // Near black color for watermark
+        doc.setTextColor(75, 75, 75);
+        // Position at the very bottom right corner of the page (less padding)
+        doc.text(watermarkText, 198, 288, { align: 'right' });
+        
+        // CRITICAL: Reset the text color back to dark so the terms text is visible
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      };
+
+      const termsText = `TERMS AND CONDITIONS
+Last Updated: May 27, 2026
+
+1. Introduction
+Welcome to QB Enterprise ("Company," "we," "us," or "our"). We are a software development company providing custom software, licenses, subscriptions, and related development services ("Services"). By accessing or using our Services, you ("Customer," "you," or "your") agree to be bound by these Terms and Conditions ("Terms"). If you do not agree, do not use our Services.
+
+2. Services
+QB Enterprise develops, delivers, and supports software products including but not limited to:
+- Custom software development
+- Software as a Service (SaaS) subscriptions
+- Perpetual software licenses
+- Maintenance and support packages
+- Consulting and integration services
+Specific deliverables, timelines, and fees will be outlined in separate Statements of Work (SOW) or invoices.
+
+3. Payment Terms
+3.1 Fees
+All fees for Services are due in full as stated in the applicable invoice or SOW. We accept payments via credit card, bank transfer, ACH, and Wire.
+
+3.2 No Refunds
+ALL SALES ARE FINAL. No refunds, credits, or exchanges will be issued for any reason, including but not limited to:
+- Change of mind or business needs
+- Underutilization of software
+- Compatibility issues not previously disclosed in writing
+- Delays in delivery caused by customer's failure to provide required information or cooperation
+- Discontinuation of a product or feature
+Once payment is made, the amount is non-refundable.
+
+3.3 No Chargebacks
+By accepting these Terms, you expressly agree NOT to initiate a chargeback with your bank or credit card issuer for any payment made to QB Enterprise. You acknowledge that a chargeback constitutes a material breach of these Terms.
+
+4. Chargeback Liability and Legal Consequences
+If you file a chargeback against any sale made by QB Enterprise:
+1. Breach of Contract - The chargeback will be treated as a material breach of these Terms.
+2. Immediate Obligation - You will immediately owe QB Enterprise the full amount of the disputed charge, plus any fees imposed on us by our payment processors.
+3. Legal Consciousness - You acknowledge that filing a fraudulent or improper chargeback is a willful act with legal consequences.
+4. Legal and Collection Costs - You agree to pay all costs incurred by QB Enterprise to recover the charged-back amount, including but not limited to:
+   - Attorney fees (actual, not necessarily statutory)
+   - Collection agency fees
+   - Court costs
+   - Arbitration fees
+   - Any other costs related to enforcing this agreement
+5. Reporting - We reserve the right to report chargeback abuse to credit reporting agencies or law enforcement.
+
+5. Delivery and Acceptance
+Software deliverables are deemed accepted upon delivery (electronic or physical). Any defects must be reported within 15 days of delivery, and our sole obligation shall be to attempt a fix at our discretion. Failure to report defects within this period constitutes final acceptance. Refunds remain prohibited even in the event of defects; our liability is limited to repair or replacement of the software at no additional cost.
+
+6. Intellectual Property
+All software, code, documentation, and related materials remain the intellectual property of QB Enterprise or its licensors. Customer receives only a non-exclusive, non-transferable license as described in the relevant SOW. No ownership rights are transferred.
+
+7. Limitation of Liability
+To the maximum extent permitted by law:
+- QB Enterprise is not liable for any indirect, incidental, special, or consequential damages, including lost profits or data.
+- Our total liability for any claim arising from these Terms or the Services shall not exceed the amount paid by you to us in the 12 months preceding the claim.
+This limitation applies even if we have been advised of the possibility of such damages.
+
+8. Governing Law and Dispute Resolution
+These Terms shall be governed by the laws of Delaware, USA, without regard to conflict of laws principles.
+Any dispute arising out of or relating to these Terms or the Services, including but not limited to chargeback disputes, shall be resolved exclusively through binding arbitration in accordance with the rules of the American Arbitration Association (AAA). The arbitration shall take place in Delaware, and judgment on the award may be entered in any court having jurisdiction. Notwithstanding the foregoing, QB Enterprise may seek injunctive or other equitable relief in any court of competent jurisdiction to prevent or stop a chargeback or unauthorized use of its intellectual property.
+
+9. Indemnification
+You agree to indemnify, defend, and hold harmless QB Enterprise and its officers, employees, and agents from any claims, damages, losses, or expenses (including attorney fees) arising from:
+- Your breach of these Terms (especially the no-chargeback provision)
+- Your misuse of our software
+- Any dispute between you and your payment provider regarding a chargeback
+
+10. Severability
+If any provision of these Terms is found to be unenforceable or invalid, that provision shall be limited or eliminated to the minimum extent necessary, and the remaining provisions shall remain in full force and effect.
+
+11. Amendments
+QB Enterprise reserves the right to modify these Terms at any time. Continued use of our Services after changes constitutes acceptance of the new Terms. For one-time software purchases, the Terms in effect at the time of purchase apply.
+
+12. Entire Agreement
+These Terms, together with any SOW or invoice, constitute the entire agreement between you and QB Enterprise concerning the Services and supersede all prior agreements.
+
+13. Contact Information
+For questions about these Terms or to report a violation, contact:
+QB Enterprise
+Email: info@Qualitybusinesstech.us
+Phone: (888) 829 8848
+Address: 28 CHURCH ST, STE 14 #5838, WINCHESTER, MA, 01890
+
+By making a payment to QB Enterprise, you acknowledge that you have read, understood, and agree to be bound by these Terms, including the no-refund and no-chargeback provisions and the liability for legal fees arising from a chargeback.`;
+
+      // --- RENDER TERMS AND CONDITIONS (PAGINATED) ---
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+
+      // Set width to 160 to prevent bold text from spilling off the edge
+      const lines = doc.splitTextToSize(termsText, 160); 
+      
+      let cursorY = 20;
+      const marginY = 280; // Bottom margin
+
+      drawWatermark();
+
+      for (let i = 0; i < lines.length; i++) {
+        // Detect section headers roughly to make them bold
+        const line = lines[i];
+        if (
+          line === 'TERMS AND CONDITIONS' || 
+          /^[0-9]+\.\s[A-Z]/.test(line) || // matches "1. Introduction"
+          /^[0-9]+\.[0-9]+\s[A-Z]/.test(line) // matches "3.1 Fees"
+        ) {
+          doc.setFont('Helvetica', 'bold');
+          if (line === 'TERMS AND CONDITIONS') doc.setFontSize(14);
+          else doc.setFontSize(10); // Keep size 10 to prevent wrapping issues
+        } else {
+          doc.setFont('Helvetica', 'normal');
+          doc.setFontSize(10);
+        }
+
+        doc.text(line, 20, cursorY);
+        cursorY += 6; // Line height
+
+        // If we are at the bottom of the page, add a new one
+        if (cursorY >= marginY && i < lines.length - 1) {
+          doc.addPage();
+          drawWatermark();
+          cursorY = 20; // reset cursor
+        }
+      }
+
+      // --- ADD FINAL PAGE FOR CERTIFICATE ---
+      doc.addPage();
+
       const drawDivider = (y: number) => {
         doc.setDrawColor(220, 224, 230)
         doc.setLineWidth(0.5)
