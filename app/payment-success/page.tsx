@@ -1,7 +1,8 @@
 'use client';
 
-import { CheckCircle, MailIcon, PackageIcon, HashIcon } from 'lucide-react';
+import { CheckCircle, MailIcon, PackageIcon, HashIcon, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
+import { useEffect, useState, useRef } from 'react';
 
 /**
  * Payment Success page
@@ -20,13 +21,42 @@ export default function PaymentSuccessPage() {
 
   const hasDetails = fsReference || fsOrder;
 
+  const [isSyncing, setIsSyncing] = useState(false);
+  const hasSynced = useRef(false);
+
+  useEffect(() => {
+    if (fsReference && !hasSynced.current) {
+      hasSynced.current = true;
+      setIsSyncing(true);
+      fetch('/api/fastspring/sync-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: fsReference })
+      })
+      .then(res => res.json())
+      .then(data => {
+         console.log('Order sync complete:', data);
+      })
+      .catch(err => {
+         console.error('Order sync failed:', err);
+      })
+      .finally(() => {
+         setIsSyncing(false);
+      });
+    }
+  }, [fsReference]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <div className="bg-white shadow-xl rounded-2xl p-8 max-w-xl w-full text-center">
         <div className="flex flex-col items-center">
-          <CheckCircle className="text-green-600 w-16 h-16 mb-4" />
+          {isSyncing ? (
+            <Loader2 className="text-[#2ca01c] w-16 h-16 mb-4 animate-spin" />
+          ) : (
+            <CheckCircle className="text-[#2ca01c] w-16 h-16 mb-4" />
+          )}
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">
-            Payment Successful
+            {isSyncing ? 'Verifying Payment...' : 'Payment Successful'}
           </h1>
           <p className="text-gray-600 mb-6">
             Your transaction has been completed. A confirmation email will be sent

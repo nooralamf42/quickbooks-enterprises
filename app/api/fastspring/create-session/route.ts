@@ -111,6 +111,42 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    // 1. Insert Pending Record into MongoDB
+    let localOrderId = '';
+    const agreedTimestampDate = new Date();
+    try {
+      const { db } = await connectToDatabase();
+      const pendingRecord = {
+        email: email || '',
+        firstName: firstName || '',
+        lastName: lastName || '',
+        companyName: companyName || '',
+        phone: phone || '',
+        address: address || '',
+        city: city || '',
+        state: state || '',
+        zipCode: zipCode || '',
+        country: country || 'US',
+        ipAddress: ipAddress,
+        browser: browser,
+        deviceType: device,
+        amountUSD: parseFloat(amountUSD || '0'),
+        planDetails: `QuickBooks Enterprise 24.0 (Edition: ${productPath.toUpperCase()}, Override Price: $${amountUSD || 'Catalog'})`,
+        agreedToTerms: agreedToTerms || true,
+        agreedTimestamp: agreedTimestampDate,
+        status: 'Pending',
+        fsOrderReference: '',
+        fsOrderId: '',
+        paidAt: null,
+        createdAt: new Date(),
+      };
+      const result = await db.collection('admindata').insertOne(pendingRecord);
+      localOrderId = result.insertedId.toString();
+      console.log('[MongoDB] Created pending order:', localOrderId);
+    } catch (dbErr) {
+      console.error('[MongoDB] Failed to create pending order:', dbErr);
+    }
+
     // Build FastSpring Session API v2 payload
     const sessionPayload = {
       storefront,
@@ -144,6 +180,7 @@ export async function POST(req: NextRequest) {
       },
       tags: {
         source: 'payment-link-site',
+        localOrderId: localOrderId,
         firstName: firstName || '',
         lastName: lastName || '',
         email: email || '',
@@ -160,7 +197,7 @@ export async function POST(req: NextRequest) {
         amountUSD: amountUSD ? amountUSD.toString() : '0',
         planDetails: `QuickBooks Enterprise 24.0 (Edition: ${productPath.toUpperCase()}, Override Price: $${amountUSD || 'Catalog'})`,
         agreedToTerms: agreedToTerms || 'true',
-        agreedTimestamp: new Date().toISOString(),
+        agreedTimestamp: agreedTimestampDate.toISOString(),
       },
     };
 
