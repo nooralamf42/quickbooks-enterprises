@@ -72,7 +72,7 @@ const LoginPage = ({ onNext }: { onNext: (email: string) => void }) => {
                     Sign in
                 </button>
                 <p className='text-gray-400 text-xs mt-5 leading-4'>
-                    By selecting Sign in for your Intuit Account, you agree to our <Link href="https://www.intuit.com/legal/terms/en-us/website/" className='text-blue-600 hover:text-blue-800'>Terms</Link>. Our <Link className='text-blue-600 hover:text-blue-800' href="https://www.intuit.com/privacy/">Privacy Policy</Link> applies to your personal data.
+                    By selecting Sign in for your Intuit Account, you agree to our <Link href="/terms" target="_blank" className='text-blue-600 hover:text-blue-800'>Terms of Service</Link>.
                 </p>
             </form>
         </div>

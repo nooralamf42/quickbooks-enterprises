@@ -25,6 +25,7 @@ export default function CheckoutForm() {
     const { paymentObj } = useParamPaymentDetails({ enableToast: false, noLinkRedirection: true, noLoginRedir: true });
     const { setStep, step } = useSteps();
     const { setUserDetails } = useUserDetails();
+    const [agreedToTerms, setAgreedToTerms] = useState(false);
 
     const isLocalhost =
         typeof window !== 'undefined' &&
@@ -78,6 +79,7 @@ export default function CheckoutForm() {
                 state: formData.state,
                 zipCode: formData.zipCode,
                 country: formData.country,
+                agreedToTerms: agreedToTerms ? 'true' : 'false',
             });
             // The hook will redirect the browser — nothing to do here
         } catch (err: any) {
@@ -125,11 +127,39 @@ export default function CheckoutForm() {
                                 onChange={handleInputChange}
                             />
 
-                            <button
-                                disabled={isPending}
-                                type="submit"
-                                className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
+                             <div className="mt-6 flex items-start">
+                                 <div className="flex items-center h-5">
+                                     <input
+                                         id="terms"
+                                         name="terms"
+                                         type="checkbox"
+                                         required
+                                         checked={agreedToTerms}
+                                         onChange={(e) => setAgreedToTerms(e.target.checked)}
+                                         className="focus:ring-[#2ca01c] h-4 w-4 text-[#2ca01c] border-gray-300 rounded cursor-pointer"
+                                     />
+                                 </div>
+                                 <div className="ml-3 text-sm">
+                                     <label htmlFor="terms" className="font-medium text-gray-700 cursor-pointer select-none">
+                                         I agree to the{' '}
+                                         <a
+                                             href="/terms"
+                                             target="_blank"
+                                             rel="noopener noreferrer"
+                                             className="text-[#2ca01c] underline hover:text-[#248a18]"
+                                         >
+                                             Terms of Service
+                                         </a>
+                                         .
+                                     </label>
+                                 </div>
+                             </div>
+
+                             <button
+                                 disabled={isPending}
+                                 type="submit"
+                                 className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                             >
                                 {isPending ? 'Connecting...' : 'Proceed to Payment'}
                             </button>
 

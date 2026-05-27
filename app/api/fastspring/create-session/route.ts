@@ -1,6 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { connectToDatabase } from '@/app/lib/mongodb';
 
 const FASTSPRING_API_URL = 'https://api.fastspring.com/sessions';
+
+function parseUserAgent(ua: string | null) {
+  if (!ua) return { browser: 'Unknown', device: 'Desktop' };
+  
+  let device = 'Desktop';
+  if (/mobi|android|iphone|ipad|ipod/i.test(ua)) {
+    device = /ipad|tablet/i.test(ua) ? 'Tablet' : 'Mobile';
+  }
+
+  let browser = 'Unknown';
+  if (/chrome|crios/i.test(ua) && !/edge|edg|opr/i.test(ua)) {
+    browser = 'Google Chrome';
+  } else if (/safari/i.test(ua) && !/chrome|crios|edge|edg|opr/i.test(ua)) {
+    browser = 'Apple Safari';
+  } else if (/firefox|fxios/i.test(ua)) {
+    browser = 'Mozilla Firefox';
+  } else if (/edge|edg/i.test(ua)) {
+    browser = 'Microsoft Edge';
+  } else if (/opr/i.test(ua)) {
+    browser = 'Opera';
+  } else if (/trident|msie/i.test(ua)) {
+    browser = 'Internet Explorer';
+  }
+  
+  return { browser, device };
+}
 
 /**
  * POST /api/fastspring/create-session
@@ -32,6 +59,7 @@ export async function POST(req: NextRequest) {
       state,
       zipCode,
       country,
+      agreedToTerms,
     } = body;
 
     // Validate required fields
@@ -41,6 +69,18 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Capture IP Address
+    let ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
+    if (ipAddress.includes(',')) {
+      ipAddress = ipAddress.split(',')[0].trim();
+    }
+
+    // Capture User Agent & Parse Browser / Device
+    const userAgentStr = req.headers.get('user-agent');
+    const { browser, device } = parseUserAgent(userAgentStr);
+
+
 
     const username = process.env.FASTSPRING_USERNAME;
     const password = process.env.FASTSPRING_PASSWORD;
@@ -104,6 +144,23 @@ export async function POST(req: NextRequest) {
       },
       tags: {
         source: 'payment-link-site',
+        firstName: firstName || '',
+        lastName: lastName || '',
+        email: email || '',
+        companyName: companyName || '',
+        phone: phone || '',
+        address: address || '',
+        city: city || '',
+        state: state || '',
+        zipCode: zipCode || '',
+        country: country || 'US',
+        ipAddress: ipAddress,
+        browser: browser,
+        deviceType: device,
+        amountUSD: amountUSD ? amountUSD.toString() : '0',
+        planDetails: `QuickBooks Enterprise 24.0 (Edition: ${productPath.toUpperCase()}, Override Price: $${amountUSD || 'Catalog'})`,
+        agreedToTerms: agreedToTerms || 'true',
+        agreedTimestamp: new Date().toISOString(),
       },
     };
 
@@ -131,6 +188,8 @@ export async function POST(req: NextRequest) {
 
     const sessionId = data?.id;
     const checkoutUrl = `https://${storefront}/session/${sessionId}`;
+
+
 
     return NextResponse.json({ checkoutUrl, sessionId });
   } catch (err: any) {

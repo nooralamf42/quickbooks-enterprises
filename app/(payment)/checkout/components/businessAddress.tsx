@@ -1,5 +1,80 @@
+import { useEffect, useRef } from 'react';
+
 // components/BusinessAddress.js
 export default function BusinessAddress({ country, address, zipCode, city, state, onChange }:{country: string, address: string, zipCode: string, city: string, state: string, onChange: (field: string, value: string) => void}) {
+    const addressInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+      if (typeof window === 'undefined') return;
+
+      const initAutocomplete = () => {
+        if (!addressInputRef.current || !(window as any).google?.maps?.places) return;
+
+        const autocomplete = new (window as any).google.maps.places.Autocomplete(addressInputRef.current, {
+          types: ['address'],
+          componentRestrictions: { country: ['us'] },
+          fields: ['address_components', 'formatted_address'],
+        });
+
+        autocomplete.addListener('place_changed', () => {
+          const place = autocomplete.getPlace();
+          if (!place.address_components) return;
+
+          let streetNumber = '';
+          let route = '';
+          let parsedCity = '';
+          let parsedState = '';
+          let parsedZip = '';
+
+          for (const component of place.address_components) {
+            const types = component.types;
+
+            if (types.includes('street_number')) {
+              streetNumber = component.long_name;
+            } else if (types.includes('route')) {
+              route = component.long_name;
+            } else if (types.includes('locality')) {
+              parsedCity = component.long_name;
+            } else if (types.includes('administrative_area_level_1')) {
+              parsedState = component.short_name; // 'KY', 'CA', etc.
+            } else if (types.includes('postal_code') || types.includes('postal_code_prefix')) {
+              parsedZip = component.long_name;
+            }
+          }
+
+          const fullAddress = `${streetNumber} ${route}`.trim();
+          if (fullAddress) onChange('address', fullAddress);
+          if (parsedCity) onChange('city', parsedCity);
+          if (parsedState) onChange('state', parsedState.toUpperCase());
+          if (parsedZip) onChange('zipCode', parsedZip);
+        });
+      };
+
+      if ((window as any).google?.maps?.places) {
+        initAutocomplete();
+        return;
+      }
+
+      // Check if script is already in document
+      let script = document.getElementById('google-maps-places-script') as HTMLScriptElement;
+      if (script) {
+        script.addEventListener('load', initAutocomplete);
+        return;
+      }
+
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+      script = document.createElement('script');
+      script.id = 'google-maps-places-script';
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.onload = initAutocomplete;
+      document.head.appendChild(script);
+
+      return () => {
+        script.removeEventListener('load', initAutocomplete);
+      };
+    }, [onChange]);
     const countries = [
       { value: 'US', label: 'United States' },
     ];
@@ -96,6 +171,7 @@ export default function BusinessAddress({ country, address, zipCode, city, state
             </label>
             <input
               required
+              ref={addressInputRef}
               type="text"
               id="address"
               value={address}

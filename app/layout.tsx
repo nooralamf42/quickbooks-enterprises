@@ -87,7 +87,7 @@ export default function RootLayout({
         </Script>
         <Providers>
           <Suspense fallback={<Loader/>}>
-          <main className="pb-24">
+          <main className="pb-44 md:pb-24">
           {children}
           </main>
           <Footer/>

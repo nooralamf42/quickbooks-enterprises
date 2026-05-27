@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { connectToDatabase } from '@/app/lib/mongodb';
 
 /**
  * POST /api/fastspring/webhook
@@ -59,8 +60,42 @@ export async function POST(req: NextRequest) {
             currency: order?.currency,
             items: order?.items?.map((i: any) => i?.product),
           });
-          // TODO: Mark order as fulfilled in your database
-          // e.g. await db.orders.update({ reference: order.reference, status: 'fulfilled' })
+          
+          // Save completed compliance log to MongoDB admindata collection
+          try {
+            const { db } = await connectToDatabase();
+            const tags = order?.tags || {};
+
+            const logRecord = {
+              email: tags.email || order?.customer?.email || '',
+              firstName: tags.firstName || order?.customer?.firstName || '',
+              lastName: tags.lastName || order?.customer?.lastName || '',
+              companyName: tags.companyName || order?.customer?.company || '',
+              phone: tags.phone || order?.customer?.phone || '',
+              address: tags.address || order?.customer?.address?.addressLine1 || '',
+              city: tags.city || order?.customer?.address?.city || '',
+              state: tags.state || order?.customer?.address?.region || '',
+              zipCode: tags.zipCode || order?.customer?.address?.postalCode || '',
+              country: tags.country || order?.customer?.address?.country || 'US',
+              ipAddress: tags.ipAddress || order?.ip || '127.0.0.1',
+              browser: tags.browser || 'Unknown',
+              deviceType: tags.deviceType || 'Desktop',
+              amountUSD: parseFloat(tags.amountUSD || order?.total || '0'),
+              planDetails: tags.planDetails || `QuickBooks Enterprise (Order Ref: ${order?.reference})`,
+              agreedToTerms: tags.agreedToTerms === 'true' || true,
+              agreedTimestamp: tags.agreedTimestamp ? new Date(tags.agreedTimestamp) : new Date(),
+              status: 'Completed',
+              fsOrderReference: order?.reference || '',
+              fsOrderId: order?.id || '',
+              paidAt: new Date(),
+              createdAt: new Date(),
+            };
+
+            const result = await db.collection('admindata').insertOne(logRecord);
+            console.log('[MongoDB Webhook] Successfully logged completed payment to admindata:', result.insertedId);
+          } catch (dbErr) {
+            console.error('[MongoDB Webhook] Failed to save compliance log to database:', dbErr);
+          }
           break;
         }
 

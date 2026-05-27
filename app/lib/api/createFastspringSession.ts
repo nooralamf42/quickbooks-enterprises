@@ -12,6 +12,7 @@ export interface FastspringSessionParams {
   state?: string;
   zipCode?: string;
   country?: string;
+  agreedToTerms?: string;
 }
 
 export interface FastspringSessionResponse {
