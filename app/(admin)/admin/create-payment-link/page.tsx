@@ -349,7 +349,55 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       // Shift metaY up since we removed the main header from this page
       const metaY = 57
       doc.text(`Consent Record ID:   ${log._id}`, 20, metaY)
-      doc.text(`Timestamp (UTC):    ${new Date(log.agreedTimestamp).toUTCString()}`, 20, metaY + 6)
+
+      // Guess Timezone based on State for US Customers
+      const guessTimeZone = (country: string, state: string) => {
+        if (!state) return undefined;
+        const c = (country || '').toUpperCase();
+        if (c !== 'US' && c !== 'USA' && c !== 'UNITED STATES') return undefined;
+        
+        const st = state.toUpperCase().trim();
+        const est = ['CT', 'DE', 'FL', 'GA', 'ME', 'MD', 'MA', 'MI', 'NH', 'NJ', 'NY', 'NC', 'OH', 'PA', 'RI', 'SC', 'VT', 'VA', 'WV', 'DC', 'CONNECTICUT', 'DELAWARE', 'FLORIDA', 'GEORGIA', 'MAINE', 'MARYLAND', 'MASSACHUSETTS', 'MICHIGAN', 'NEW HAMPSHIRE', 'NEW JERSEY', 'NEW YORK', 'NORTH CAROLINA', 'OHIO', 'PENNSYLVANIA', 'RHODE ISLAND', 'SOUTH CAROLINA', 'VERMONT', 'VIRGINIA', 'WEST VIRGINIA', 'DISTRICT OF COLUMBIA'];
+        const cst = ['AL', 'AR', 'IL', 'IA', 'KS', 'KY', 'LA', 'MN', 'MS', 'MO', 'NE', 'ND', 'OK', 'SD', 'TN', 'TX', 'WI', 'ALABAMA', 'ARKANSAS', 'ILLINOIS', 'IOWA', 'KANSAS', 'KENTUCKY', 'LOUISIANA', 'MINNESOTA', 'MISSISSIPPI', 'MISSOURI', 'NEBRASKA', 'NORTH DAKOTA', 'OKLAHOMA', 'SOUTH DAKOTA', 'TENNESSEE', 'TEXAS', 'WISCONSIN'];
+        const mst = ['AZ', 'CO', 'ID', 'MT', 'NM', 'UT', 'WY', 'ARIZONA', 'COLORADO', 'IDAHO', 'MONTANA', 'NEW MEXICO', 'UTAH', 'WYOMING'];
+        const pst = ['CA', 'NV', 'OR', 'WA', 'CALIFORNIA', 'NEVADA', 'OREGON', 'WASHINGTON'];
+        const akst = ['AK', 'ALASKA'];
+        const hst = ['HI', 'HAWAII'];
+
+        if (est.includes(st)) return 'America/New_York';
+        if (cst.includes(st)) return 'America/Chicago';
+        if (mst.includes(st)) return 'America/Denver';
+        if (pst.includes(st)) return 'America/Los_Angeles';
+        if (akst.includes(st)) return 'America/Anchorage';
+        if (hst.includes(st)) return 'Pacific/Honolulu';
+        
+        return undefined;
+      };
+
+      const tz = guessTimeZone(log.country, log.state);
+      let timeString = '';
+      if (tz) {
+        try {
+          const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: tz,
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            timeZoneName: 'short'
+          });
+          const locStr = log.city ? `${log.city}, ${log.state}` : log.state;
+          timeString = `${formatter.format(new Date(log.agreedTimestamp))} (Local to ${locStr})`;
+        } catch (e) {
+          timeString = new Date(log.agreedTimestamp).toUTCString() + ' (UTC)';
+        }
+      } else {
+        timeString = new Date(log.agreedTimestamp).toUTCString() + ' (UTC)';
+      }
+
+      doc.text(`Timestamp:          ${timeString}`, 20, metaY + 6)
       doc.text(`IP Address:         ${log.ipAddress}`, 20, metaY + 12)
       doc.text(`Device Type:        ${log.deviceType || 'Desktop'}`, 20, metaY + 18)
       doc.text(`Browser / Client:   ${log.browser || 'Unknown'}`, 20, metaY + 24)
@@ -729,9 +777,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <td className="py-4 px-4 align-top text-center whitespace-nowrap">
                             <button
                               onClick={() => downloadPDF(log)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 bg-white hover:bg-zinc-50 text-zinc-700 font-bold rounded-lg text-[10px] transition-colors cursor-pointer shadow-xs"
+                              disabled={log.status !== 'Completed'}
+                              title={log.status !== 'Completed' ? "Payment pending. PDF unavailable." : ""}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-bold rounded-lg text-[10px] transition-colors shadow-xs ${log.status === 'Completed' ? 'bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer' : 'bg-zinc-50 text-zinc-400 cursor-not-allowed opacity-60'}`}
                             >
-                              <FileText size={12} className="text-zinc-500" />
+                              <FileText size={12} className={log.status === 'Completed' ? 'text-zinc-500' : 'text-zinc-400'} />
                               PDF Consent
                             </button>
                           </td>
@@ -859,10 +909,11 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
           <div className="pt-2">
             <button
               onClick={(e) => { e.stopPropagation(); downloadPDF(log); }}
-              className="w-full flex items-center justify-center gap-2 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-50 font-bold rounded-lg text-xs transition-colors cursor-pointer border border-zinc-950/10 shadow-sm"
+              disabled={log.status !== 'Completed'}
+              className={`w-full flex items-center justify-center gap-2 py-2.5 font-bold rounded-lg text-xs transition-colors border border-zinc-950/10 shadow-sm ${log.status === 'Completed' ? 'bg-zinc-900 hover:bg-zinc-800 text-zinc-50 cursor-pointer' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'}`}
             >
               <FileText size={14} />
-              Download PDF Receipt
+              {log.status === 'Completed' ? 'Download PDF Receipt' : 'Awaiting Payment'}
             </button>
           </div>
         </div>
