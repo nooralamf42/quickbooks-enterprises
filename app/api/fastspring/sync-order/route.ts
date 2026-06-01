@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         try {
           const resend = new Resend(process.env.RESEND_API_KEY);
           await resend.emails.send({
-            from: 'notifications@qualitybusinesstech.us',
+            from: 'notifications@quickbooks-enterprises.com',
             to: 'info@qualitybusinesstech.us',
             subject: `New Successful Payment: $${amount} from ${customerName}`,
             html: `
