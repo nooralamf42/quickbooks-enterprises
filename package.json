@@ -19,7 +19,8 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hot-toast": "^2.5.2",
-    "react-photo-view": "^1.2.7"
+    "react-photo-view": "^1.2.7",
+    "resend": "^6.12.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
