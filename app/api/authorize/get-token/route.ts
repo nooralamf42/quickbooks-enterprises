@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
 
     const apiLoginId = process.env.AUTHORIZE_NET_API_LOGIN_ID;
     const transactionKey = process.env.AUTHORIZE_NET_TRANSACTION_KEY;
-    const isProd = process.env.AUTHORIZE_NET_IS_PRODUCTION === 'true';
+    const isProd = process.env.NEXT_PUBLIC_AUTHORIZE_NET_IS_PRODUCTION === 'true';
 
     if (!apiLoginId || !transactionKey) {
       return NextResponse.json({ error: 'Authorize.net credentials missing' }, { status: 500 });
