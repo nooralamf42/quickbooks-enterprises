@@ -3,21 +3,21 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
 
+export interface PaymentDetails {
+  user: number,
+  edition: string,
+  year: number,
+  disc: number,
+  total: number,
+  gateway?: string,
+  time: number
+}
+
 const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }: { noLinkRedirection: boolean, enableToast: boolean, noLoginRedir?: boolean}) => {
   const searchParams = useSearchParams()
   const router = useRouter()
   const paymentBase64 = searchParams.get('payment')
   const [paymentObj, setPaymentObj] = useState<any>(null)
-  
-
-  interface PaymentDetails {
-    user: number,
-    edition: string,
-    year: number,
-    disc: number,
-    total: number,
-    time: number
-  }
 
   useEffect(() => {
     if (!paymentBase64) {
@@ -30,7 +30,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
     try {
       let decodedString = paymentBase64;
       
-      const customFormatRegex = /^([0-9a-z]+)([SGPDF])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)$/;
+      const customFormatRegex = /^([0-9a-z]+)([SGPDF])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(G[AF])?$/;
       const match = decodedString.match(customFormatRegex);
 
       // If it doesn't contain a dash and doesn't match the new custom format, it must be base64 encoded
@@ -51,6 +51,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           year: parseInt(match[3], 36),
           disc: parseInt(match[4], 36) / 100,
           total: parseInt(match[5], 36) / 100,
+          gateway: match[6] === 'GA' ? 'Authorize.net' : 'FastSpring',
           time: Date.now()
         };
       } else if (decodedString.startsWith('{')) {

@@ -14,6 +14,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
+  const [selectedGateway, setSelectedGateway] = useState<'fastspring' | 'authorize'>('fastspring')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -147,7 +148,8 @@ export default function QuickBooksPaymentLinkCreator() {
     const tVal = Math.round(calculateTotal() * 100)
     const tStr = tVal.toString(36)
 
-    const paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}`
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GF'
+    const paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}${gatewayFlag}`
     const base = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin
     setPaymentLink(`${base}/pay/${paymentString}`)
   }
@@ -495,6 +497,26 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             
             {/* Left Column: Form Configuration Card */}
             <div className="lg:col-span-7 bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8 space-y-6">
+              
+              {/* Payment Gateway Toggle */}
+              <div className="bg-zinc-50 rounded-lg p-4 border border-zinc-200">
+                <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Payment Gateway</label>
+                <div className="flex bg-white rounded-md border border-zinc-200 p-1">
+                  <button
+                    onClick={() => setSelectedGateway('fastspring')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'fastspring' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    FastSpring
+                  </button>
+                  <button
+                    onClick={() => setSelectedGateway('authorize')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Authorize.net
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <h2 className="text-base font-semibold text-zinc-900 flex items-center gap-2">
                   <Layers size={16} className="text-zinc-400" />
@@ -769,6 +791,21 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             {log.fsOrderReference && (
                               <div className="text-[9px] font-semibold text-zinc-500 mt-2 font-mono bg-zinc-50 p-1 border border-zinc-100 rounded inline-block">
                                 Ref: {log.fsOrderReference}
+                              </div>
+                            )}
+                            
+                            {log.gateway === 'Authorize.net' && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                  AUTH.NET
+                                </span>
+                              </div>
+                            )}
+                            {(!log.gateway || log.gateway === 'FastSpring') && log.status === 'Completed' && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200">
+                                  FASTSPRING
+                                </span>
                               </div>
                             )}
                           </td>

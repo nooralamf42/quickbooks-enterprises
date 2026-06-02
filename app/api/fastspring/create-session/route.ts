@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
       zipCode,
       country,
       agreedToTerms,
+      gateway,
     } = body;
 
     // Validate required fields
@@ -86,15 +87,6 @@ export async function POST(req: NextRequest) {
     const password = process.env.FASTSPRING_PASSWORD;
     const storefront = process.env.FASTSPRING_STOREFRONT;
     const returnUrl = process.env.NEXT_PUBLIC_FASTSPRING_RETURN_URL || '/payment-success';
-
-    if (!username || !password || !storefront) {
-      return NextResponse.json(
-        { error: 'FastSpring credentials not configured in environment variables' },
-        { status: 500 }
-      );
-    }
-
-    const credentials = Buffer.from(`${username}:${password}`).toString('base64');
 
     // Build the cart item — optionally override the catalog price
     const cartItem: Record<string, any> = {
@@ -137,15 +129,30 @@ export async function POST(req: NextRequest) {
         status: 'Pending',
         fsOrderReference: '',
         fsOrderId: '',
+        gateway: gateway || 'FastSpring',
         paidAt: null,
         createdAt: new Date(),
       };
       const result = await db.collection('admindata').insertOne(pendingRecord);
       localOrderId = result.insertedId.toString();
       console.log('[MongoDB] Created pending order:', localOrderId);
+      
+      if (gateway === 'Authorize.net') {
+        return NextResponse.json({ localOrderId });
+      }
+
     } catch (dbErr) {
       console.error('[MongoDB] Failed to create pending order:', dbErr);
     }
+
+    if (!username || !password || !storefront) {
+      return NextResponse.json(
+        { error: 'FastSpring credentials not configured in environment variables' },
+        { status: 500 }
+      );
+    }
+
+    const credentials = Buffer.from(`${username}:${password}`).toString('base64');
 
     // Build FastSpring Session API v2 payload
     const sessionPayload = {

@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <title>IFrame Communicator</title>
+    <script type="text/javascript">
+        function callParentFunction(str) {
+            if (str && str.length > 0 && window.parent && window.parent.parent && window.parent.parent.CommunicationHandler) {
+                window.parent.parent.CommunicationHandler(str);
+            }
+        }
+
+        function receiveMessage() {
+            callParentFunction(window.location.hash);
+        }
+    </script>
+</head>
+<body onload="receiveMessage()">
+</body>
+</html>

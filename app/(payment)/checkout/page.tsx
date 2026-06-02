@@ -9,17 +9,16 @@ import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
 import { useFastspringCheckout } from '@/app/hooks/useFastspringCheckout';
+import { useAuthorizeCheckout } from '@/app/hooks/useAuthorizeCheckout';
 import toast from 'react-hot-toast';
 
 /**
- * Checkout page — collects billing info then redirects to FastSpring payment.
+ * Checkout page — collects billing info then redirects to payment.
  *
  * Payment flow:
  *  1. User fills in company / contact / address
- *  2. On submit → POST /api/fastspring/create-session (server-side)
- *  3. Receive `checkoutUrl` from FastSpring Session API v2
- *  4. Browser redirects to FastSpring-hosted checkout
- *  5. After payment FastSpring redirects to /payment-success
+ *  2. On submit, checks gateway flag in URL token.
+ *  3. Routes to FastSpring or Authorize.net hook.
  */
 export default function CheckoutForm() {
     const { paymentObj } = useParamPaymentDetails({ enableToast: false, noLinkRedirection: true, noLoginRedir: true });
@@ -49,26 +48,22 @@ export default function CheckoutForm() {
     };
 
     const { checkout, isPending } = useFastspringCheckout();
+    const { checkout: authCheckout, isPending: authIsPending } = useAuthorizeCheckout();
+    
+    const isProcessing = isPending || authIsPending;
 
     const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
 
-        // Persist user details in Jotai store (for other parts of the app)
         setUserDetails({ ...formData });
 
-        // Use a single generic product in FastSpring — price is overridden per session
-        // so the admin-set total controls what gets charged, not the catalog price.
-        // You only need ONE product in FastSpring: "quickbooks-enterprise"
-        const productPath = 'quickbooks-enterprise';
-
-        // paymentObj.total is stored in cents (×100), convert back to dollars for FastSpring
         const amountUSD = paymentObj?.total ? paymentObj.total / 100 : undefined;
 
         try {
-            await checkout({
-                productPath,
+            const payload = {
+                productPath: 'quickbooks-enterprise',
                 quantity: 1,
-                amountUSD,          // admin-set price overrides the FastSpring catalog price
+                amountUSD,
                 firstName: formData.firstName,
                 lastName: formData.lastName,
                 email: formData.email,
@@ -80,11 +75,16 @@ export default function CheckoutForm() {
                 zipCode: formData.zipCode,
                 country: formData.country,
                 agreedToTerms: agreedToTerms ? 'true' : 'false',
-            });
-            // The hook will redirect the browser — nothing to do here
+            };
+
+            if (paymentObj?.gateway === 'Authorize.net') {
+                await authCheckout(payload);
+            } else {
+                await checkout(payload);
+            }
         } catch (err: any) {
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
-            setStep(1); // revert step on failure
+            setStep(1); 
         }
     };
 
@@ -156,16 +156,16 @@ export default function CheckoutForm() {
                              </div>
 
                              <button
-                                 disabled={isPending}
+                                 disabled={isProcessing}
                                  type="submit"
                                  className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                              >
-                                {isPending ? 'Connecting...' : 'Proceed to Payment'}
+                                {isProcessing ? 'Connecting...' : 'Proceed to Payment'}
                             </button>
 
-                            {isPending && (
+                            {isProcessing && (
                                 <p className="mt-3 text-sm text-gray-500">
-                                    Connecting to FastSpring checkout — please wait…
+                                    Connecting to secure checkout — please wait…
                                 </p>
                             )}
                         </div>
