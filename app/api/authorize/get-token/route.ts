@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
             {
               settingName: "hostedPaymentStyleOptions",
               settingValue: JSON.stringify({
-                bgColor: "blue"
+                bgColor: "#ffffff"
               })
             },
             {
@@ -96,22 +96,22 @@ export async function POST(req: NextRequest) {
             {
               settingName: "hostedPaymentBillingAddressOptions",
               settingValue: JSON.stringify({
-                show: true,
+                show: false,
                 required: false
               })
             },
             {
               settingName: "hostedPaymentCustomerOptions",
               settingValue: JSON.stringify({
-                showEmail: true,
-                requiredEmail: true,
+                showEmail: false,
+                requiredEmail: false,
                 addPaymentProfile: false
               })
             },
             {
               settingName: "hostedPaymentOrderOptions",
               settingValue: JSON.stringify({
-                show: true,
+                show: false,
                 merchantName: "QuickBooks Enterprise Provider"
               })
             },
