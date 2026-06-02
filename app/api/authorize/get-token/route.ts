@@ -96,22 +96,22 @@ export async function POST(req: NextRequest) {
             {
               settingName: "hostedPaymentBillingAddressOptions",
               settingValue: JSON.stringify({
-                show: false,
+                show: true,
                 required: false
               })
             },
             {
               settingName: "hostedPaymentCustomerOptions",
               settingValue: JSON.stringify({
-                showEmail: false,
-                requiredEmail: false,
+                showEmail: true,
+                requiredEmail: true,
                 addPaymentProfile: false
               })
             },
             {
               settingName: "hostedPaymentOrderOptions",
               settingValue: JSON.stringify({
-                show: false,
+                show: true,
                 merchantName: "QuickBooks Enterprise Provider"
               })
             },
