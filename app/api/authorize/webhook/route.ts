@@ -31,7 +31,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const payload = JSON.parse(rawBody);
+    // If body is empty or non-JSON (e.g. Auth.net's verification ping), return 200 immediately
+    if (!rawBody || rawBody.trim() === '') {
+      return NextResponse.json({ received: true });
+    }
+
+    let payload: any;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch {
+      console.warn('[Webhook] Non-JSON body received (likely a verification ping)');
+      return NextResponse.json({ received: true });
+    }
+
     console.log('[Webhook] Received event:', payload.eventType);
 
     // Only handle successful capture events
