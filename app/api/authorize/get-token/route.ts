@@ -63,13 +63,13 @@ export async function POST(req: NextRequest) {
             {
               settingName: "hostedPaymentButtonOptions",
               settingValue: JSON.stringify({
-                text: "Pay Securely"
+                text: "Pay Now"
               })
             },
             {
               settingName: "hostedPaymentStyleOptions",
               settingValue: JSON.stringify({
-                bgColor: "#ffffff"
+                bgColor: "#2ca01c"
               })
             },
             {

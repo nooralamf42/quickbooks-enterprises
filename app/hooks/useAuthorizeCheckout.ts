@@ -1,87 +1,86 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
 export const useAuthorizeCheckout = () => {
   const [isPending, setIsPending] = useState(false);
   const router = useRouter();
+  const localOrderIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     /**
-     * Official Authorize.net Accept Hosted integration.
-     * The IFrameCommunicator.html calls:
-     *   window.parent.parent.CommunicationHandler.onReceiveCommunication({ qstr, parent })
-     *
-     * So we expose CommunicationHandler as an OBJECT with onReceiveCommunication.
+     * Listen for postMessage from IFrameCommunicator.html.
+     * The communicator calls: window.top.postMessage({ source: 'authnet-communicator', qstr: '...' }, '*')
+     * This works regardless of cross-origin iframe nesting depth.
      */
-    (window as any).CommunicationHandler = {
-      onReceiveCommunication: async (params: { qstr: string; parent: string }) => {
-        const { qstr } = params;
-        console.log('[AuthNet] onReceiveCommunication raw qstr:', qstr);
+    const handleMessage = async (event: MessageEvent) => {
+      // Only handle messages from our own communicator
+      if (!event.data || event.data.source !== 'authnet-communicator') return;
 
-        const parsed = new URLSearchParams(qstr);
-        const action = parsed.get('action');
-        console.log('[AuthNet] action:', action);
+      const qstr: string = event.data.qstr || '';
+      console.log('[AuthNet] postMessage received, qstr:', qstr);
 
-        if (action === 'resizeWindow') {
-          // Authorize.net asks us to resize the iframe — handle gracefully
-          const height = parsed.get('height');
-          const iframe = document.getElementById('authnet-iframe') as HTMLIFrameElement;
-          if (iframe && height) iframe.style.height = `${height}px`;
-          return;
+      const params = new URLSearchParams(qstr);
+      const action = params.get('action');
+      console.log('[AuthNet] action:', action);
+
+      if (action === 'resizeWindow') {
+        const height = params.get('height');
+        const iframe = document.getElementById('authnet-iframe') as HTMLIFrameElement;
+        if (iframe && height) iframe.style.height = `${height}px`;
+        return;
+      }
+
+      if (action === 'cancel') {
+        const popup = document.getElementById('authnet-popup-overlay');
+        if (popup) popup.remove();
+        setIsPending(false);
+        return;
+      }
+
+      if (action === 'transactResponse') {
+        const responseRaw = params.get('response');
+        console.log('[AuthNet] response raw:', responseRaw);
+        let transId: string | null = null;
+
+        if (responseRaw) {
+          try {
+            const responseObj = JSON.parse(responseRaw);
+            transId = responseObj.transId;
+            console.log('[AuthNet] transId:', transId);
+          } catch (e) {
+            console.error('[AuthNet] Failed to parse response JSON', e);
+          }
         }
 
-        if (action === 'cancel') {
-          const popup = document.getElementById('authnet-popup-overlay');
-          if (popup) popup.remove();
-          setIsPending(false);
-          return;
-        }
+        const orderId = localOrderIdRef.current;
+        console.log('[AuthNet] orderId from ref:', orderId);
 
-        if (action === 'transactResponse') {
-          const responseRaw = parsed.get('response');
-          console.log('[AuthNet] response raw:', responseRaw);
-          let transId: string | null = null;
+        if (transId && orderId) {
+          try {
+            const syncRes = await fetch('/api/authorize/sync-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ transactionId: transId, localOrderId: orderId })
+            });
+            const syncData = await syncRes.json();
+            console.log('[AuthNet] sync result:', syncData);
 
-          if (responseRaw) {
-            try {
-              const responseObj = JSON.parse(responseRaw);
-              transId = responseObj.transId;
-              console.log('[AuthNet] transId:', transId);
-            } catch (e) {
-              console.error('[AuthNet] Failed to parse response JSON', e);
-            }
+            const popup = document.getElementById('authnet-popup-overlay');
+            if (popup) popup.remove();
+
+            router.push('/payment-success');
+          } catch (e) {
+            console.error('[AuthNet] Failed to sync order', e);
+            alert('Payment successful but failed to confirm automatically. Transaction ID: ' + transId + '. Please contact support.');
           }
-
-          const orderId = (window as any).__authNetLocalOrderId;
-
-          if (transId && orderId) {
-            try {
-              const syncRes = await fetch('/api/authorize/sync-order', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ transactionId: transId, localOrderId: orderId })
-              });
-              const syncData = await syncRes.json();
-              console.log('[AuthNet] sync result:', syncData);
-
-              const popup = document.getElementById('authnet-popup-overlay');
-              if (popup) popup.remove();
-
-              router.push('/payment-success');
-            } catch (e) {
-              console.error('[AuthNet] Failed to sync order', e);
-              alert('Payment successful, but we could not confirm it automatically. Please contact support with your transaction ID: ' + transId);
-            }
-          } else {
-            console.warn('[AuthNet] Missing transId or orderId. transId:', transId, 'orderId:', orderId);
-          }
+        } else {
+          console.warn('[AuthNet] Missing transId or orderId. transId:', transId, 'orderId:', orderId);
         }
       }
     };
 
-    return () => {
-      delete (window as any).CommunicationHandler;
-    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, [router]);
 
   const checkout = async (paymentDetails: any) => {
@@ -97,7 +96,8 @@ export const useAuthorizeCheckout = () => {
       const sessionData = await sessionRes.json();
       if (!sessionData.localOrderId) throw new Error('Failed to create local session');
 
-      (window as any).__authNetLocalOrderId = sessionData.localOrderId;
+      // Store in ref so it's accessible in the message handler even after re-renders
+      localOrderIdRef.current = sessionData.localOrderId;
 
       // 2. Fetch the Authorize.net hosted form token
       const tokenRes = await fetch('/api/authorize/get-token', {
@@ -124,18 +124,31 @@ export const useAuthorizeCheckout = () => {
         : 'https://test.authorize.net/payment/payment';
 
       overlay.innerHTML = `
-        <div class="relative w-full max-w-5xl bg-white rounded-xl shadow-2xl overflow-hidden">
-          <button onclick="document.getElementById('authnet-popup-overlay').remove()" class="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-          </button>
-          <div id="authnet-iframe-container" class="w-full h-[85vh] relative">
-            <div class="absolute inset-0 flex flex-col items-center justify-center bg-white text-gray-500">
-              <svg class="animate-spin h-8 w-8 mb-4 text-[#0075ff]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-              <p class="font-medium">Loading Secure Checkout...</p>
+        <div class="relative w-full h-full flex flex-col bg-white" style="max-width:900px; height:95vh; border-radius:16px; overflow:hidden; box-shadow:0 25px 60px rgba(0,0,0,0.4);">
+          <!-- Header -->
+          <div style="display:flex; align-items:center; justify-content:space-between; padding:16px 24px; border-bottom:1px solid #e5e7eb; background:#fff; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <svg width="20" height="20" fill="none" stroke="#2ca01c" stroke-width="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>
+              <span style="font-weight:600; font-size:15px; color:#111827;">Secure Payment</span>
             </div>
-            <iframe name="authnet-iframe" id="authnet-iframe" class="relative z-10 w-full h-full border-0"></iframe>
+            <button onclick="document.getElementById('authnet-popup-overlay').remove()" style="width:32px;height:32px;border-radius:50%;border:none;background:#f3f4f6;cursor:pointer;display:flex;align-items:center;justify-content:center;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+            </button>
           </div>
-          <form id="authnet-form" action="${actionUrl}" method="POST" target="authnet-iframe">
+          <!-- Loading spinner (hidden when iframe loads) -->
+          <div id="authnet-spinner" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;z-index:1;">
+            <svg style="animation:spin 1s linear infinite;width:36px;height:36px;color:#2ca01c;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle style="opacity:.25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path style="opacity:.75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <p style="margin-top:12px;font-size:14px;color:#6b7280;font-weight:500;">Loading Secure Checkout...</p>
+          </div>
+          <style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>
+          <!-- Iframe fills remaining space -->
+          <iframe 
+            name="authnet-iframe" 
+            id="authnet-iframe" 
+            onload="document.getElementById('authnet-spinner').style.display='none'"
+            style="flex:1;width:100%;border:none;display:block;position:relative;z-index:2;">
+          </iframe>
+          <form id="authnet-form" action="${actionUrl}" method="POST" target="authnet-iframe" style="display:none;">
             <input type="hidden" name="token" value="${tokenData.token}" />
           </form>
         </div>
@@ -143,7 +156,6 @@ export const useAuthorizeCheckout = () => {
 
       document.body.appendChild(overlay);
 
-      // Submit the form into the iframe
       const form = document.getElementById('authnet-form') as HTMLFormElement;
       if (form) form.submit();
 
