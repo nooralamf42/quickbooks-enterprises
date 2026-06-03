@@ -11,7 +11,18 @@ export const useAuthorizeCheckout = () => {
       // The iframe communicator sends a hash string, e.g., #action=successfulSave&transId=12345
       const params = new URLSearchParams(queryString.replace('#', '?'));
       const action = params.get('action');
-      const transId = params.get('transId');
+      
+      let transId = null;
+      const responseStr = params.get('response');
+      if (responseStr) {
+        try {
+          const responseObj = JSON.parse(responseStr);
+          transId = responseObj.transId;
+        } catch (e) {
+          console.error('Failed to parse Auth.net response payload', e);
+        }
+      }
+
       const orderId = (window as any).__authNetLocalOrderId;
 
       if (action === 'transactResponse' || action === 'successfulSave') {
