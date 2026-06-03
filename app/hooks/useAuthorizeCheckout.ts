@@ -6,76 +6,100 @@ export const useAuthorizeCheckout = () => {
   const router = useRouter();
 
   useEffect(() => {
-    // We need to define the global handler for Authorize.net IFrameCommunicator
-    (window as any).CommunicationHandler = async (queryString: string) => {
-      // queryString arrives already stripped of leading ? or #
-      // e.g. "action=transactResponse&response={...}"
-      const params = new URLSearchParams(queryString);
-      const action = params.get('action');
-      console.log('[AuthNet] CommunicationHandler received action:', action, 'raw:', queryString);
-      
-      let transId = null;
-      const responseStr = params.get('response');
-      if (responseStr) {
-        try {
-          const responseObj = JSON.parse(responseStr);
-          transId = responseObj.transId;
-          console.log('[AuthNet] Parsed transId:', transId);
-        } catch (e) {
-          console.error('[AuthNet] Failed to parse response payload', e);
+    /**
+     * Official Authorize.net Accept Hosted integration.
+     * The IFrameCommunicator.html calls:
+     *   window.parent.parent.CommunicationHandler.onReceiveCommunication({ qstr, parent })
+     *
+     * So we expose CommunicationHandler as an OBJECT with onReceiveCommunication.
+     */
+    (window as any).CommunicationHandler = {
+      onReceiveCommunication: async (params: { qstr: string; parent: string }) => {
+        const { qstr } = params;
+        console.log('[AuthNet] onReceiveCommunication raw qstr:', qstr);
+
+        const parsed = new URLSearchParams(qstr);
+        const action = parsed.get('action');
+        console.log('[AuthNet] action:', action);
+
+        if (action === 'resizeWindow') {
+          // Authorize.net asks us to resize the iframe — handle gracefully
+          const height = parsed.get('height');
+          const iframe = document.getElementById('authnet-iframe') as HTMLIFrameElement;
+          if (iframe && height) iframe.style.height = `${height}px`;
+          return;
         }
-      }
 
-      const orderId = (window as any).__authNetLocalOrderId;
+        if (action === 'cancel') {
+          const popup = document.getElementById('authnet-popup-overlay');
+          if (popup) popup.remove();
+          setIsPending(false);
+          return;
+        }
 
-      if (action === 'transactResponse' || action === 'successfulSave') {
-        if (transId && orderId) {
-          // Sync with our backend
-          try {
-            const syncRes = await fetch('/api/authorize/sync-order', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ transactionId: transId, localOrderId: orderId })
-            });
-            const syncData = await syncRes.json();
-            
-            // Clean up UI
-            const popup = document.getElementById('authnet-popup-overlay');
-            if (popup) popup.remove();
+        if (action === 'transactResponse') {
+          const responseRaw = parsed.get('response');
+          console.log('[AuthNet] response raw:', responseRaw);
+          let transId: string | null = null;
 
-            // Redirect
-            router.push('/payment-success');
-          } catch (e) {
-            console.error('Failed to sync Auth.net order', e);
-            alert('Payment successful, but failed to sync locally. Please contact support.');
+          if (responseRaw) {
+            try {
+              const responseObj = JSON.parse(responseRaw);
+              transId = responseObj.transId;
+              console.log('[AuthNet] transId:', transId);
+            } catch (e) {
+              console.error('[AuthNet] Failed to parse response JSON', e);
+            }
+          }
+
+          const orderId = (window as any).__authNetLocalOrderId;
+
+          if (transId && orderId) {
+            try {
+              const syncRes = await fetch('/api/authorize/sync-order', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ transactionId: transId, localOrderId: orderId })
+              });
+              const syncData = await syncRes.json();
+              console.log('[AuthNet] sync result:', syncData);
+
+              const popup = document.getElementById('authnet-popup-overlay');
+              if (popup) popup.remove();
+
+              router.push('/payment-success');
+            } catch (e) {
+              console.error('[AuthNet] Failed to sync order', e);
+              alert('Payment successful, but we could not confirm it automatically. Please contact support with your transaction ID: ' + transId);
+            }
+          } else {
+            console.warn('[AuthNet] Missing transId or orderId. transId:', transId, 'orderId:', orderId);
           }
         }
-      } else if (action === 'cancel') {
-        const popup = document.getElementById('authnet-popup-overlay');
-        if (popup) popup.remove();
-        setIsPending(false);
       }
+    };
+
+    return () => {
+      delete (window as any).CommunicationHandler;
     };
   }, [router]);
 
   const checkout = async (paymentDetails: any) => {
     setIsPending(true);
     try {
-      // 1. Create a local order in MongoDB first (reusing existing API, but we'll adapt it or just create a log)
-      // Actually, we can use the same session creation but intercept it, or just generate the token.
-      // Wait, we need the localOrderId to track it.
+      // 1. Create a pending order in MongoDB
       const sessionRes = await fetch('/api/fastspring/create-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...paymentDetails, gateway: 'Authorize.net' })
       });
-      
+
       const sessionData = await sessionRes.json();
       if (!sessionData.localOrderId) throw new Error('Failed to create local session');
 
       (window as any).__authNetLocalOrderId = sessionData.localOrderId;
 
-      // 2. Fetch the Authorize.net form token
+      // 2. Fetch the Authorize.net hosted form token
       const tokenRes = await fetch('/api/authorize/get-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,16 +113,18 @@ export const useAuthorizeCheckout = () => {
       const tokenData = await tokenRes.json();
       if (!tokenData.token) throw new Error('Failed to generate Auth.net token');
 
-      // 3. Render the full-screen iframe overlay
+      // 3. Build and show the overlay with the iframe
       const overlay = document.createElement('div');
       overlay.id = 'authnet-popup-overlay';
       overlay.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
-      
+
       const isProd = process.env.NEXT_PUBLIC_AUTHORIZE_NET_IS_PRODUCTION === 'true';
-      const actionUrl = isProd ? 'https://accept.authorize.net/payment/payment' : 'https://test.authorize.net/payment/payment';
+      const actionUrl = isProd
+        ? 'https://accept.authorize.net/payment/payment'
+        : 'https://test.authorize.net/payment/payment';
 
       overlay.innerHTML = `
-        <div class="relative w-full max-w-5xl bg-white rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div class="relative w-full max-w-5xl bg-white rounded-xl shadow-2xl overflow-hidden">
           <button onclick="document.getElementById('authnet-popup-overlay').remove()" class="absolute top-4 right-4 z-10 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
@@ -116,7 +142,7 @@ export const useAuthorizeCheckout = () => {
       `;
 
       document.body.appendChild(overlay);
-      
+
       // Submit the form into the iframe
       const form = document.getElementById('authnet-form') as HTMLFormElement;
       if (form) form.submit();
