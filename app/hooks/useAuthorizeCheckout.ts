@@ -202,6 +202,38 @@ export const useAuthorizeCheckout = () => {
 
       setIsPending(false);
 
+      // 4. Start polling — checks DB every 3 seconds for up to 10 minutes.
+      //    The webhook will update the order to Completed when Auth.net fires it.
+      //    This is the guaranteed close mechanism regardless of iframe issues.
+      const orderId = sessionData.localOrderId;
+      let attempts = 0;
+      const maxAttempts = 200; // 200 × 3s = 10 minutes
+
+      const pollInterval = setInterval(async () => {
+        attempts++;
+
+        // Stop if popup was manually closed or timed out
+        if (!document.getElementById('authnet-popup-overlay') || attempts > maxAttempts) {
+          clearInterval(pollInterval);
+          return;
+        }
+
+        try {
+          const statusRes = await fetch(`/api/authorize/check-status?oid=${orderId}`);
+          const statusData = await statusRes.json();
+          console.log(`[AuthNet Poll] attempt ${attempts} — status: ${statusData.status}`);
+
+          if (statusData.status === 'Completed') {
+            clearInterval(pollInterval);
+            const popup = document.getElementById('authnet-popup-overlay');
+            if (popup) popup.remove();
+            router.push('/payment-success');
+          }
+        } catch (e) {
+          // Silent — keep polling
+        }
+      }, 3000);
+
     } catch (error) {
       setIsPending(false);
       throw error;

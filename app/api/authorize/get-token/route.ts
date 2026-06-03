@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
           amount: amount.toFixed(2),
           order: {
             invoiceNumber: (orderId || `INV-${Date.now()}`).substring(0, 20),
-            description: "QuickBooks Enterprise Subscription"
+            description: `QB_ORDER:${orderId}`
           },
           customer: {
             email: customerInfo?.email || ""
