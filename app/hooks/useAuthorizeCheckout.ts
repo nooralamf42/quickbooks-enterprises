@@ -8,9 +8,11 @@ export const useAuthorizeCheckout = () => {
   useEffect(() => {
     // We need to define the global handler for Authorize.net IFrameCommunicator
     (window as any).CommunicationHandler = async (queryString: string) => {
-      // The iframe communicator sends a hash string, e.g., #action=successfulSave&transId=12345
-      const params = new URLSearchParams(queryString.replace('#', '?'));
+      // queryString arrives already stripped of leading ? or #
+      // e.g. "action=transactResponse&response={...}"
+      const params = new URLSearchParams(queryString);
       const action = params.get('action');
+      console.log('[AuthNet] CommunicationHandler received action:', action, 'raw:', queryString);
       
       let transId = null;
       const responseStr = params.get('response');
@@ -18,8 +20,9 @@ export const useAuthorizeCheckout = () => {
         try {
           const responseObj = JSON.parse(responseStr);
           transId = responseObj.transId;
+          console.log('[AuthNet] Parsed transId:', transId);
         } catch (e) {
-          console.error('Failed to parse Auth.net response payload', e);
+          console.error('[AuthNet] Failed to parse response payload', e);
         }
       }
 
@@ -104,7 +107,7 @@ export const useAuthorizeCheckout = () => {
               <svg class="animate-spin h-8 w-8 mb-4 text-[#0075ff]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
               <p class="font-medium">Loading Secure Checkout...</p>
             </div>
-            <iframe name="authnet-iframe" id="authnet-iframe" class="relative z-10 w-full h-full border-0" sandbox="allow-scripts allow-forms allow-same-origin allow-top-navigation"></iframe>
+            <iframe name="authnet-iframe" id="authnet-iframe" class="relative z-10 w-full h-full border-0"></iframe>
           </div>
           <form id="authnet-form" action="${actionUrl}" method="POST" target="authnet-iframe">
             <input type="hidden" name="token" value="${tokenData.token}" />
