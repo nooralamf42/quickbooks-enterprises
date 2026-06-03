@@ -57,7 +57,11 @@ export async function POST(req: NextRequest) {
             {
               settingName: "hostedPaymentReturnOptions",
               settingValue: JSON.stringify({
-                showReceipt: false, // We handle success screen
+                showReceipt: false,
+                url: `${baseUrl}/api/authorize/complete?oid=${orderId}`,
+                urlText: "Continue",
+                cancelUrl: `${baseUrl}`,
+                cancelUrlText: "Cancel"
               })
             },
             {

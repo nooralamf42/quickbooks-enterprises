@@ -13,8 +13,49 @@ export const useAuthorizeCheckout = () => {
      * This works regardless of cross-origin iframe nesting depth.
      */
     const handleMessage = async (event: MessageEvent) => {
-      // Only handle messages from our own communicator
-      if (!event.data || event.data.source !== 'authnet-communicator') return;
+      if (!event.data) return;
+
+      /**
+       * PRIMARY: Message from /api/authorize/complete (our own page loaded in the iframe).
+       * Auth.net redirects the iframe to our page after payment. Since it's same-origin,
+       * window.parent.postMessage always works — this is the guaranteed path.
+       */
+      if (event.data.source === 'authnet-complete') {
+        console.log('[AuthNet] complete page signal received:', event.data);
+        const { transId, syncSuccess } = event.data;
+
+        // If server-side sync already succeeded, just close and redirect
+        if (syncSuccess) {
+          const popup = document.getElementById('authnet-popup-overlay');
+          if (popup) popup.remove();
+          router.push('/payment-success');
+          return;
+        }
+
+        // Server sync failed — try client-side sync as fallback
+        const orderId = localOrderIdRef.current;
+        if (transId && orderId) {
+          try {
+            await fetch('/api/authorize/sync-order', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ transactionId: transId, localOrderId: orderId })
+            });
+          } catch (e) {
+            console.error('[AuthNet] Fallback sync failed', e);
+          }
+        }
+
+        const popup = document.getElementById('authnet-popup-overlay');
+        if (popup) popup.remove();
+        router.push('/payment-success');
+        return;
+      }
+
+      /**
+       * FALLBACK: Message from IFrameCommunicator.html via window.top.postMessage.
+       */
+      if (event.data.source !== 'authnet-communicator') return;
 
       const qstr: string = event.data.qstr || '';
       console.log('[AuthNet] postMessage received, qstr:', qstr);
