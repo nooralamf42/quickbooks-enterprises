@@ -10,7 +10,12 @@
         }
 
         function receiveMessage() {
-            callParentFunction(window.location.hash);
+            var qs = window.location.search;
+            if (qs && qs.length > 1) {
+                callParentFunction(qs);
+            } else {
+                callParentFunction(window.location.hash);
+            }
         }
     </script>
 </head>
