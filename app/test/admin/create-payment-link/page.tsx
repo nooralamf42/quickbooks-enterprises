@@ -31,13 +31,35 @@ export default function TestPaymentLinkCreator() {
   const logsPerPage = 5
 
   const router = useRouter()
-  const { admin } = useAdmin()
+  const { admin, setAdmin } = useAdmin()
 
   useEffect(() => {
+    // Check if there is a valid session in localStorage to restore Jotai state on direct URL loads
+    const stored = localStorage.getItem('adminAuth');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        const now = new Date().getTime();
+        const ENCODED_ADMIN_PASS = process.env.NEXT_PUBLIC_ENCODED_ADMIN_PASSWORD;
+
+        if (parsed.expires > now && parsed.passwordHash && ENCODED_ADMIN_PASS) {
+          const currentPassword = atob(ENCODED_ADMIN_PASS);
+          const storedPassword = atob(parsed.passwordHash);
+          
+          if (storedPassword === currentPassword) {
+            setAdmin(true);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Test auth verification failed:', error);
+      }
+    }
+
     if (!admin) {
       router.push('/admin')
     }
-  }, [router, admin])
+  }, [router, admin, setAdmin])
 
   useEffect(() => {
     setPaymentLink('')
