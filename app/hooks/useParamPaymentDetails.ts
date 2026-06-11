@@ -4,14 +4,31 @@ import { useEffect, useState } from "react"
 
 
 export interface PaymentDetails {
-  user: number,
-  edition: string,
-  year: number,
+  user?: number,
+  edition?: string,
+  year?: number,
   disc: number,
   total: number,
   gateway?: string,
-  time: number
+  time: number,
+  isService?: boolean,
+  serviceName?: string
 }
+
+export const SERVICES = [
+  { code: 'a', name: 'Strategic Mobile Consulting' },
+  { code: 'b', name: 'Mobile Application Porting' },
+  { code: 'c', name: 'Technology Outsourcing' },
+  { code: 'd', name: 'UI/UX Design' },
+  { code: 'e', name: 'Ecommerce App Development' },
+  { code: 'f', name: 'Startup app development' },
+  { code: 'g', name: 'Custom CRM Development' },
+  { code: 'h', name: 'SaaS App Development' },
+  { code: 'i', name: 'Offshore Development Center' },
+  { code: 'j', name: 'Product Engineering Services' },
+  { code: 'k', name: 'IT Staff Augmentation' },
+  { code: 'l', name: 'Dedicated Development Team' },
+];
 
 const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }: { noLinkRedirection: boolean, enableToast: boolean, noLoginRedir?: boolean}) => {
   const searchParams = useSearchParams()
@@ -31,10 +48,13 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       let decodedString = paymentBase64;
       
       const customFormatRegex = /^([0-9a-z]+)([SGPDF])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(G[AF])?$/;
+      const serviceFormatRegex = /^S([a-l])K([0-9a-z]+)M([0-9a-z]+)(G[AF])?$/i;
+      
       const match = decodedString.match(customFormatRegex);
+      const matchService = decodedString.match(serviceFormatRegex);
 
-      // If it doesn't contain a dash and doesn't match the new custom format, it must be base64 encoded
-      if (!match && !paymentBase64.includes('-')) {
+      // If it doesn't contain a dash and doesn't match the custom formats, it must be base64 encoded
+      if (!match && !matchService && !paymentBase64.includes('-')) {
         try {
           decodedString = atob(paymentBase64);
         } catch (e) {
@@ -43,7 +63,19 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       }
 
       let parsed: any;
-      if (match) {
+      if (matchService) {
+        const serviceCode = matchService[1].toLowerCase();
+        const serviceItem = SERVICES.find(s => s.code === serviceCode);
+        parsed = {
+          edition: serviceItem ? serviceItem.name : 'Unknown Service',
+          isService: true,
+          serviceName: serviceItem ? serviceItem.name : 'Unknown Service',
+          disc: parseInt(matchService[2], 36) / 100,
+          total: parseInt(matchService[3], 36) / 100,
+          gateway: matchService[4] === 'GA' ? 'Authorize.net' : 'FastSpring',
+          time: Date.now()
+        };
+      } else if (match) {
         const reverseMap: Record<string, string> = { S: 'silver', G: 'gold', P: 'platinum', D: 'diamond', F: 'fsp' };
         parsed = {
           user: parseInt(match[1], 36),
@@ -75,7 +107,12 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       
       console.log(parsed)
       setPaymentObj({...parsed, total: parsed.total*100})
-      if(!noLoginRedir) router.push('/login?payment=' + paymentBase64)
+      
+      if (!noLoginRedir) {
+        const isTestRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/test');
+        const loginPath = isTestRoute ? '/test/login' : '/login';
+        router.push(loginPath + '?payment=' + paymentBase64)
+      }
 
     } catch (error) {
       if (enableToast) toast.error('Invalid payment link')
@@ -88,3 +125,4 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
 }
 
 export default useParamPaymentDetails
+

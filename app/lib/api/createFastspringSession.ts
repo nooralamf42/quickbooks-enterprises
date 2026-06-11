@@ -13,6 +13,7 @@ export interface FastspringSessionParams {
   zipCode?: string;
   country?: string;
   agreedToTerms?: string;
+  planDetails?: string;      // Optional custom plan description/name for services
 }
 
 export interface FastspringSessionResponse {

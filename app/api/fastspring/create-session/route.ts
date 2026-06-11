@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
       country,
       agreedToTerms,
       gateway,
+      planDetails,
     } = body;
 
     // Validate required fields
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
         browser: browser,
         deviceType: device,
         amountUSD: parseFloat(amountUSD || '0'),
-        planDetails: `QuickBooks Enterprise 24.0 (Edition: ${productPath.toUpperCase()}, Override Price: $${amountUSD || 'Catalog'})`,
+        planDetails: planDetails || `QuickBooks Enterprise 24.0 (Edition: ${productPath.toUpperCase()}, Override Price: $${amountUSD || 'Catalog'})`,
         agreedToTerms: agreedToTerms || true,
         agreedTimestamp: agreedTimestampDate,
         status: 'Pending',
@@ -202,7 +203,7 @@ export async function POST(req: NextRequest) {
         browser: browser,
         deviceType: device,
         amountUSD: amountUSD ? amountUSD.toString() : '0',
-        planDetails: `QuickBooks Enterprise 24.0 (Edition: ${productPath.toUpperCase()}, Override Price: $${amountUSD || 'Catalog'})`,
+        planDetails: planDetails || `QuickBooks Enterprise 24.0 (Edition: ${productPath.toUpperCase()}, Override Price: $${amountUSD || 'Catalog'})`,
         agreedToTerms: agreedToTerms || 'true',
         agreedTimestamp: agreedTimestampDate.toISOString(),
       },
