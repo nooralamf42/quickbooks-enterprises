@@ -14,7 +14,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'fastspring' | 'authorize'>('fastspring')
+  const [selectedGateway, setSelectedGateway] = useState<'stax' | 'authorize'>('stax')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -138,7 +138,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F' }
+    const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F', stax: 'X' }
     const shortEdition = editionMap[selectedEdition] || 'S'
 
     const uStr = users.toString(36)
@@ -148,9 +148,10 @@ export default function QuickBooksPaymentLinkCreator() {
     const tVal = Math.round(calculateTotal() * 100)
     const tStr = tVal.toString(36)
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GF'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS'
     const paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}${gatewayFlag}`
-    const base = process.env.NEXT_PUBLIC_BASE_URL || window.location.origin
+    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const base = isLocalhost ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin);
     setPaymentLink(`${base}/pay/${paymentString}`)
   }
 
@@ -432,8 +433,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       doc.text(`Product Name:       ${log.planDetails || 'QuickBooks Enterprise'}`, 20, orderY)
       doc.text(`Total Price:        $${log.amountUSD.toFixed(2)} USD`, 20, orderY + 6)
       doc.text(`Reconciliation:     ${log.status === 'Completed' ? 'Completed & Paid' : 'Pending Payment'}`, 20, orderY + 12)
-      if (log.fsOrderReference) {
-        doc.text(`FastSpring Ref:     ${log.fsOrderReference}`, 20, orderY + 18)
+      if (log.staxInvoiceId) {
+        doc.text(`Stax Invoice ID:    ${log.staxInvoiceId}`, 20, orderY + 18)
       }
 
       // --- FOOTER ---
@@ -503,10 +504,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Payment Gateway</label>
                 <div className="flex bg-white rounded-md border border-zinc-200 p-1">
                   <button
-                    onClick={() => setSelectedGateway('fastspring')}
-                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'fastspring' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                    onClick={() => setSelectedGateway('stax')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stax' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
-                    FastSpring
+                    Stax Payments
                   </button>
                   <button
                     onClick={() => setSelectedGateway('authorize')}
@@ -530,12 +531,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   <label className="block mb-1.5 font-medium text-xs text-zinc-500">QuickBooks Edition</label>
                   <select
                     value={selectedEdition}
-                    onChange={(e) => setSelectedEdition(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedEdition(e.target.value)
+                      if (e.target.value === 'stax') {
+                        setSelectedGateway('stax')
+                      }
+                    }}
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
                   >
                     {editions.map((e) => (
                       <option key={e.value} value={e.value}>
-                        QuickBooks Enterprise 24.0 {e.name}
+                        {e.value === 'stax' ? 'QuickBooks Enterprise 24.0 Stax' : `QuickBooks Enterprise 24.0 ${e.name}`}
                       </option>
                     ))}
                   </select>
@@ -612,7 +618,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <div className="space-y-3 text-xs border-t pt-3 border-zinc-100 font-medium">
                   <div className="flex justify-between text-zinc-500">
                     <span>Edition:</span>
-                    <span className="text-zinc-900 font-semibold">24.0 {selectedEdition === 'fsp' ? 'FSP' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}</span>
+                    <span className="text-zinc-900 font-semibold">24.0 {selectedEdition === 'stax' ? 'Stax' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}</span>
                   </div>
                   <div className="flex justify-between text-zinc-500">
                     <span>User Count:</span>
@@ -801,10 +807,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 </span>
                               </div>
                             )}
-                            {(!log.gateway || log.gateway === 'FastSpring') && log.status === 'Completed' && (
+                            {(!log.gateway || log.gateway === 'Stax') && log.status === 'Completed' && (
                               <div className="mt-1">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200">
-                                  FASTSPRING
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200">
+                                  STAX PAYMENTS
                                 </span>
                               </div>
                             )}
@@ -934,11 +940,13 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
               <span className="text-zinc-900 font-semibold block mt-1">{log.deviceType || 'Desktop'} / {log.browser || 'Unknown'}</span>
             </div>
           </div>
-
-          {/* FastSpring Ref */}
-          {log.fsOrderReference && (
-            <div className="text-[9px] font-bold text-zinc-500 font-mono">
-              FastSpring Ref: {log.fsOrderReference}
+          
+          {/* Stax Invoice ID */}
+          {log.staxInvoiceId && (
+            <div className="mt-6 pt-5 border-t border-zinc-100 flex items-center justify-between text-xs">
+              <span className="font-mono text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-200/50">
+              Stax Invoice ID: {log.staxInvoiceId}
+              </span>
             </div>
           )}
 

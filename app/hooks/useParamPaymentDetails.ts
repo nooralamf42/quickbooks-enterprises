@@ -47,8 +47,8 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
     try {
       let decodedString = paymentBase64;
       
-      const customFormatRegex = /^([0-9a-z]+)([SGPDF])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(G[AF])?$/;
-      const serviceFormatRegex = /^S([a-l])K([0-9a-z]+)M([0-9a-z]+)(G[AF])?$/i;
+      const customFormatRegex = /^([0-9a-z]+)([SGPDFX])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(G[AFS])?$/;
+      const serviceFormatRegex = /^S([a-l])K([0-9a-z]+)M([0-9a-z]+)(G[AFS])?$/i;
       
       const match = decodedString.match(customFormatRegex);
       const matchService = decodedString.match(serviceFormatRegex);
@@ -72,18 +72,18 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           serviceName: serviceItem ? serviceItem.name : 'Unknown Service',
           disc: parseInt(matchService[2], 36) / 100,
           total: parseInt(matchService[3], 36) / 100,
-          gateway: matchService[4] === 'GA' ? 'Authorize.net' : 'FastSpring',
+          gateway: matchService[4] === 'GA' ? 'Authorize.net' : matchService[4] === 'GS' ? 'Stax' : 'FastSpring',
           time: Date.now()
         };
       } else if (match) {
-        const reverseMap: Record<string, string> = { S: 'silver', G: 'gold', P: 'platinum', D: 'diamond', F: 'fsp' };
+        const reverseMap: Record<string, string> = { S: 'silver', G: 'gold', P: 'platinum', D: 'diamond', F: 'fsp', X: 'stax' };
         parsed = {
           user: parseInt(match[1], 36),
           edition: reverseMap[match[2].toUpperCase()] || 'silver',
           year: parseInt(match[3], 36),
           disc: parseInt(match[4], 36) / 100,
           total: parseInt(match[5], 36) / 100,
-          gateway: match[6] === 'GA' ? 'Authorize.net' : 'FastSpring',
+          gateway: match[6] === 'GA' ? 'Authorize.net' : match[6] === 'GS' ? 'Stax' : 'FastSpring',
           time: Date.now()
         };
       } else if (decodedString.startsWith('{')) {
@@ -91,7 +91,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       } else {
         const parts = decodedString.split('-')
         if (parts.length >= 5) {
-          const reverseMap: Record<string, string> = { s: 'silver', g: 'gold', p: 'platinum', d: 'diamond', f: 'fsp' };
+          const reverseMap: Record<string, string> = { s: 'silver', g: 'gold', p: 'platinum', d: 'diamond', f: 'fsp', x: 'stax' };
           parsed = {
             user: parseInt(parts[0]),
             edition: reverseMap[parts[1]] || parts[1],

@@ -57,7 +57,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="google-site-verification" content="Sxj4LQsd--REhPVduYHsX03BkCf-Q07puHirfBwhMa0" />
       </head>
@@ -65,26 +65,6 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Toaster />
-        {/* FastSpring Store Builder Library — enables popup checkout.
-            Script copied from FastSpring Dashboard → Popup Checkouts → qbenterprise → Place on your website.
-            Strategy "afterInteractive" loads as soon as the page is interactive,
-            ensuring window.fastspring is available when the pay button is clicked. */}
-        <Script
-          id="fsc-api"
-          src="https://sbl.onfastspring.com/sbl/1.0.7/fastspring-builder.min.js"
-          strategy="afterInteractive"
-          data-storefront="qbenterprise.onfastspring.com/popup-quickbooks-enterprise"
-          data-popup-closed="onFSPopupClosed"
-        />
-        <Script id="fs-callback" strategy="afterInteractive">
-          {`
-            window.onFSPopupClosed = function(orderReference) {
-              if (orderReference && orderReference.id) {
-                window.location.href = '/payment-success?reference=' + orderReference.id;
-              }
-            };
-          `}
-        </Script>
         <Providers>
           <Suspense fallback={<Loader/>}>
           <main className="pb-44 md:pb-24">

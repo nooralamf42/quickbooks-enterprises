@@ -8,7 +8,7 @@ import BusinessAddress from '@/app/(payment)/checkout/components/businessAddress
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
-import { useFastspringCheckout } from '@/app/hooks/useFastspringCheckout';
+import { useStaxCheckout } from '@/app/hooks/useStaxCheckout';
 import { useAuthorizeCheckout } from '@/app/hooks/useAuthorizeCheckout';
 import toast from 'react-hot-toast';
 
@@ -39,7 +39,7 @@ export default function CheckoutForm() {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const { checkout, isPending } = useFastspringCheckout();
+    const { checkout, isPending } = useStaxCheckout();
     const { checkout: authCheckout, isPending: authIsPending } = useAuthorizeCheckout();
     
     const isProcessing = isPending || authIsPending;
