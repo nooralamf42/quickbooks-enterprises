@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const {
       firstName, lastName, email, phone, companyName,
       address, city, state, zipCode, country,
-      amountUSD, planDetails,
+      amountUSD, planDetails, gateway,
     } = body;
 
     let ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || '127.0.0.1';
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       status: 'Pending',
       fsOrderReference: '',
       fsOrderId: '',
-      gateway: 'Stax',
+      gateway: gateway || 'Stax',
       paidAt: null,
       createdAt: new Date(),
     });

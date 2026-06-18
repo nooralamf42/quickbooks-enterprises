@@ -156,7 +156,12 @@ export default function CheckoutForm() {
                 lastName={formData.lastName}
                 email={formData.email}
                 phone={formData.phone}
-                planDetails={paymentObj?.edition}
+                planDetails={paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined
+                }
                 address={formData.address}
                 city={formData.city}
                 state={formData.state}

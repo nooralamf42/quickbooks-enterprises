@@ -128,7 +128,7 @@ export const useAuthorizeCheckout = () => {
     setIsPending(true);
     try {
       // 1. Create a pending order in MongoDB
-      const sessionRes = await fetch('/api/fastspring/create-session', {
+      const sessionRes = await fetch('/api/stax/start-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...paymentDetails, gateway: 'Authorize.net' })

@@ -93,7 +93,7 @@ export async function POST(req: Request) {
             const customerName = `${record.firstName} ${record.lastName}`.trim();
 
             await resend.emails.send({
-              from: 'QuickBooks Enterprise <noreply@powerjobsusa.com>',
+              from: 'notifications@quickbooks-enterprises.com',
               to: 'info@qualitybusinesstech.us',
               subject: `New Successful Payment: $${record.amountUSD} from ${customerName}`,
               html: `
