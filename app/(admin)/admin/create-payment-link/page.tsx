@@ -117,6 +117,21 @@ export default function QuickBooksPaymentLinkCreator() {
     { name: 'FSP', value: 'fsp' }
   ]
 
+  const customProducts = [
+    { name: 'Strategic Mobile Consulting', value: 'a' },
+    { name: 'Mobile Application Porting', value: 'b' },
+    { name: 'Technology Outsourcing', value: 'c' },
+    { name: 'UI/UX Design', value: 'd' },
+    { name: 'Ecommerce App Development', value: 'e' },
+    { name: 'Startup app development', value: 'f' },
+    { name: 'Custom CRM Development', value: 'g' },
+    { name: 'SaaS App Development', value: 'h' },
+    { name: 'Offshore Development Center', value: 'i' },
+    { name: 'Product Engineering Services', value: 'j' },
+    { name: 'IT Staff Augmentation', value: 'k' },
+    { name: 'Dedicated Development Team', value: 'l' }
+  ]
+
   const yearOptions = [
     { value: 1, label: '1 Year' },
     { value: 2, label: '2 Years' },
@@ -138,18 +153,28 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F', stax: 'X' }
-    const shortEdition = editionMap[selectedEdition] || 'S'
-
-    const uStr = users.toString(36)
-    const yStr = selectedYears.toString(36)
-    const dVal = Math.round((Number(discountAmount) || 0) * 100)
-    const dStr = dVal.toString(36)
-    const tVal = Math.round(calculateTotal() * 100)
-    const tStr = tVal.toString(36)
-
     const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS'
-    const paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}${gatewayFlag}`
+    let paymentString = '';
+
+    if (['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition)) {
+      const dVal = Math.round((Number(discountAmount) || 0) * 100)
+      const dStr = dVal.toString(36)
+      const tVal = Math.round(calculateTotal() * 100)
+      const tStr = tVal.toString(36)
+      paymentString = `S${selectedEdition}K${dStr}M${tStr}${gatewayFlag}`
+    } else {
+      const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F', stax: 'X' }
+      const shortEdition = editionMap[selectedEdition] || 'S'
+
+      const uStr = users.toString(36)
+      const yStr = selectedYears.toString(36)
+      const dVal = Math.round((Number(discountAmount) || 0) * 100)
+      const dStr = dVal.toString(36)
+      const tVal = Math.round(calculateTotal() * 100)
+      const tStr = tVal.toString(36)
+      
+      paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}${gatewayFlag}`
+    }
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const base = isLocalhost ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin);
     setPaymentLink(`${base}/pay/${paymentString}`)
@@ -539,38 +564,51 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     }}
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
                   >
-                    {editions.map((e) => (
-                      <option key={e.value} value={e.value}>
-                        {e.value === 'stax' ? 'QuickBooks Enterprise 24.0 Stax' : `QuickBooks Enterprise 24.0 ${e.name}`}
-                      </option>
-                    ))}
+                    <optgroup label="QuickBooks Enterprise">
+                      {editions.map((e) => (
+                        <option key={e.value} value={e.value}>
+                          {e.value === 'stax' ? 'QuickBooks Enterprise 24.0 Stax' : `QuickBooks Enterprise 24.0 ${e.name}`}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Custom Products">
+                      {customProducts.map((e) => (
+                        <option key={e.value} value={e.value}>
+                          {e.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   </select>
                 </div>
 
-                <div>
-                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Number of Users</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={users}
-                    onChange={(e) => setUsers(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
-                  />
-                </div>
+                {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'stax'].includes(selectedEdition) && (
+                  <div>
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Number of Users</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={users}
+                      onChange={(e) => setUsers(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                    />
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block mb-1.5 font-medium text-xs text-zinc-500">Contract Period</label>
-                <select
-                  value={selectedYears}
-                  onChange={(e) => setSelectedYears(parseInt(e.target.value))}
-                  className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
-                >
-                  {yearOptions.map((y) => (
-                    <option key={y.value} value={y.value}>{y.label}</option>
-                  ))}
-                </select>
-              </div>
+              {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'stax'].includes(selectedEdition) && (
+                <div>
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Contract Period</label>
+                  <select
+                    value={selectedYears}
+                    onChange={(e) => setSelectedYears(parseInt(e.target.value))}
+                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
+                  >
+                    {yearOptions.map((y) => (
+                      <option key={y.value} value={y.value}>{y.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div>
                 <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Price ($)</label>
@@ -618,16 +656,25 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <div className="space-y-3 text-xs border-t pt-3 border-zinc-100 font-medium">
                   <div className="flex justify-between text-zinc-500">
                     <span>Edition:</span>
-                    <span className="text-zinc-900 font-semibold">24.0 {selectedEdition === 'stax' ? 'Stax' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}</span>
+                    <span className="text-zinc-900 font-semibold">
+                      {['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition) 
+                        ? customProducts.find(c => c.value === selectedEdition)?.name 
+                        : `24.0 ${selectedEdition === 'stax' ? 'Stax' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}`
+                      }
+                    </span>
                   </div>
-                  <div className="flex justify-between text-zinc-500">
-                    <span>User Count:</span>
-                    <span className="text-zinc-900 font-semibold">{users} {users === 1 ? 'User' : 'Users'}</span>
-                  </div>
-                  <div className="flex justify-between text-zinc-500">
-                    <span>Subscription Term:</span>
-                    <span className="text-zinc-900 font-semibold">{selectedYears} {selectedYears === 1 ? 'Year' : 'Years'}</span>
-                  </div>
+                  {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'stax'].includes(selectedEdition) && (
+                    <>
+                      <div className="flex justify-between text-zinc-500">
+                        <span>User Count:</span>
+                        <span className="text-zinc-900 font-semibold">{users} {users === 1 ? 'User' : 'Users'}</span>
+                      </div>
+                      <div className="flex justify-between text-zinc-500">
+                        <span>Subscription Term:</span>
+                        <span className="text-zinc-900 font-semibold">{selectedYears} {selectedYears === 1 ? 'Year' : 'Years'}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between text-zinc-500">
                     <span>Base Amount:</span>
                     <span className="text-zinc-900 font-semibold">${parseFloat(totalPrice || '0').toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>

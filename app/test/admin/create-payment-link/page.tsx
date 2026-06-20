@@ -172,7 +172,8 @@ export default function TestPaymentLinkCreator() {
       const tVal = Math.round(calculateTotal() * 100)
       const tStr = tVal.toString(36)
       
-      const paymentString = `S${serviceCode}K${dStr}M${tStr}GF`
+      const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS'
+      const paymentString = `S${serviceCode}K${dStr}M${tStr}${gatewayFlag}`
       setPaymentLink(`${base}/testpay/${paymentString}`)
     } else {
       const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', stax: 'X' }
@@ -516,9 +517,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     Stax Payments
                   </button>
                   <button
-                    disabled={selectedEdition.startsWith('service_')}
                     onClick={() => setSelectedGateway('authorize')}
-                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Authorize.net
                   </button>

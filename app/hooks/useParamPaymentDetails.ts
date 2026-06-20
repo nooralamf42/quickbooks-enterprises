@@ -48,7 +48,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       let decodedString = paymentBase64;
       
       const customFormatRegex = /^([0-9a-z]+)([SGPDFX])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(G[AFS])?$/;
-      const serviceFormatRegex = /^S([a-l])K([0-9a-z]+)M([0-9a-z]+)(G[AFS])?$/i;
+      const serviceFormatRegex = /^S([a-l])K([0-9a-z]+)M([0-9a-z]+)(G[AFS])?$/;
       
       const match = decodedString.match(customFormatRegex);
       const matchService = decodedString.match(serviceFormatRegex);
