@@ -432,18 +432,24 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       doc.text(`Full Name:          ${log.firstName} ${log.lastName}`, 20, profileY)
       doc.text(`Email Address:      ${log.email}`, 20, profileY + 6)
       doc.text(`Company Name:       ${log.companyName || 'N/A'}`, 20, profileY + 12)
-      doc.text(`Phone Number:       ${log.phone || 'N/A'}`, 20, profileY + 18)
-      doc.text(`Street Address:     ${log.address}`, 20, profileY + 24)
-      doc.text(`City & State:       ${log.city}, ${log.state}`, 20, profileY + 30)
-      doc.text(`ZIP Code & Country: ${log.zipCode}, ${log.country || 'US'}`, 20, profileY + 36)
+      let formattedEin = log.ein || 'N/A';
+      if (formattedEin !== 'N/A' && formattedEin.replace(/\D/g, '').length === 9) {
+        const d = formattedEin.replace(/\D/g, '');
+        formattedEin = `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+      }
+      doc.text(`EIN:                ${formattedEin}`, 20, profileY + 18)
+      doc.text(`Phone Number:       ${log.phone || 'N/A'}`, 20, profileY + 24)
+      doc.text(`Street Address:     ${log.address}`, 20, profileY + 30)
+      doc.text(`City & State:       ${log.city}, ${log.state}`, 20, profileY + 36)
+      doc.text(`ZIP Code & Country: ${log.zipCode}, ${log.country || 'US'}`, 20, profileY + 42)
 
-      drawDivider(profileY + 42)
+      drawDivider(profileY + 48)
 
       doc.setFont('Helvetica', 'bold')
-      doc.text('ORDER & SUBSCRIPTION SUMMARY', 20, profileY + 52)
+      doc.text('ORDER & SUBSCRIPTION SUMMARY', 20, profileY + 58)
 
       doc.setFont('Helvetica', 'normal')
-      const orderY = profileY + 59
+      const orderY = profileY + 65
       doc.text(`Product Name:       ${log.planDetails || 'QuickBooks Enterprise'}`, 20, orderY)
       doc.text(`Total Price:        $${log.amountUSD.toFixed(2)} USD`, 20, orderY + 6)
       doc.text(`Reconciliation:     ${log.status === 'Completed' ? 'Completed & Paid' : 'Pending Payment'}`, 20, orderY + 12)

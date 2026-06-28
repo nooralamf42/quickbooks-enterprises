@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      firstName, lastName, email, phone, companyName,
+      firstName, lastName, email, phone, companyName, ein,
       address, city, state, zipCode, country,
       amountUSD, planDetails, gateway,
     } = body;
@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
       firstName: firstName || '',
       lastName: lastName || '',
       companyName: companyName || '',
+      ein: ein || '',
       phone: phone || '',
       address: address || '',
       city: city || '',

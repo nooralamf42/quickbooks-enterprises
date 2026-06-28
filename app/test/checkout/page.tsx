@@ -33,6 +33,7 @@ export default function CheckoutForm() {
         zipCode:     isLocalhost ? '40502'                  : '',
         city:        isLocalhost ? 'Lexington'              : '',
         state:       isLocalhost ? 'KY'                     : '',
+        ein:         '',
     });
 
     const handleInputChange = (field: string, value: string): void => {
@@ -60,6 +61,7 @@ export default function CheckoutForm() {
                 lastName: formData.lastName,
                 email: formData.email,
                 companyName: formData.companyName,
+                ein: formData.ein,
                 phone: formData.phone,
                 address: formData.address,
                 city: formData.city,
@@ -96,7 +98,8 @@ export default function CheckoutForm() {
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8">
                             <CompanyInfo
                                 companyName={formData.companyName}
-                                onChange={(value: string) => handleInputChange('companyName', value)}
+                                ein={formData.ein}
+                                onChange={handleInputChange}
                             />
 
                             <div className="border-t border-gray-200 my-8"></div>
