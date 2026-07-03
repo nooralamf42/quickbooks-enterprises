@@ -15,7 +15,7 @@ export default function TestPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'stax' | 'authorize'>('stax')
+  const [selectedGateway, setSelectedGateway] = useState<'whop' | 'authorize'>('whop')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -137,7 +137,7 @@ export default function TestPaymentLinkCreator() {
     { name: 'QuickBooks Enterprise 24.0 Gold', value: 'gold', type: 'qb' },
     { name: 'QuickBooks Enterprise 24.0 Platinum', value: 'platinum', type: 'qb' },
     { name: 'QuickBooks Enterprise 24.0 Diamond', value: 'diamond', type: 'qb' },
-    { name: 'QuickBooks Enterprise 24.0 Stax', value: 'stax', type: 'qb' },
+    { name: 'QuickBooks Enterprise 24.0 Whop', value: 'whop', type: 'qb' },
     ...SERVICES.map(s => ({ name: s.name, value: `service_${s.code}`, type: 'service' }))
   ]
 
@@ -176,7 +176,7 @@ export default function TestPaymentLinkCreator() {
       const paymentString = `S${serviceCode}K${dStr}M${tStr}${gatewayFlag}`
       setPaymentLink(`${base}/testpay/${paymentString}`)
     } else {
-      const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', stax: 'X' }
+      const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', whop: 'W' }
       const shortEdition = editionMap[selectedEdition] || 'S'
 
       const uStr = users.toString(36)
@@ -453,8 +453,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       doc.text(`Product Name:       ${log.planDetails || 'QuickBooks Enterprise'}`, 20, orderY)
       doc.text(`Total Price:        $${log.amountUSD.toFixed(2)} USD`, 20, orderY + 6)
       doc.text(`Reconciliation:     ${log.status === 'Completed' ? 'Completed & Paid' : 'Pending Payment'}`, 20, orderY + 12)
-      if (log.staxInvoiceId) {
-        doc.text(`Stax Invoice ID:    ${log.staxInvoiceId}`, 20, orderY + 18)
+      if (log.whopSessionId) {
+        doc.text(`Whop Session ID:    ${log.whopSessionId}`, 20, orderY + 18)
       }
 
       doc.setFontSize(8)
@@ -517,10 +517,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Payment Gateway</label>
                 <div className="flex bg-white rounded-md border border-zinc-200 p-1">
                   <button
-                    onClick={() => setSelectedGateway('stax')}
-                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stax' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                    onClick={() => setSelectedGateway('whop')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'whop' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
-                    Stax Payments
+                    Whop Payments
                   </button>
                   <button
                     onClick={() => setSelectedGateway('authorize')}
@@ -547,7 +547,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     onChange={(e) => {
                       setSelectedEdition(e.target.value)
                       if (e.target.value.startsWith('service_')) {
-                        setSelectedGateway('stax')
+                        setSelectedGateway('whop')
                       }
                     }}
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
@@ -641,7 +641,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     <div className="space-y-3 animate-in fade-in duration-200">
                       <div className="flex justify-between text-zinc-500">
                         <span>Edition:</span>
-                        <span className="text-zinc-900 font-semibold">24.0 {selectedEdition === 'stax' ? 'Stax' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}</span>
+                        <span className="text-zinc-900 font-semibold">24.0 {selectedEdition === 'whop' ? 'Whop' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}</span>
                       </div>
                       <div className="flex justify-between text-zinc-500">
                         <span>User Count:</span>
@@ -803,11 +803,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 Pending
                               </span>
                             )}
-                            {log.staxInvoiceId && (
-                              <div className="text-[9px] font-semibold text-zinc-500 mt-2 font-mono bg-zinc-50 p-1 border border-zinc-100 rounded inline-block">
-                                Stax: {log.staxInvoiceId}
-                              </div>
-                            )}
+
                           </td>
                           <td className="py-4 px-4 align-top text-center whitespace-nowrap">
                             <button

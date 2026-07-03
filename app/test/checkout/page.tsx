@@ -8,7 +8,7 @@ import BusinessAddress from '@/app/(payment)/checkout/components/businessAddress
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
-import { useStaxCheckout } from '@/app/hooks/useStaxCheckout';
+import WhopPaymentModal from '@/app/(payment)/checkout/components/WhopPaymentModal';
 import { useAuthorizeCheckout } from '@/app/hooks/useAuthorizeCheckout';
 import toast from 'react-hot-toast';
 
@@ -17,6 +17,7 @@ export default function CheckoutForm() {
     const { setStep, step } = useSteps();
     const { setUserDetails } = useUserDetails();
     const [agreedToTerms, setAgreedToTerms] = useState(false);
+    const [isWhopModalOpen, setIsWhopModalOpen] = useState(false);
 
     const isLocalhost =
         typeof window !== 'undefined' &&
@@ -40,10 +41,7 @@ export default function CheckoutForm() {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
-    const { checkout, isPending } = useStaxCheckout();
     const { checkout: authCheckout, isPending: authIsPending } = useAuthorizeCheckout();
-    
-    const isProcessing = isPending || authIsPending;
 
     const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -75,7 +73,7 @@ export default function CheckoutForm() {
             if (paymentObj?.gateway === 'Authorize.net') {
                 await authCheckout(payload);
             } else {
-                await checkout(payload);
+                setIsWhopModalOpen(true);
             }
         } catch (err: any) {
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
@@ -152,14 +150,14 @@ export default function CheckoutForm() {
                              </div>
 
                              <button
-                                 disabled={isProcessing}
+                                 disabled={authIsPending}
                                  type="submit"
                                  className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                              >
-                                {isProcessing ? 'Connecting...' : 'Proceed to Payment'}
+                                {authIsPending ? 'Connecting...' : 'Proceed to Payment'}
                             </button>
 
-                            {isProcessing && (
+                            {authIsPending && (
                                 <p className="mt-3 text-sm text-gray-500">
                                     Connecting to secure checkout — please wait…
                                 </p>
@@ -173,6 +171,22 @@ export default function CheckoutForm() {
                     </div>
                 </div>
             </div>
+            
+            <WhopPaymentModal
+                isOpen={isWhopModalOpen}
+                onClose={() => setIsWhopModalOpen(false)}
+                amountUSD={paymentObj?.total ? paymentObj.total / 100 : 0}
+                firstName={formData.firstName}
+                lastName={formData.lastName}
+                email={formData.email}
+                phone={formData.phone}
+                planDetails={paymentObj?.isService ? paymentObj.serviceName : undefined}
+                address={formData.address}
+                city={formData.city}
+                state={formData.state}
+                zipCode={formData.zipCode}
+                country={formData.country}
+            />
         </div>
     );
 }

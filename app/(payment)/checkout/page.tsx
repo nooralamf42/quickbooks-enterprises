@@ -5,7 +5,7 @@ import CompanyInfo from './components/companyInfo';
 import ContactInfo from './components/contactInfo';
 import OrderSummary from './components/orderSummary';
 import BusinessAddress from './components/businessAddress';
-import StaxPaymentModal from './components/StaxPaymentModal';
+import WhopPaymentModal from './components/WhopPaymentModal';
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
@@ -17,7 +17,7 @@ export default function CheckoutForm() {
     const { setStep } = useSteps();
     const { setUserDetails } = useUserDetails();
     const [agreedToTerms, setAgreedToTerms] = useState(false);
-    const [isStaxModalOpen, setIsStaxModalOpen] = useState(false);
+    const [isWhopModalOpen, setIsWhopModalOpen] = useState(false);
 
     const isLocalhost =
         typeof window !== 'undefined' &&
@@ -75,8 +75,8 @@ export default function CheckoutForm() {
                         : undefined,
                 });
             } else {
-                // Stax — open the embedded card form modal
-                setIsStaxModalOpen(true);
+                // Whop — open the embedded checkout modal
+                setIsWhopModalOpen(true);
             }
         } catch (err: any) {
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
@@ -158,9 +158,9 @@ export default function CheckoutForm() {
                 </div>
             </div>
 
-            <StaxPaymentModal
-                isOpen={isStaxModalOpen}
-                onClose={() => setIsStaxModalOpen(false)}
+            <WhopPaymentModal
+                isOpen={isWhopModalOpen}
+                onClose={() => setIsWhopModalOpen(false)}
                 amountUSD={amountUSD}
                 firstName={formData.firstName}
                 lastName={formData.lastName}

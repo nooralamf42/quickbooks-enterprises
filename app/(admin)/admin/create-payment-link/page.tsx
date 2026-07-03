@@ -14,7 +14,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'stax' | 'authorize'>('stax')
+  const [selectedGateway, setSelectedGateway] = useState<'whop' | 'authorize'>('whop')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -163,7 +163,7 @@ export default function QuickBooksPaymentLinkCreator() {
       const tStr = tVal.toString(36)
       paymentString = `S${selectedEdition}K${dStr}M${tStr}${gatewayFlag}`
     } else {
-      const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F', stax: 'X' }
+      const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F', whop: 'W' }
       const shortEdition = editionMap[selectedEdition] || 'S'
 
       const uStr = users.toString(36)
@@ -464,8 +464,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       doc.text(`Product Name:       ${log.planDetails || 'QuickBooks Enterprise'}`, 20, orderY)
       doc.text(`Total Price:        $${log.amountUSD.toFixed(2)} USD`, 20, orderY + 6)
       doc.text(`Reconciliation:     ${log.status === 'Completed' ? 'Completed & Paid' : 'Pending Payment'}`, 20, orderY + 12)
-      if (log.staxInvoiceId) {
-        doc.text(`Stax Invoice ID:    ${log.staxInvoiceId}`, 20, orderY + 18)
+      if (log.whopSessionId) {
+        doc.text(`Whop Session ID:    ${log.whopSessionId}`, 20, orderY + 18)
       }
 
       // --- FOOTER ---
@@ -535,10 +535,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Payment Gateway</label>
                 <div className="flex bg-white rounded-md border border-zinc-200 p-1">
                   <button
-                    onClick={() => setSelectedGateway('stax')}
-                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stax' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                    onClick={() => setSelectedGateway('whop')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'whop' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
-                    Stax Payments
+                    Whop Payments
                   </button>
                   <button
                     onClick={() => setSelectedGateway('authorize')}
@@ -564,8 +564,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     value={selectedEdition}
                     onChange={(e) => {
                       setSelectedEdition(e.target.value)
-                      if (e.target.value === 'stax') {
-                        setSelectedGateway('stax')
+                      if (e.target.value === 'whop') {
+                        setSelectedGateway('whop')
                       }
                     }}
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
@@ -573,7 +573,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     <optgroup label="QuickBooks Enterprise">
                       {editions.map((e) => (
                         <option key={e.value} value={e.value}>
-                          {e.value === 'stax' ? 'QuickBooks Enterprise 24.0 Stax' : `QuickBooks Enterprise 24.0 ${e.name}`}
+                          {e.value === 'whop' ? 'QuickBooks Enterprise 24.0 Whop' : `QuickBooks Enterprise 24.0 ${e.name}`}
                         </option>
                       ))}
                     </optgroup>
@@ -587,7 +587,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   </select>
                 </div>
 
-                {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'stax'].includes(selectedEdition) && (
+                {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'whop'].includes(selectedEdition) && (
                   <div>
                     <label className="block mb-1.5 font-medium text-xs text-zinc-500">Number of Users</label>
                     <input
@@ -601,7 +601,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 )}
               </div>
 
-              {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'stax'].includes(selectedEdition) && (
+              {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'whop'].includes(selectedEdition) && (
                 <div>
                   <label className="block mb-1.5 font-medium text-xs text-zinc-500">Contract Period</label>
                   <select
@@ -665,11 +665,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     <span className="text-zinc-900 font-semibold">
                       {['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition) 
                         ? customProducts.find(c => c.value === selectedEdition)?.name 
-                        : `24.0 ${selectedEdition === 'stax' ? 'Stax' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}`
+                        : `24.0 ${selectedEdition === 'whop' ? 'Whop' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}`
                       }
                     </span>
                   </div>
-                  {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'stax'].includes(selectedEdition) && (
+                  {['silver', 'gold', 'platinum', 'diamond', 'fsp', 'whop'].includes(selectedEdition) && (
                     <>
                       <div className="flex justify-between text-zinc-500">
                         <span>User Count:</span>
@@ -860,13 +860,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 </span>
                               </div>
                             )}
-                            {(!log.gateway || log.gateway === 'Stax') && log.status === 'Completed' && (
-                              <div className="mt-1">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200">
-                                  STAX PAYMENTS
-                                </span>
-                              </div>
-                            )}
+
                           </td>
                           
                           {/* Action Button */}
@@ -994,14 +988,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
             </div>
           </div>
           
-          {/* Stax Invoice ID */}
-          {log.staxInvoiceId && (
-            <div className="mt-6 pt-5 border-t border-zinc-100 flex items-center justify-between text-xs">
-              <span className="font-mono text-zinc-500 bg-zinc-50 px-2 py-1 rounded border border-zinc-200/50">
-              Stax Invoice ID: {log.staxInvoiceId}
-              </span>
-            </div>
-          )}
+
 
           {/* Action */}
           <div className="pt-2">
