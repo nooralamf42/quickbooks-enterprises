@@ -22,6 +22,8 @@ export async function POST(req: Request) {
         address, city, state, zipCode, country,
         amountUSD, planDetails,
         status: 'Pending',
+        agreedToTerms: true,
+        agreedTimestamp: new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
         paymentGateway: 'Whop'
