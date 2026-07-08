@@ -6,7 +6,7 @@ import { useUserDetails } from '@/app/hooks/useUserDetails';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
 // Login Page Component
@@ -170,8 +170,54 @@ export default function IntuitLogin() {
     const [currentPage, setCurrentPage] = useState('login');
     const {setStep} = useSteps()
     const {setUserDetails, userDetails} = useUserDetails()
+    const trackedRef = useRef(false);
+
+    useEffect(() => {
+        if (paymentObj && !(paymentObj as any).error && !trackedRef.current) {
+            trackedRef.current = true;
+            
+            const planDetails = paymentObj?.isService 
+                ? paymentObj.serviceName 
+                : paymentObj?.edition
+                ? paymentObj.edition.toLowerCase() === 'fsp'
+                    ? 'QuickBooks Enterprise FSP Edition'
+                    : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                : undefined;
+
+            fetch('/api/track-event', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event: 'link_opened',
+                    paymentId: paymentID,
+                    planDetails,
+                    amount: paymentObj.total ? paymentObj.total / 100 : 0
+                })
+            }).catch(console.error);
+        }
+    }, [paymentObj, paymentID]);
 
     const handleNext = (email: string) => {
+        const planDetails = paymentObj?.isService 
+            ? paymentObj.serviceName 
+            : paymentObj?.edition
+            ? paymentObj.edition.toLowerCase() === 'fsp'
+                ? 'QuickBooks Enterprise FSP Edition'
+                : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+            : undefined;
+
+        fetch('/api/track-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                event: 'email_entered',
+                paymentId: paymentID,
+                email: email,
+                planDetails,
+                amount: paymentObj?.total ? paymentObj.total / 100 : 0
+            })
+        }).catch(console.error);
+
         setUserDetails({email})
         setCurrentPage('password');
     };

@@ -24,15 +24,13 @@ export default function CompanyInfo({ companyName, ein, onChange }:{companyName:
             <input
               type="text"
               id="ein"
-              placeholder="123-45-6789"
+              placeholder="12-3456789"
               value={ein || ''}
               onChange={(e) => {
                 let val = e.target.value.replace(/\D/g, '');
                 if (val.length > 9) val = val.slice(0, 9);
-                if (val.length > 5) {
-                  val = val.slice(0, 3) + '-' + val.slice(3, 5) + '-' + val.slice(5);
-                } else if (val.length > 3) {
-                  val = val.slice(0, 3) + '-' + val.slice(3);
+                if (val.length > 2) {
+                  val = val.slice(0, 2) + '-' + val.slice(2);
                 }
                 onChange('ein', val);
               }}

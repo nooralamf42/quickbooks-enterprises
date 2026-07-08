@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
-import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X } from 'lucide-react'
 
 export default function QuickBooksPaymentLinkCreator() {
   const [users, setUsers] = useState(1)
@@ -27,6 +27,13 @@ export default function QuickBooksPaymentLinkCreator() {
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1)
+  const [filterMode, setFilterMode] = useState<'All' | 'Test'>('All')
+  const [selectedLog, setSelectedLog] = useState<any>(null)
+  
+  // Advanced Filters
+  const [advGateway, setAdvGateway] = useState('All')
+  const [advStatus, setAdvStatus] = useState('All')
+  const [advAmount, setAdvAmount] = useState('All')
   const logsPerPage = 5
 
   const router = useRouter()
@@ -52,7 +59,7 @@ export default function QuickBooksPaymentLinkCreator() {
         passwordHash = JSON.parse(stored).passwordHash
       }
       
-      const response = await fetch('/api/admin/consent-logs', {
+      const response = await fetch('/api/admin/consent-logs?includeEvents=true', {
         headers: {
           'Authorization': `Bearer ${passwordHash}`
         }
@@ -445,7 +452,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       let formattedEin = log.ein || 'N/A';
       if (formattedEin !== 'N/A' && formattedEin.replace(/\D/g, '').length === 9) {
         const d = formattedEin.replace(/\D/g, '');
-        formattedEin = `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+        formattedEin = `${d.slice(0, 2)}-${d.slice(2)}`;
       }
       doc.text(`EIN:                ${formattedEin}`, 20, profileY + 18)
       doc.text(`Phone Number:       ${log.phone || 'N/A'}`, 20, profileY + 24)
@@ -485,11 +492,39 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
     }
   }
 
+  const TEST_EMAILS = ['info@qualitybusinesstech.us', 'nick.powerjobs@gmail.com', 'contact@qbenterprise.us'].map(e => e.toLowerCase())
+  
+  const displayedLogs = logs.filter(log => {
+    // 1. Basic Mode
+    if (filterMode === 'Test') {
+      if (!log.email || !TEST_EMAILS.includes(log.email.toLowerCase())) return false;
+    }
+    
+    // 2. Gateway Filter
+    if (advGateway === 'Whop') {
+      if (log.paymentGateway !== 'Whop' && log.gateway !== 'Whop' && !log.whopSessionId) return false;
+    } else if (advGateway === 'Authorize.net') {
+      if (log.paymentGateway !== 'Authorize.net' && log.gateway !== 'Authorize.net' && !log.fsOrderReference) return false;
+    }
+    
+    // 3. Status Filter
+    if (advStatus !== 'All' && log.status !== advStatus) return false;
+    
+    // 4. Amount Filter
+    if (advAmount !== 'All' && log.amountUSD) {
+      if (advAmount === '<50' && log.amountUSD >= 50) return false;
+      if (advAmount === '50-500' && (log.amountUSD < 50 || log.amountUSD > 500)) return false;
+      if (advAmount === '>500' && log.amountUSD <= 500) return false;
+    }
+    
+    return true;
+  });
+
   // Pagination calculations
-  const totalPages = Math.ceil(logs.length / logsPerPage)
+  const totalPages = Math.ceil(displayedLogs.length / logsPerPage)
   const indexOfLastLog = currentPage * logsPerPage
   const indexOfFirstLog = indexOfLastLog - logsPerPage
-  const currentLogs = logs.slice(indexOfFirstLog, indexOfLastLog)
+  const currentLogs = displayedLogs.slice(indexOfFirstLog, indexOfLastLog)
 
   return (
     <div className="min-h-screen bg-zinc-50/50 py-6 md:py-10 text-zinc-950 font-sans antialiased">
@@ -740,8 +775,21 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <h3 className="font-semibold text-lg text-zinc-900">Signed Consent Certificates</h3>
                 <p className="text-xs text-zinc-500 mt-0.5">Compliance records of B2B terms signatures logged in MongoDB.</p>
               </div>
-              
-              <div className="flex items-center gap-2 w-full sm:w-auto font-medium">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto font-medium">
+                <button
+                  onClick={() => setFilterMode('All')}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border font-semibold rounded-lg text-xs cursor-pointer transition-colors shadow-xs ${filterMode === 'All' ? 'bg-[#2ca01c] text-white border-[#2ca01c]' : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'}`}
+                >
+                  <Filter size={12} />
+                  All Transactions
+                </button>
+                <button
+                  onClick={() => setFilterMode('Test')}
+                  className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 border font-semibold rounded-lg text-xs cursor-pointer transition-colors shadow-xs ${filterMode === 'Test' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'border-zinc-200 hover:bg-zinc-50 text-zinc-700'}`}
+                >
+                  <Filter size={12} />
+                  Test Transactions
+                </button>
                 {process.env.NODE_ENV === 'development' && (
                   <button
                     onClick={handleSimulatePayment}
@@ -761,6 +809,42 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   Refresh
                 </button>
               </div>
+            </div>
+            
+            {/* Advanced Filters Bar */}
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-zinc-50/80 border border-zinc-100 rounded-lg text-xs">
+              <span className="font-semibold text-zinc-500 mr-2 uppercase tracking-wider text-[10px]">Filters:</span>
+              
+              <select 
+                value={advGateway}
+                onChange={(e) => setAdvGateway(e.target.value)}
+                className="px-3 py-1.5 border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium cursor-pointer"
+              >
+                <option value="All">All Gateways</option>
+                <option value="Whop">Whop Only</option>
+                <option value="Authorize.net">Authorize.net Only</option>
+              </select>
+              
+              <select 
+                value={advStatus}
+                onChange={(e) => setAdvStatus(e.target.value)}
+                className="px-3 py-1.5 border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium cursor-pointer"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Completed">Completed Only</option>
+                <option value="Pending">Pending Only</option>
+              </select>
+              
+              <select 
+                value={advAmount}
+                onChange={(e) => setAdvAmount(e.target.value)}
+                className="px-3 py-1.5 border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium cursor-pointer"
+              >
+                <option value="All">All Amounts</option>
+                <option value="<50">Under $50</option>
+                <option value="50-500">$50 to $500</option>
+                <option value=">500">Over $500</option>
+              </select>
             </div>
 
             {isLoadingLogs ? (
@@ -784,13 +868,68 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         <th className="py-3.5 px-4 font-bold">Date & Time</th>
                         <th className="py-3.5 px-4 font-bold">Client Profile</th>
                         <th className="py-3.5 px-4 font-bold">Product & Amount</th>
-                        <th className="py-3.5 px-4 font-bold">Network Signature</th>
                         <th className="py-3.5 px-4 font-bold">Status</th>
-                        <th className="py-3.5 px-4 text-center font-bold">Certificate</th>
+                        <th className="py-3.5 px-4 text-center font-bold">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 text-zinc-800">
-                      {currentLogs.map((log) => (
+                      {currentLogs.map((log) => {
+                        if (log.logType === 'user_session') {
+                          return (
+                            <tr key={log._id} className="hover:bg-blue-50/50 transition-colors bg-blue-50/20">
+                              <td className="py-4 px-4 align-top whitespace-nowrap">
+                                <span className="font-bold text-zinc-900 block">
+                                  {new Date(log.agreedTimestamp).toLocaleDateString()}
+                                </span>
+                                <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
+                                  {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                              </td>
+                              <td className="py-4 px-4 align-top">
+                                <div className="font-semibold text-blue-700 text-sm flex items-center gap-1.5">
+                                  <Eye size={14} /> Activity Session
+                                </div>
+                                {log.email && <div className="text-zinc-900 font-medium mt-2">{log.email}</div>}
+                                <div className="text-[10px] text-zinc-400 mt-1 font-medium">IP: {log.ipAddress}</div>
+                                {log.paymentId && <div className="text-[10px] text-zinc-400 mt-0.5 font-medium">ID: {log.paymentId}</div>}
+                              </td>
+                              <td className="py-4 px-4 align-top">
+                                {log.amount ? (
+                                  <div className="font-extrabold text-zinc-600 text-sm">${Number(log.amount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                ) : (
+                                  <div className="font-extrabold text-zinc-400 text-sm">--</div>
+                                )}
+                                {log.planDetails && <div className="text-[10px] text-zinc-500 mt-1.5 leading-relaxed max-w-xs font-medium bg-white p-1.5 rounded-lg border border-zinc-100">{log.planDetails}</div>}
+                              </td>
+                              <td className="py-4 px-4 align-top">
+                                <div className="flex flex-col gap-1.5 bg-zinc-50/50 p-2 rounded-lg border border-zinc-100">
+                                  <span className="text-[11px] font-bold text-zinc-700">
+                                    {log.events?.length || 0} Interaction{(log.events?.length !== 1) && 's'}
+                                  </span>
+                                  <span className="text-[10px] text-zinc-500">
+                                    Latest:{' '}
+                                    <span className="font-bold text-blue-700 uppercase tracking-wider">
+                                      {log.events && log.events.length > 0 
+                                        ? log.events[log.events.length - 1].event.replace('_', ' ') 
+                                        : 'N/A'}
+                                    </span>
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-4 px-4 align-top text-center whitespace-nowrap space-y-2">
+                                <button
+                                  onClick={() => setSelectedLog(log)}
+                                  className="w-full inline-flex justify-center items-center gap-1.5 px-3 py-1.5 border border-blue-200 font-bold rounded-lg text-[10px] transition-colors shadow-xs bg-white hover:bg-blue-50 text-blue-700 cursor-pointer"
+                                >
+                                  <Eye size={12} className="text-blue-500" />
+                                  Session Timeline
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        }
+
+                        return (
                         <tr key={log._id} className="hover:bg-zinc-50/40 transition-colors">
                           
                           {/* Timestamp */}
@@ -824,15 +963,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <div className="text-[10px] text-zinc-500 mt-1.5 leading-relaxed max-w-xs font-medium bg-zinc-50 p-1.5 rounded-lg border border-zinc-100">{log.planDetails}</div>
                           </td>
                           
-                          {/* Network fingerprint */}
-                          <td className="py-4 px-4 align-top">
-                            <div className="font-mono text-[10px] text-zinc-950 font-bold bg-zinc-100 px-1.5 py-0.5 rounded inline-block">IP: {log.ipAddress}</div>
-                            <div className="text-[10px] text-zinc-400 mt-2 flex flex-wrap gap-1.5 items-center font-medium">
-                              <span className="px-1.5 py-0.5 bg-zinc-100 rounded text-[9px] font-semibold uppercase text-zinc-500 border border-zinc-200/50">{log.deviceType || 'Desktop'}</span>
-                              <span className="truncate max-w-[120px]" title={log.browser}>{log.browser || 'Unknown'}</span>
-                            </div>
-                          </td>
-                          
                           {/* Compliance Status */}
                           <td className="py-4 px-4 align-top whitespace-nowrap">
                             {log.status === 'Completed' ? (
@@ -864,19 +994,28 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           </td>
                           
                           {/* Action Button */}
-                          <td className="py-4 px-4 align-top text-center whitespace-nowrap">
+                          <td className="py-4 px-4 align-top text-center whitespace-nowrap space-y-2">
+                            <button
+                              onClick={() => setSelectedLog(log)}
+                              className="w-full inline-flex justify-center items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-bold rounded-lg text-[10px] transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer"
+                            >
+                              <Eye size={12} className="text-zinc-500" />
+                              View Details
+                            </button>
+                            <br />
                             <button
                               onClick={() => downloadPDF(log)}
                               disabled={log.status !== 'Completed'}
                               title={log.status !== 'Completed' ? "Payment pending. PDF unavailable." : ""}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-bold rounded-lg text-[10px] transition-colors shadow-xs ${log.status === 'Completed' ? 'bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer' : 'bg-zinc-50 text-zinc-400 cursor-not-allowed opacity-60'}`}
+                              className={`w-full inline-flex justify-center items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-bold rounded-lg text-[10px] transition-colors shadow-xs ${log.status === 'Completed' ? 'bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer' : 'bg-zinc-50 text-zinc-400 cursor-not-allowed opacity-60'}`}
                             >
                               <FileText size={12} className={log.status === 'Completed' ? 'text-zinc-500' : 'text-zinc-400'} />
                               PDF Consent
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -909,6 +1048,169 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     </button>
                   </div>
                 )}
+                
+                {/* Modal for Details */}
+                {selectedLog && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 md:p-8 max-w-2xl w-full relative">
+                      <button onClick={() => setSelectedLog(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-800 transition-colors p-1 bg-zinc-100 rounded-full">
+                        <X size={20} />
+                      </button>
+                      
+                      {selectedLog.logType === 'user_session' ? (
+                        <>
+                          <div className="flex items-center justify-between mb-6 border-b border-zinc-100 pb-4">
+                            <div className="flex items-center gap-4">
+                              <h2 className="text-xl font-bold text-zinc-900">Activity Session Timeline</h2>
+                            </div>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              Tracked Session
+                            </span>
+                          </div>
+
+                          <div className="space-y-6 text-sm">
+                            <div className="grid grid-cols-2 gap-4 bg-zinc-50 p-4 rounded-xl border border-zinc-100">
+                              <div>
+                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">User Identifier</p>
+                                <p className="font-semibold text-zinc-900">{selectedLog.email || 'Unknown'}</p>
+                                <p className="text-zinc-500 text-xs mt-0.5">IP: {selectedLog.ipAddress}</p>
+                                {selectedLog.paymentId && <p className="text-zinc-500 text-xs mt-0.5 font-mono">ID: {selectedLog.paymentId}</p>}
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Targeted Product</p>
+                                <p className="font-semibold text-zinc-900">{selectedLog.planDetails || 'N/A'}</p>
+                                <p className="text-[#2ca01c] font-bold mt-0.5">${selectedLog.amount ? Number(selectedLog.amount).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}</p>
+                              </div>
+                            </div>
+
+                            <div>
+                              <h3 className="font-bold text-zinc-900 mb-4 border-b border-zinc-100 pb-2">Event Timeline</h3>
+                              <div className="space-y-4 border-l-2 border-blue-200 ml-3 pb-2">
+                                {selectedLog.events && selectedLog.events.map((evt: any, i: number) => (
+                                  <div key={i} className="relative pl-6">
+                                    <div className="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-4 border-2 border-white shadow-sm"></div>
+                                    <div className="bg-white border border-zinc-100 p-3 rounded-lg shadow-xs">
+                                      <div className="flex justify-between items-start">
+                                        <div>
+                                          <span className="font-bold text-blue-800 text-xs uppercase tracking-wide bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                            {evt.event.replace('_', ' ')}
+                                          </span>
+                                          {evt.email && <p className="text-xs text-zinc-600 mt-2 font-medium">Entered Email: <span className="text-zinc-900">{evt.email}</span></p>}
+                                        </div>
+                                        <div className="text-right">
+                                          <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString()}</span>
+                                          <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString()}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex items-center justify-between mb-6 border-b border-zinc-100 pb-4">
+                        <div className="flex items-center gap-4">
+                          <h2 className="text-xl font-bold text-zinc-900">Transaction Record</h2>
+                          {selectedLog.email && TEST_EMAILS.includes(selectedLog.email.toLowerCase()) && (
+                            <span className="bg-rose-100 text-rose-700 border border-rose-200 font-black px-3 py-1 rounded-md text-[11px] uppercase tracking-[0.2em] shadow-sm">
+                              TEST
+                            </span>
+                          )}
+                        </div>
+                        {selectedLog.status === 'Completed' ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200">
+                            Completed
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                            Pending
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Customer</p>
+                            <p className="font-semibold text-zinc-900 text-base">{selectedLog.firstName} {selectedLog.lastName}</p>
+                            <p className="text-zinc-500">{selectedLog.email}</p>
+                            {selectedLog.phone && <p className="text-zinc-500 mt-1">📞 {selectedLog.phone}</p>}
+                          </div>
+                          
+                          <div>
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Company</p>
+                            {selectedLog.companyName ? (
+                              <p className="font-semibold text-zinc-800">{selectedLog.companyName}</p>
+                            ) : (
+                              <p className="text-zinc-400 italic">Not provided</p>
+                            )}
+                          </div>
+                          
+                          <div>
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Billing Address</p>
+                            {selectedLog.address ? (
+                              <div className="text-zinc-700">
+                                <p>{selectedLog.address}</p>
+                                <p>{selectedLog.city}, {selectedLog.state} {selectedLog.zipCode}</p>
+                                <p>{selectedLog.country || 'US'}</p>
+                              </div>
+                            ) : (
+                              <p className="text-zinc-400 italic">Not provided</p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Payment Amount</p>
+                            <p className="font-extrabold text-[#2ca01c] text-xl">${selectedLog.amountUSD?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD</p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Product Details</p>
+                            <p className="font-medium text-zinc-800">{selectedLog.planDetails}</p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Transaction Data</p>
+                            <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 space-y-2 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-zinc-500">Date:</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString() : 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-zinc-500">Time:</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleTimeString() : 'N/A'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-zinc-500">Gateway:</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.paymentGateway || selectedLog.gateway || 'Whop'}</span>
+                              </div>
+                              <div className="flex justify-between border-t border-zinc-200/60 pt-2 mt-2">
+                                <span className="text-zinc-500">Reference:</span>
+                                <span className="font-mono font-semibold text-zinc-900">{selectedLog.whopSessionId || selectedLog.fsOrderReference || selectedLog._id}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      </>
+                      )}
+                      
+                      <div className="mt-8 pt-4 border-t border-zinc-100 flex justify-end">
+                        <button 
+                          onClick={() => setSelectedLog(null)}
+                          className="px-6 py-2 bg-zinc-900 text-white font-semibold rounded-lg hover:bg-zinc-800 transition-colors shadow-sm text-sm cursor-pointer"
+                        >
+                          Close Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -920,6 +1222,42 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
 const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any) => void }) => {
   const [expanded, setExpanded] = useState(false);
+
+  if (log.logType === 'user_session') {
+    return (
+      <div className="bg-white border border-blue-200 rounded-xl p-5 shadow-xs hover:border-blue-300 transition-colors">
+        <div className="flex justify-between items-start cursor-pointer group" onClick={() => setExpanded(!expanded)}>
+          <div>
+            <span className="text-[9px] uppercase font-bold text-blue-400 block tracking-wider">
+              {new Date(log.agreedTimestamp).toLocaleDateString()} at {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            <h4 className="font-semibold text-blue-900 text-base mt-0.5">Activity Session</h4>
+            <p className="text-xs text-zinc-500 font-medium">{log.email || log.ipAddress}</p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+              Tracked
+            </span>
+            {log.amount ? (
+              <div className="text-sm font-extrabold text-blue-700">
+                ${Number(log.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+            ) : null}
+          </div>
+        </div>
+        {expanded && (
+           <div className="mt-4 border-t border-blue-100 pt-4 space-y-3 animate-in fade-in duration-200">
+              {log.events && log.events.map((evt: any, i: number) => (
+                <div key={i} className="flex justify-between items-center text-xs">
+                  <span className="font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase text-[9px]">{evt.event.replace('_', ' ')}</span>
+                  <span className="text-zinc-500">{new Date(evt.timestamp).toLocaleTimeString()}</span>
+                </div>
+              ))}
+           </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="bg-white border border-zinc-200 rounded-xl p-5 shadow-xs hover:border-zinc-300 transition-colors">

@@ -67,7 +67,13 @@ export default function CheckoutForm() {
                 zipCode: formData.zipCode,
                 country: formData.country,
                 agreedToTerms: agreedToTerms ? 'true' : 'false',
-                planDetails: paymentObj?.isService ? paymentObj.serviceName : undefined,
+                planDetails: paymentObj?.isService 
+                    ? paymentObj.serviceName 
+                    : paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined,
             };
 
             if (paymentObj?.gateway === 'Authorize.net') {
@@ -180,7 +186,13 @@ export default function CheckoutForm() {
                 lastName={formData.lastName}
                 email={formData.email}
                 phone={formData.phone}
-                planDetails={paymentObj?.isService ? paymentObj.serviceName : undefined}
+                planDetails={paymentObj?.isService 
+                    ? paymentObj.serviceName 
+                    : paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined}
                 address={formData.address}
                 city={formData.city}
                 state={formData.state}
