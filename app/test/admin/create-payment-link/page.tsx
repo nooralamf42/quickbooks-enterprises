@@ -849,10 +849,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <tr key={log._id} className="hover:bg-blue-50/50 transition-colors bg-blue-50/20">
                               <td className="py-4 px-4 align-top whitespace-nowrap">
                                 <span className="font-bold text-zinc-900 block">
-                                  {new Date(log.agreedTimestamp).toLocaleDateString()}
+                                  {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                                 </span>
                                 <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
-                                  {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                 </span>
                               </td>
                               <td className="py-4 px-4 align-top">
@@ -903,10 +903,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         <tr key={log._id} className="hover:bg-zinc-50/40 transition-colors">
                           <td className="py-4 px-4 align-top whitespace-nowrap">
                             <span className="font-bold text-zinc-900 block">
-                              {new Date(log.agreedTimestamp).toLocaleDateString()}
+                              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                             </span>
                             <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
-                              {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                             </span>
                           </td>
                           <td className="py-4 px-4 align-top">
@@ -1012,8 +1012,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                           {evt.email && <p className="text-xs text-zinc-600 mt-2 font-medium">Entered Email: <span className="text-zinc-900">{evt.email}</span></p>}
                                         </div>
                                         <div className="text-right">
-                                          <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString()}</span>
-                                          <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString()}</span>
+                                          <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</span>
+                                          <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -1093,11 +1093,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 space-y-2 text-xs">
                                   <div className="flex justify-between">
                                     <span className="text-zinc-500">Date:</span>
-                                    <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString() : 'N/A'}</span>
+                                    <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-zinc-500">Time:</span>
-                                    <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleTimeString() : 'N/A'}</span>
+                                    <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-zinc-500">Gateway:</span>

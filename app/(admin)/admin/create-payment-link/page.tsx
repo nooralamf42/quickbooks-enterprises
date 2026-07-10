@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
-import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X } from 'lucide-react'
+import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search } from 'lucide-react'
 
 export default function QuickBooksPaymentLinkCreator() {
   const [users, setUsers] = useState(1)
@@ -34,6 +34,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [advGateway, setAdvGateway] = useState('All')
   const [advStatus, setAdvStatus] = useState('All')
   const [advAmount, setAdvAmount] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
   const logsPerPage = 5
 
   const router = useRouter()
@@ -517,6 +518,20 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       if (advAmount === '>500' && log.amountUSD <= 500) return false;
     }
     
+    // 5. Search Query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const searchableString = `
+        ${log.firstName || ''} 
+        ${log.lastName || ''} 
+        ${log.email || ''} 
+        ${log.planDetails || ''} 
+        ${log.ipAddress || ''}
+        ${log.agreedTimestamp ? new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : ''}
+      `.toLowerCase();
+      if (!searchableString.includes(query)) return false;
+    }
+    
     return true;
   });
 
@@ -815,6 +830,19 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             <div className="flex flex-wrap items-center gap-3 p-3 bg-zinc-50/80 border border-zinc-100 rounded-lg text-xs">
               <span className="font-semibold text-zinc-500 mr-2 uppercase tracking-wider text-[10px]">Filters:</span>
               
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search size={14} className="text-zinc-400" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search name, email, plan, date..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 pr-3 py-1.5 w-full border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium placeholder:text-zinc-400 placeholder:font-normal"
+                />
+              </div>
+
               <select 
                 value={advGateway}
                 onChange={(e) => setAdvGateway(e.target.value)}
@@ -879,10 +907,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <tr key={log._id} className="hover:bg-blue-50/50 transition-colors bg-blue-50/20">
                               <td className="py-4 px-4 align-top whitespace-nowrap">
                                 <span className="font-bold text-zinc-900 block">
-                                  {new Date(log.agreedTimestamp).toLocaleDateString()}
+                                  {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                                 </span>
                                 <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
-                                  {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                                 </span>
                               </td>
                               <td className="py-4 px-4 align-top">
@@ -935,10 +963,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           {/* Timestamp */}
                           <td className="py-4 px-4 align-top whitespace-nowrap">
                             <span className="font-bold text-zinc-900 block">
-                              {new Date(log.agreedTimestamp).toLocaleDateString()}
+                              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                             </span>
                             <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
-                              {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                              {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                             </span>
                           </td>
                           
@@ -1098,8 +1126,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                           {evt.email && <p className="text-xs text-zinc-600 mt-2 font-medium">Entered Email: <span className="text-zinc-900">{evt.email}</span></p>}
                                         </div>
                                         <div className="text-right">
-                                          <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString()}</span>
-                                          <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString()}</span>
+                                          <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</span>
+                                          <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -1179,11 +1207,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 space-y-2 text-xs">
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">Date:</span>
-                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString() : 'N/A'}</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">Time:</span>
-                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleTimeString() : 'N/A'}</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">Gateway:</span>
@@ -1229,7 +1257,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
         <div className="flex justify-between items-start cursor-pointer group" onClick={() => setExpanded(!expanded)}>
           <div>
             <span className="text-[9px] uppercase font-bold text-blue-400 block tracking-wider">
-              {new Date(log.agreedTimestamp).toLocaleDateString()} at {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })}
             </span>
             <h4 className="font-semibold text-blue-900 text-base mt-0.5">Activity Session</h4>
             <p className="text-xs text-zinc-500 font-medium">{log.email || log.ipAddress}</p>
@@ -1250,7 +1278,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
               {log.events && log.events.map((evt: any, i: number) => (
                 <div key={i} className="flex justify-between items-center text-xs">
                   <span className="font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase text-[9px]">{evt.event.replace('_', ' ')}</span>
-                  <span className="text-zinc-500">{new Date(evt.timestamp).toLocaleTimeString()}</span>
+                  <span className="text-zinc-500">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</span>
                 </div>
               ))}
            </div>
@@ -1268,7 +1296,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
       >
         <div>
           <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">
-            {new Date(log.agreedTimestamp).toLocaleDateString()} at {new Date(log.agreedTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })}
           </span>
           <h4 className="font-semibold text-zinc-900 text-base mt-0.5 group-hover:text-[#2ca01c] transition-colors">{log.firstName} {log.lastName}</h4>
           <p className="text-xs text-zinc-500 font-medium">{log.email}</p>
