@@ -141,6 +141,13 @@ export default function CheckoutForm() {
                                     </a>.
                                 </label>
                             </div>
+                            
+                            {/* Independent Service Disclaimer */}
+                            <div className="mt-6">
+                                <p className="text-[10px] leading-snug text-gray-400">
+                                    <strong>Disclaimer:</strong> quickbooks-enterprises.com is an independent third-party service provider and is NOT affiliated with, endorsed by, or sponsored by Intuit Inc. QuickBooks is a registered trademark of Intuit Inc.
+                                </p>
+                            </div>
 
                             <button
                                 disabled={authIsPending}

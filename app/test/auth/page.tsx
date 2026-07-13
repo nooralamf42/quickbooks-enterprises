@@ -77,7 +77,7 @@ const LoginPage = ({ onNext }: { onNext: (email: string) => void }) => {
 // Password Page Component
 const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
     const searchParams = useSearchParams()
-    const paymentID = searchParams.get('payment')
+    const paymentID = searchParams.get('token')
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter()
@@ -94,7 +94,7 @@ const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) 
         if (password) {
             setStep(2)
             toast.success('Login successful')
-            router.push('/test/checkout?payment=' + paymentID)
+            router.push('/test/order-summary?token=' + paymentID)
         }
     };
     
@@ -165,7 +165,7 @@ const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) 
 // Main App Component
 export default function IntuitLogin() {
     const searchParams = useSearchParams()
-    const paymentID = searchParams.get('payment')
+    const paymentID = searchParams.get('token')
     const {paymentObj} = useParamPaymentDetails({enableToast: false, noLinkRedirection: paymentID ? false : true, noLoginRedir: false})
     const [currentPage, setCurrentPage] = useState('login');
     const {setStep} = useSteps()

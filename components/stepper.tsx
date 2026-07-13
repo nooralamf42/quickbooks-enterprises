@@ -44,12 +44,12 @@ export default function Stepper() {
   const pathName = usePathname()
   const searchParams = useSearchParams()
   useEffect(()=>{
-    const paymentID = searchParams.get('payment')
+    const paymentID = searchParams.get('token')
     if(step===0){
-      router.push('/login?payment=' + paymentID)
+      router.push('/auth?token=' + paymentID)
     }
     if(step===2){
-      if(paymentID) router.push('/checkout?payment=' + paymentID)
+      if(paymentID) router.push('/order-summary?token=' + paymentID)
       else router.push('/broken-link')
     }
   },[pathName])

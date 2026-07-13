@@ -179,9 +179,8 @@ export default function TestPaymentLinkCreator() {
       const tVal = Math.round(calculateTotal() * 100)
       const tStr = tVal.toString(36)
       
-      const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS'
       const paymentString = `S${serviceCode}K${dStr}M${tStr}${gatewayFlag}`
-      setPaymentLink(`${base}/testpay/${paymentString}`)
+      setPaymentLink(`${base}/testinvoice/${paymentString}`)
     } else {
       const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', whop: 'W' }
       const shortEdition = editionMap[selectedEdition] || 'S'
@@ -195,7 +194,7 @@ export default function TestPaymentLinkCreator() {
 
       const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS'
       const paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}${gatewayFlag}`
-      setPaymentLink(`${base}/testpay/${paymentString}`)
+      setPaymentLink(`${base}/testinvoice/${paymentString}`)
     }
   }
 

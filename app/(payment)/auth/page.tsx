@@ -74,6 +74,13 @@ const LoginPage = ({ onNext }: { onNext: (email: string) => void }) => {
                 <p className='text-gray-400 text-xs mt-5 leading-4'>
                     By selecting Sign in for your Intuit Account, you agree to our <Link href="/terms" target="_blank" className='text-blue-600 hover:text-blue-800'>Terms of Service</Link>.
                 </p>
+                
+                {/* Independent Service Disclaimer */}
+                <div className="mt-8 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] leading-snug text-gray-400 text-center">
+                        <strong>Disclaimer:</strong> quickbooks-enterprises.com is an independent third-party service provider and is NOT affiliated with, endorsed by, or sponsored by Intuit Inc. QuickBooks is a registered trademark of Intuit Inc.
+                    </p>
+                </div>
             </form>
         </div>
     );
@@ -82,7 +89,7 @@ const LoginPage = ({ onNext }: { onNext: (email: string) => void }) => {
 // Password Page Component
 const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
     const searchParams = useSearchParams()
-    const paymentID = searchParams.get('payment')
+    const paymentID = searchParams.get('token')
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const router = useRouter()
@@ -99,7 +106,7 @@ const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) 
         if (password) {
             setStep(2)
             toast.success('Login successful')
-            router.push('/checkout?payment=' + paymentID)
+            router.push('/order-summary?token=' + paymentID)
         }
     };
     
@@ -164,10 +171,17 @@ const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) 
                 {/* Continue Button */}
                 <button
                     type='submit'
-                    className="w-full bg-[#2ca01c] hover:bg-[#2CA01C] text-white py-3 px-4 rounded font-medium transition-colors duration-200 mb-6"
+                    className="w-full bg-[#2ca01c] hover:bg-[#2CA01C] text-white py-3 px-4 rounded font-medium transition-colors duration-200 mb-2"
                 >
                     Continue
                 </button>
+                
+                {/* Independent Service Disclaimer */}
+                <div className="mt-8 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] leading-snug text-gray-400 text-center">
+                        <strong>Disclaimer:</strong> quickbooks-enterprises.com is an independent third-party service provider and is NOT affiliated with, endorsed by, or sponsored by Intuit Inc. QuickBooks is a registered trademark of Intuit Inc.
+                    </p>
+                </div>
             </form>
         </div>
     );
@@ -176,7 +190,7 @@ const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) 
 // Main App Component
 export default function IntuitLogin() {
     const searchParams = useSearchParams()
-    const paymentID = searchParams.get('payment')
+    const paymentID = searchParams.get('token')
     const {paymentObj} = useParamPaymentDetails({enableToast: false, noLinkRedirection: paymentID ? false : true, noLoginRedir: false})
     const [currentPage, setCurrentPage] = useState('login');
     const {setStep} = useSteps()

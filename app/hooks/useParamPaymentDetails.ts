@@ -33,7 +33,7 @@ export const SERVICES = [
 const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }: { noLinkRedirection: boolean, enableToast: boolean, noLoginRedir?: boolean}) => {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const paymentBase64 = searchParams.get('payment')
+  const paymentBase64 = searchParams.get('token')
   const [paymentObj, setPaymentObj] = useState<any>(null)
 
   useEffect(() => {
@@ -110,8 +110,8 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       
       if (!noLoginRedir) {
         const isTestRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/test');
-        const loginPath = isTestRoute ? '/test/login' : '/login';
-        router.push(loginPath + '?payment=' + paymentBase64)
+        const loginPath = isTestRoute ? '/test/login' : '/auth';
+        router.push(loginPath + '?token=' + paymentBase64)
       }
 
     } catch (error) {
