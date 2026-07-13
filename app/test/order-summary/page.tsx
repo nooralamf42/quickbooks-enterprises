@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import CompanyInfo from '@/app/(payment)/checkout/components/companyInfo';
-import ContactInfo from '@/app/(payment)/checkout/components/contactInfo';
+import CompanyInfo from '@/app/(payment)/order-summary/components/companyInfo';
+import ContactInfo from '@/app/(payment)/order-summary/components/contactInfo';
 import OrderSummary from './components/orderSummary';
-import BusinessAddress from '@/app/(payment)/checkout/components/businessAddress';
+import BusinessAddress from '@/app/(payment)/order-summary/components/businessAddress';
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
-import WhopPaymentModal from '@/app/(payment)/checkout/components/WhopPaymentModal';
+import WhopPaymentModal from '@/app/(payment)/order-summary/components/WhopPaymentModal';
 import { useAuthorizeCheckout } from '@/app/hooks/useAuthorizeCheckout';
 import toast from 'react-hot-toast';
 

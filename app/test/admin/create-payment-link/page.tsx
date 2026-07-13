@@ -171,6 +171,7 @@ export default function TestPaymentLinkCreator() {
 
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const base = isLocalhost ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin);
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS';
 
     if (selectedEdition.startsWith('service_')) {
       const serviceCode = selectedEdition.replace('service_', '')
@@ -192,7 +193,6 @@ export default function TestPaymentLinkCreator() {
       const tVal = Math.round(calculateTotal() * 100)
       const tStr = tVal.toString(36)
 
-      const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS'
       const paymentString = `${uStr}${shortEdition}${yStr}K${dStr}M${tStr}${gatewayFlag}`
       setPaymentLink(`${base}/testinvoice/${paymentString}`)
     }

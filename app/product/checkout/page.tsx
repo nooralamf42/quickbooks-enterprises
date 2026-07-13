@@ -6,9 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import usePlanDetails from '@/app/hooks/usePlanDetails';
 import Loader from '@/components/loader';
 import toast from 'react-hot-toast';
-import CompanyInfo from '@/app/(payment)/checkout/components/companyInfo';
-import ContactInfo from '@/app/(payment)/checkout/components/contactInfo';
-import BusinessAddress from '@/app/(payment)/checkout/components/businessAddress';
+import CompanyInfo from '@/app/(payment)/order-summary/components/companyInfo';
+import ContactInfo from '@/app/(payment)/order-summary/components/contactInfo';
+import BusinessAddress from '@/app/(payment)/order-summary/components/businessAddress';
 import { useCreateGuestUser } from '@/app/hooks/useCreateGuestUser';
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 
