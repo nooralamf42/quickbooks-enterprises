@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
-import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search } from 'lucide-react'
+import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search } from 'lucide-react'
 
 export default function QuickBooksPaymentLinkCreator() {
   const [users, setUsers] = useState(1)
