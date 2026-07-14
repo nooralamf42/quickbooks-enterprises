@@ -31,7 +31,12 @@ export async function GET(req: NextRequest) {
 
       const sessionsMap = new Map();
       userEvents.forEach(event => {
-        const key = event.paymentId || event.ipAddress || 'unknown';
+        // Group by paymentId + ipAddress so the same link sent to different
+        // people (different IPs) creates separate sessions, not one merged log.
+        const paymentPart = event.paymentId || 'noid';
+        const ipPart = event.ipAddress || 'noip';
+        const key = `${paymentPart}__${ipPart}`;
+
         if (!sessionsMap.has(key)) {
           sessionsMap.set(key, {
             _id: `session_${key}_${event._id}`,

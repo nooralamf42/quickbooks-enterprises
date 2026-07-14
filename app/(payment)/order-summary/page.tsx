@@ -25,6 +25,11 @@ export default function CheckoutForm() {
     const [typedSignature, setTypedSignature] = useState('');
     const sigCanvas = useRef<SignatureCanvas>(null);
 
+    // Online Payment state
+    const [onlinePaymentType, setOnlinePaymentType] = useState<'wire_ach' | 'transaction_id' | ''>('');
+    const [proofFile, setProofFile] = useState<File | null>(null);
+    const [isSubmittingOnline, setIsSubmittingOnline] = useState(false);
+
     const updateTypedSignature = (text: string) => {
         setTypedSignature(text);
         if (!text.trim()) {
@@ -156,11 +161,80 @@ export default function CheckoutForm() {
                             : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
                         : undefined,
                 });
+            } else if (paymentObj?.gateway === 'Online Payment') {
+                // Validate Online Payment fields
+                if (!onlinePaymentType) {
+                    toast.error('Please select a payment method (Wire ACH or Transaction ID).');
+                    return;
+                }
+                if (!proofFile) {
+                    toast.error('Please upload your payment proof (image or PDF).');
+                    return;
+                }
+
+                setIsSubmittingOnline(true);
+                const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
+                const planDetails = paymentObj?.isService
+                    ? paymentObj.serviceName
+                    : paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined;
+
+                // Step 1: Create the consent log
+                const submitRes = await fetch('/api/online-payment/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        email: formData.email,
+                        phone: formData.phone,
+                        companyName: formData.companyName,
+                        ein: formData.ein,
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        amountUSD,
+                        planDetails,
+                        agreedToTerms: agreedToTerms ? 'true' : 'false',
+                        clientSignatureBase64,
+                        paymentType: onlinePaymentType,
+                    }),
+                });
+
+                if (!submitRes.ok) {
+                    throw new Error('Failed to create payment record.');
+                }
+
+                const { localOrderId } = await submitRes.json();
+
+                // Step 2: Upload the proof file
+                const fd = new FormData();
+                fd.append('file', proofFile);
+                const uploadRes = await fetch(`/api/online-payment/upload-proof?orderId=${localOrderId}`, {
+                    method: 'POST',
+                    body: fd,
+                });
+
+                if (!uploadRes.ok) {
+                    const errData = await uploadRes.json();
+                    throw new Error(errData.error || 'Failed to upload payment proof.');
+                }
+
+                setIsSubmittingOnline(false);
+                toast.success('Payment proof submitted successfully!');
+                // Redirect to success page
+                window.location.href = '/payment-success';
             } else {
                 // Whop — open the embedded checkout modal
                 setIsWhopModalOpen(true);
             }
         } catch (err: any) {
+            setIsSubmittingOnline(false);
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
             setStep(1);
         }
@@ -314,6 +388,26 @@ export default function CheckoutForm() {
                                 )}
                             </div>
 
+                            {/* Online Payment: Method dropdown */}
+                            {paymentObj?.gateway === 'Online Payment' && (
+                                <div className="mt-6 mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Payment Method <span className="text-red-500">*</span>
+                                    </label>
+                                    <select
+                                        id="online-payment-type"
+                                        value={onlinePaymentType}
+                                        onChange={(e) => setOnlinePaymentType(e.target.value as 'wire_ach' | 'transaction_id')}
+                                        required
+                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2ca01c] focus:border-transparent text-gray-700 text-sm bg-white cursor-pointer"
+                                    >
+                                        <option value="" disabled>Select payment method...</option>
+                                        <option value="wire_ach">Wire ACH</option>
+                                        <option value="transaction_id">Transaction ID</option>
+                                    </select>
+                                </div>
+                            )}
+
                             <div className="mt-6 flex items-start">
                                 <input
                                     id="terms"
@@ -338,13 +432,77 @@ export default function CheckoutForm() {
                                 </p>
                             </div>
 
-                            <button
-                                disabled={authIsPending || !clientSignatureBase64}
-                                type="submit"
-                                className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                                {authIsPending ? 'Connecting...' : 'Proceed to Payment'}
-                            </button>
+                            {/* Submit button: context-aware */}
+                            {paymentObj?.gateway === 'Online Payment' ? (
+                                <div className="mt-8 space-y-3">
+                                    {/* File upload input */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                            Upload Payment Proof <span className="text-red-500">*</span>
+                                            <span className="ml-2 text-xs font-normal text-gray-500">(PDF or image — max 10MB)</span>
+                                        </label>
+                                        <label
+                                            htmlFor="payment-proof-file"
+                                            className="flex items-center gap-3 px-4 py-3 border-2 border-dashed border-gray-300 rounded-md cursor-pointer hover:border-[#2ca01c] hover:bg-green-50 transition-colors group"
+                                        >
+                                            <svg className="w-5 h-5 text-gray-400 group-hover:text-[#2ca01c] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                            </svg>
+                                            <span className="text-sm text-gray-600 group-hover:text-gray-800">
+                                                {proofFile ? (
+                                                    <span className="flex items-center gap-2">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                                            proofFile.type === 'application/pdf' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                                                        }`}>
+                                                            {proofFile.type === 'application/pdf' ? 'PDF' : 'IMAGE'}
+                                                        </span>
+                                                        <span className="font-medium text-gray-900">{proofFile.name}</span>
+                                                        <span className="text-gray-400">({(proofFile.size / 1024).toFixed(0)} KB)</span>
+                                                    </span>
+                                                ) : 'Click to select file...'}
+                                            </span>
+                                        </label>
+                                        <input
+                                            id="payment-proof-file"
+                                            type="file"
+                                            accept="image/*,application/pdf"
+                                            className="sr-only"
+                                            onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                                        />
+                                    </div>
+
+                                    <button
+                                        disabled={isSubmittingOnline || !clientSignatureBase64 || !onlinePaymentType || !proofFile}
+                                        type="submit"
+                                        className="w-full bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2.5 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                    >
+                                        {isSubmittingOnline ? (
+                                            <>
+                                                <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                                </svg>
+                                                Uploading...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                </svg>
+                                                Submit Payment Proof
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    disabled={authIsPending || !clientSignatureBase64}
+                                    type="submit"
+                                    className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                    {authIsPending ? 'Connecting...' : 'Proceed to Payment'}
+                                </button>
+                            )}
                         </div>
                     </form>
 

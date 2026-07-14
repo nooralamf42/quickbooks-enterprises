@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search } from 'lucide-react'
 
 export default function QuickBooksPaymentLinkCreator() {
@@ -14,7 +15,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'whop' | 'authorize'>('whop')
+  const [selectedGateway, setSelectedGateway] = useState<'whop' | 'authorize' | 'online'>('whop')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -221,7 +222,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : 'GS'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : 'GS'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition)) {
@@ -257,7 +258,7 @@ export default function QuickBooksPaymentLinkCreator() {
     setTimeout(() => setCopiedLink(false), 2000)
   }
 
-  const downloadPDF = (log: any) => {
+  const downloadPDF = async (log: any) => {
     try {
       const doc = new jsPDF({
         orientation: 'portrait',
@@ -600,6 +601,129 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         doc.text(`Date:  ${dateStr}`, 150, sigY + 13)
       }
 
+      // --- Payment Proof (Online Payment only) ---
+      // Skip jsPDF page generation if the proof is a PDF (we will merge pages directly using pdf-lib)
+      if (log.paymentGateway === 'Online Payment' && log.paymentProofType !== 'pdf') {
+        doc.addPage();
+        drawWatermark();
+
+        // Header
+        doc.setFillColor(124, 58, 237);
+        doc.rect(0, 0, 210, 16, 'F');
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(255, 255, 255);
+        doc.text('PAYMENT PROOF ATTACHMENT', 20, 10.5);
+
+        doc.setFont('Helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+
+        // Metadata block
+        doc.setFillColor(248, 245, 255);
+        doc.roundedRect(15, 22, 180, 38, 3, 3, 'F');
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 80, 160);
+        doc.text('TRANSACTION DETAILS', 20, 30);
+        doc.setFont('Helvetica', 'normal');
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+        doc.text(`Gateway:`, 20, 38);
+        doc.text(`Online Payment`, 60, 38);
+        doc.text(`Submitted by:`, 20, 44);
+        doc.text(`${log.firstName || ''} ${log.lastName || ''}`, 60, 44);
+        doc.text(`Email:`, 20, 50);
+        doc.text(`${log.email || 'N/A'}`, 60, 50);
+        doc.text(`Reference ID:`, 20, 56);
+        doc.setFont('Courier', 'normal');
+        doc.text(`${log._id}`, 60, 56);
+        doc.setFont('Helvetica', 'normal');
+        doc.text(`Payment Type:`, 110, 38);
+        doc.text(`${log.paymentType === 'wire_ach' ? 'Wire ACH' : log.paymentType === 'transaction_id' ? 'Transaction ID' : 'N/A'}`, 150, 38);
+        doc.text(`Amount:`, 110, 44);
+        doc.setTextColor(44, 160, 28);
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`$${Number(log.amountUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} USD`, 150, 44);
+        doc.setFont('Helvetica', 'normal');
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+
+        if (!log.paymentProofUrl) {
+          // No proof uploaded yet
+          doc.setFontSize(10);
+          doc.setTextColor(180, 120, 0);
+          doc.text('⚠  No payment proof file uploaded yet.', 20, 75);
+        } else if (log.paymentProofType === 'image') {
+          // Embed image proof
+          try {
+            doc.setFontSize(9);
+            doc.setTextColor(80, 80, 80);
+            doc.text('Proof Image:', 20, 70);
+
+            // Fetch the image via proxy and convert to base64 for cross-origin embedding
+            const imgResponse = await fetch(`/api/proxy-fetch?url=${encodeURIComponent(log.paymentProofUrl)}`);
+            const imgBlob = await imgResponse.blob();
+            const imgBase64: string = await new Promise((res, rej) => {
+              const reader = new FileReader();
+              reader.onload = () => res(reader.result as string);
+              reader.onerror = rej;
+              reader.readAsDataURL(imgBlob);
+            });
+
+            const img = new Image();
+            await new Promise<void>((res, rej) => {
+              img.onload = () => res();
+              img.onerror = rej;
+              img.src = imgBase64;
+            });
+
+            const maxW = 170;
+            const maxH = 190;
+            const ratio = img.naturalWidth / img.naturalHeight;
+            let pw = maxW;
+            let ph = maxW / ratio;
+            if (ph > maxH) { ph = maxH; pw = maxH * ratio; }
+            const xCenter = (210 - pw) / 2;
+
+            doc.addImage(imgBase64, 'JPEG', xCenter, 75, pw, ph);
+
+            // URL below image
+            doc.setFontSize(7);
+            doc.setTextColor(100, 100, 200);
+            const wrappedUrl = doc.splitTextToSize(`Source: ${log.paymentProofUrl}`, 170);
+            doc.text(wrappedUrl, 20, 75 + ph + 6);
+          } catch (imgErr) {
+            doc.setFontSize(9);
+            doc.setTextColor(180, 0, 0);
+            doc.text('Could not embed image. Access via URL below:', 20, 72);
+            doc.setTextColor(0, 0, 200);
+            const wrappedUrl = doc.splitTextToSize(log.paymentProofUrl, 170);
+            doc.text(wrappedUrl, 20, 80);
+          }
+        } else {
+          // PDF proof — show link with instructions
+          doc.setFontSize(10);
+          doc.setTextColor(80, 80, 80);
+          doc.text('Proof of payment was submitted as a PDF document.', 20, 72);
+          doc.text('Open the link below to view the original file:', 20, 80);
+
+          // Draw a button-style box around the URL
+          doc.setDrawColor(124, 58, 237);
+          doc.setLineWidth(0.5);
+          doc.roundedRect(15, 86, 180, 14, 2, 2, 'S');
+          doc.setFont('Helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(124, 58, 237);
+          const wrappedUrl = doc.splitTextToSize(log.paymentProofUrl, 168);
+          doc.text(wrappedUrl, 20, 95);
+
+          doc.setFont('Helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.setTextColor(120, 120, 120);
+          doc.text('Note: Copy and paste the URL above into a browser to view the proof PDF.', 20, 108);
+          doc.text('The file is stored securely in Cloudinary and accessible to authorized parties only.', 20, 115);
+        }
+      }
+
       // --- FOOTER ---
       doc.setFontSize(8)
       doc.setFont('Helvetica', 'oblique')
@@ -609,8 +733,66 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       const splitText = doc.splitTextToSize(footerText, 170)
       doc.text(splitText, 20, 260)
 
-      doc.save(`Consent_Certificate_${log.lastName}_${log.firstName}.pdf`)
-      toast.success('PDF Certificate downloaded!')
+      // ── Merge proof PDF pages if this is an Online Payment with a PDF proof ──
+      if (log.paymentGateway === 'Online Payment' && log.paymentProofType === 'pdf' && log.paymentProofUrl) {
+        try {
+          toast.loading('Merging payment proof PDF...', { id: 'pdf-merge' });
+
+          // 1. Export jsPDF output as ArrayBuffer
+          const consentPdfBytes = doc.output('arraybuffer');
+
+          // 2. Load the consent log PDF into pdf-lib
+          const mergedDoc = await PDFDocument.load(consentPdfBytes);
+
+          // 3. Fetch the proof PDF from Cloudinary via proxy
+          const proofResponse = await fetch(`/api/proxy-fetch?url=${encodeURIComponent(log.paymentProofUrl)}`);
+          if (!proofResponse.ok) throw new Error('Could not fetch proof PDF from Cloudinary.');
+          const proofPdfBytes = await proofResponse.arrayBuffer();
+
+          // 4. Load the proof PDF and copy all its pages into the merged doc
+          const proofDoc = await PDFDocument.load(proofPdfBytes);
+          const proofPageCount = proofDoc.getPageCount();
+          const copiedPages = await mergedDoc.copyPages(proofDoc, Array.from({ length: proofPageCount }, (_, i) => i));
+
+          // Draw "Payment Proof" title at the top of the first merged page
+          if (copiedPages.length > 0) {
+            const firstPage = copiedPages[0];
+            const helveticaBold = await mergedDoc.embedFont(StandardFonts.HelveticaBold);
+            firstPage.drawText('Payment Proof', {
+              x: 20,
+              y: firstPage.getHeight() - 25,
+              size: 11,
+              font: helveticaBold,
+              color: rgb(0.48, 0.22, 0.92), // Violet
+            });
+          }
+
+          copiedPages.forEach(page => mergedDoc.addPage(page));
+
+          // 5. Save and download the merged PDF
+          const mergedPdfBytes = await mergedDoc.save();
+          const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `Consent_Certificate_${log.lastName}_${log.firstName}.pdf`;
+          a.click();
+          URL.revokeObjectURL(url);
+
+          toast.dismiss('pdf-merge');
+          toast.success('PDF Certificate downloaded (with proof attached)!');
+        } catch (mergeErr: any) {
+          toast.dismiss('pdf-merge');
+          console.error('[PDF Merge Error]', mergeErr);
+          // Fallback: download consent log only
+          doc.save(`Consent_Certificate_${log.lastName}_${log.firstName}.pdf`);
+          toast.success('PDF downloaded (proof merge failed — downloading consent log only).');
+        }
+      } else {
+        // No proof to merge — standard download
+        doc.save(`Consent_Certificate_${log.lastName}_${log.firstName}.pdf`)
+        toast.success('PDF Certificate downloaded!')
+      }
     } catch (err) {
       console.error(err)
       toast.error('Failed to generate PDF')
@@ -630,6 +812,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       if (log.paymentGateway !== 'Whop' && log.gateway !== 'Whop' && !log.whopSessionId) return false;
     } else if (advGateway === 'Authorize.net') {
       if (log.paymentGateway !== 'Authorize.net' && log.gateway !== 'Authorize.net' && !log.fsOrderReference) return false;
+    } else if (advGateway === 'Online Payment') {
+      if (log.paymentGateway !== 'Online Payment') return false;
     }
     
     // 3. Status Filter
@@ -709,16 +893,31 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Payment Gateway</label>
                 <div className="flex bg-white rounded-md border border-zinc-200 p-1">
                   <button
-                    onClick={() => setSelectedGateway('whop')}
+                    onClick={() => {
+                      setSelectedGateway('whop')
+                      setPaymentLink('')
+                    }}
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'whop' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Whop Payments
                   </button>
                   <button
-                    onClick={() => setSelectedGateway('authorize')}
+                    onClick={() => {
+                      setSelectedGateway('authorize')
+                      setPaymentLink('')
+                    }}
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Authorize.net
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedGateway('online')
+                      setPaymentLink('')
+                    }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'online' ? 'bg-[#7c3aed] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Online Payment
                   </button>
                 </div>
               </div>
@@ -738,6 +937,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     value={selectedEdition}
                     onChange={(e) => {
                       setSelectedEdition(e.target.value)
+                      setPaymentLink('')
                       if (e.target.value === 'whop') {
                         setSelectedGateway('whop')
                       }
@@ -768,7 +968,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       type="number"
                       min="1"
                       value={users}
-                      onChange={(e) => setUsers(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => {
+                         setUsers(Math.max(1, parseInt(e.target.value) || 1))
+                         setPaymentLink('')
+                       }}
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                     />
                   </div>
@@ -780,7 +983,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   <label className="block mb-1.5 font-medium text-xs text-zinc-500">Contract Period</label>
                   <select
                     value={selectedYears}
-                    onChange={(e) => setSelectedYears(parseInt(e.target.value))}
+                    onChange={(e) => {
+                      setSelectedYears(parseInt(e.target.value))
+                      setPaymentLink('')
+                    }}
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
                   >
                     {yearOptions.map((y) => (
@@ -797,7 +1003,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   min="0"
                   placeholder="e.g. 3500"
                   value={totalPrice}
-                  onChange={(e) => setTotalPrice(e.target.value)}
+                  onChange={(e) => {
+                    setTotalPrice(e.target.value)
+                    setPaymentLink('')
+                  }}
                   className="flex h-10 w-full rounded-md border border-[#2ca01c] bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 font-semibold"
                 />
               </div>
@@ -820,6 +1029,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     }
 
                     setDiscountAmount(value)
+                    setPaymentLink('')
                   }}
                   className="flex h-10 w-full rounded-md border border-zinc-200 bg-zinc-50/50 px-3 py-2 text-sm text-zinc-500 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-200 focus:border-zinc-300"
                 />
@@ -975,6 +1185,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="All">All Gateways</option>
                 <option value="Whop">Whop Only</option>
                 <option value="Authorize.net">Authorize.net Only</option>
+                <option value="Online Payment">Online Payment Only</option>
               </select>
               
               <select 
@@ -1204,10 +1415,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 {/* Modal for Details */}
                 {selectedLog && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 md:p-8 max-w-2xl w-full relative">
-                      <button onClick={() => setSelectedLog(null)} className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-800 transition-colors p-1 bg-zinc-100 rounded-full">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl relative flex flex-col" style={{ maxHeight: '90vh' }}>
+                      {/* Sticky close button — always visible */}
+                      <button
+                        onClick={() => setSelectedLog(null)}
+                        className="absolute top-4 right-4 z-10 text-zinc-400 hover:text-zinc-800 transition-colors p-1 bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-zinc-200"
+                      >
                         <X size={20} />
                       </button>
+
+                      {/* Scrollable content */}
+                      <div className="overflow-y-auto flex-1 p-6 md:p-8">
                       
                       {selectedLog.logType === 'user_session' ? (
                         <>
@@ -1237,7 +1455,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
                             <div>
                               <h3 className="font-bold text-zinc-900 mb-4 border-b border-zinc-100 pb-2">Event Timeline</h3>
-                              <div className="space-y-4 border-l-2 border-blue-200 ml-3 pb-2">
+                              <div className="space-y-4 border-l-2 border-blue-200 ml-3 pb-2 overflow-y-auto" style={{ maxHeight: '380px' }}>
                                 {selectedLog.events && selectedLog.events.map((evt: any, i: number) => (
                                   <div key={i} className="relative pl-6">
                                     <div className="absolute w-3 h-3 bg-blue-500 rounded-full -left-[7px] top-4 border-2 border-white shadow-sm"></div>
@@ -1349,11 +1567,46 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           </div>
                         </div>
                       </div>
-                      </>
+
+                      {/* Online Payment: Proof of Payment section */}
+                      {selectedLog.paymentGateway === 'Online Payment' && (
+                        <div className="mt-6 p-4 bg-violet-50 border border-violet-200 rounded-xl">
+                          <p className="text-[10px] font-bold text-violet-500 uppercase tracking-wider mb-3">Payment Proof</p>
+                          {selectedLog.paymentProofUrl ? (
+                            selectedLog.paymentProofType === 'image' ? (
+                              <div className="space-y-2">
+                                <img
+                                  src={selectedLog.paymentProofUrl}
+                                  alt="Payment Proof"
+                                  className="max-h-64 rounded-lg border border-violet-200 object-contain w-full bg-white"
+                                />
+                                <a
+                                  href={selectedLog.paymentProofUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-700 hover:underline"
+                                >
+                                  <FileText size={12} /> Open full image
+                                </a>
+                              </div>
+                            ) : (
+                              <a
+                                href={selectedLog.paymentProofUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-violet-700 text-white text-xs font-semibold rounded-lg hover:bg-violet-800 transition-colors"
+                              >
+                                <FileText size={14} /> Open Payment Proof PDF
+                              </a>
+                            )
+                          ) : (
+                            <p className="text-xs text-violet-400 italic">Proof file not yet uploaded.</p>
+                          )}
+                        </div>
                       )}
                       
                       <div className="mt-8 pt-4 border-t border-zinc-100 flex justify-between items-center">
-                        {selectedLog.status !== 'Completed' ? (
+                        {process.env.NODE_ENV === 'development' && selectedLog.status !== 'Completed' ? (
                           <button
                             onClick={() => {
                               if (window.confirm('Mark this transaction as paid manually? This will unlock the PDF consent log.')) {
@@ -1373,6 +1626,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         >
                           Close Details
                         </button>
+                      </div>
+                      </>
+                      )}
                       </div>
                     </div>
                   </div>

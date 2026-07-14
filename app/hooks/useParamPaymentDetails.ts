@@ -47,8 +47,8 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
     try {
       let decodedString = paymentBase64;
       
-      const customFormatRegex = /^([0-9a-z]+)([SGPDFX])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(G[AFS])?$/;
-      const serviceFormatRegex = /^S([a-l])K([0-9a-z]+)M([0-9a-z]+)(G[AFS])?$/;
+      const customFormatRegex = /^([0-9a-z]+)([SGPDFX])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(G[AFSO])?$/;
+      const serviceFormatRegex = /^S([a-l])K([0-9a-z]+)M([0-9a-z]+)(G[AFSO])?$/;
       
       const match = decodedString.match(customFormatRegex);
       const matchService = decodedString.match(serviceFormatRegex);
@@ -72,7 +72,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           serviceName: serviceItem ? serviceItem.name : 'Unknown Service',
           disc: parseInt(matchService[2], 36) / 100,
           total: parseInt(matchService[3], 36) / 100,
-          gateway: matchService[4] === 'GA' ? 'Authorize.net' : matchService[4] === 'GS' ? 'Whop' : 'FastSpring',
+          gateway: matchService[4] === 'GA' ? 'Authorize.net' : matchService[4] === 'GS' ? 'Whop' : matchService[4] === 'GO' ? 'Online Payment' : 'FastSpring',
           time: Date.now()
         };
       } else if (match) {
@@ -83,7 +83,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           year: parseInt(match[3], 36),
           disc: parseInt(match[4], 36) / 100,
           total: parseInt(match[5], 36) / 100,
-          gateway: match[6] === 'GA' ? 'Authorize.net' : match[6] === 'GS' ? 'Whop' : 'FastSpring',
+          gateway: match[6] === 'GA' ? 'Authorize.net' : match[6] === 'GS' ? 'Whop' : match[6] === 'GO' ? 'Online Payment' : 'FastSpring',
           time: Date.now()
         };
       } else if (decodedString.startsWith('{')) {
