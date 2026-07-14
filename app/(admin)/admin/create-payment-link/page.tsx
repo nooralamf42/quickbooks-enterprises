@@ -596,7 +596,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         doc.setFont('Times', 'normal')
         doc.setFontSize(14)
         doc.setTextColor(0, 0, 0)
-        const dateStr = new Date(log.agreedTimestamp).toLocaleDateString('en-US')
+        const dateStr = new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) + ' EST'
         doc.text(`Date:  ${dateStr}`, 150, sigY + 13)
       }
 
@@ -1033,8 +1033,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 <span className="font-bold text-zinc-900 block">
                                   {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                                 </span>
-                                <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
-                                  {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                <span className="text-zinc-500 block text-[10px] mt-0.5">
+                                  {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })} EST
                                 </span>
                               </td>
                               <td className="py-4 px-4 align-top">
@@ -1089,8 +1089,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <span className="font-bold text-zinc-900 block">
                               {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
                             </span>
-                            <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
-                              {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            <span className="text-zinc-500 block text-[10px] mt-0.5">
+                              {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })} EST
                             </span>
                           </td>
                           
@@ -1250,7 +1250,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                           {evt.email && <p className="text-xs text-zinc-600 mt-2 font-medium">Entered Email: <span className="text-zinc-900">{evt.email}</span></p>}
                                         </div>
                                         <div className="text-right">
-                                          <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</span>
+                                          <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</span>
                                           <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</span>
                                         </div>
                                       </div>
@@ -1333,9 +1333,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 <span className="text-zinc-500">Date:</span>
                                 <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-zinc-500">Time:</span>
-                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
+                              <div className="flex justify-between items-center pb-2 border-b border-zinc-100">
+                                <span className="text-zinc-500 text-sm">Time</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' }) + ' EST' : 'N/A'}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">Gateway:</span>
@@ -1395,7 +1395,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
         <div className="flex justify-between items-start cursor-pointer group" onClick={() => setExpanded(!expanded)}>
           <div>
             <span className="text-[9px] uppercase font-bold text-blue-400 block tracking-wider">
-              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })}
+              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
             </span>
             <h4 className="font-semibold text-blue-900 text-base mt-0.5">Activity Session</h4>
             <p className="text-xs text-zinc-500 font-medium">{log.email || log.ipAddress}</p>
@@ -1416,7 +1416,9 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
               {log.events && log.events.map((evt: any, i: number) => (
                 <div key={i} className="flex justify-between items-center text-xs">
                   <span className="font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase text-[9px]">{evt.event.replace('_', ' ')}</span>
-                  <span className="text-zinc-500">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</span>
+                  <div className="flex items-center justify-between mt-1">
+                  <span className="text-zinc-500">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</span>
+                </div>
                 </div>
               ))}
            </div>
@@ -1433,9 +1435,10 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
         onClick={() => setExpanded(!expanded)}
       >
         <div>
-          <span className="text-[9px] uppercase font-bold text-zinc-400 block tracking-wider">
-            {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })}
-          </span>
+          <div className="font-semibold text-emerald-800 flex items-center gap-2 mt-0.5">
+            <CheckCircle size={14} className="text-emerald-600" />
+            {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
+          </div>
           <h4 className="font-semibold text-zinc-900 text-base mt-0.5 group-hover:text-[#2ca01c] transition-colors">{log.firstName} {log.lastName}</h4>
           <p className="text-xs text-zinc-500 font-medium">{log.email}</p>
         </div>
