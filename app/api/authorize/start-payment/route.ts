@@ -6,7 +6,8 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { 
       amountUSD, email, firstName, lastName, phone, planDetails, 
-      address, city, state, zipCode, country, companyName, ein, gateway 
+      address, city, state, zipCode, country, companyName, ein, gateway,
+      clientSignatureBase64
     } = body;
 
     const { db } = await connectToDatabase();
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
       amountUSD, planDetails,
       status: 'Pending',
       agreedToTerms: body.agreedToTerms === 'true' || body.agreedToTerms === true,
+      clientSignatureBase64,
       agreedTimestamp: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),

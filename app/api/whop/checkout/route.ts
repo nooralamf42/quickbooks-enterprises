@@ -3,8 +3,11 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { amountUSD, email, firstName, lastName, phone, planDetails, address, city, state, zipCode, country } = body;
+    const { 
+      amountUSD, firstName, lastName, email, phone,
+      planDetails, address, city, state, zipCode, country,
+      clientSignatureBase64 
+    } = await req.json();
 
     const apiKey = process.env.WHOP_API_KEY;
     const companyId = process.env.WHOP_COMPANY_ID;
@@ -24,6 +27,7 @@ export async function POST(req: Request) {
         status: 'Pending',
         agreedToTerms: true,
         agreedTimestamp: new Date(),
+        clientSignatureBase64,
         createdAt: new Date(),
         updatedAt: new Date(),
         paymentGateway: 'Whop'

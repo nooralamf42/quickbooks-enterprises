@@ -116,6 +116,66 @@ export default function QuickBooksPaymentLinkCreator() {
       setIsSimulating(false)
     }
   }
+  const deleteTestLogs = async () => {
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      let passwordHash = ''
+      if (stored) {
+        passwordHash = JSON.parse(stored).passwordHash
+      }
+
+      const response = await fetch('/api/admin/delete-test-logs', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${passwordHash}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Deletion failed')
+      }
+
+      toast.success('Test logs deleted successfully!')
+      fetchLogs()
+      setSelectedLog(null)
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || 'Deletion failed')
+    }
+  }
+
+  const markLogAsPaid = async (id: string) => {
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      let passwordHash = ''
+      if (stored) {
+        passwordHash = JSON.parse(stored).passwordHash
+      }
+
+      const response = await fetch('/api/admin/mark-paid', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${passwordHash}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id })
+      })
+
+      if (!response.ok) {
+        throw new Error('Update failed')
+      }
+
+      toast.success('Transaction marked as paid!')
+      fetchLogs()
+      if (selectedLog && selectedLog._id === id) {
+        setSelectedLog({ ...selectedLog, status: 'Completed', paidAt: new Date().toISOString() })
+      }
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || 'Update failed')
+    }
+  }
 
   const editions = [
     { name: 'Silver', value: 'silver' },
@@ -476,6 +536,68 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       doc.text(`Reconciliation:     ${log.status === 'Completed' ? 'Completed & Paid' : 'Pending Payment'}`, 20, orderY + 12)
       if (log.whopSessionId) {
         doc.text(`Whop Session ID:    ${log.whopSessionId}`, 20, orderY + 18)
+      }
+
+      if (log.clientSignatureBase64) {
+        const sigY = orderY + 35;
+        
+        doc.setFont('Times', 'normal')
+        doc.setFontSize(14)
+        doc.setTextColor(0, 0, 0)
+        doc.text('Customer Signature:', 20, sigY + 13)
+        
+        // Draw purplish-blue bracket with pseudo-curves
+        doc.setDrawColor(68, 0, 230) // Purple-blue
+        doc.setLineWidth(0.6)
+        
+        // Top curve
+        doc.line(65, sigY + 2, 66, sigY + 1)
+        doc.line(66, sigY + 1, 68, sigY + 1)
+        // Vertical line
+        doc.line(65, sigY + 2, 65, sigY + 21)
+        // Bottom curve
+        doc.line(65, sigY + 21, 66, sigY + 22)
+        doc.line(66, sigY + 22, 68, sigY + 22)
+        
+        // Signed by text
+        doc.setFontSize(8)
+        doc.setFont('Helvetica', 'bold')
+        doc.setTextColor(0, 0, 0)
+        doc.text('Signed by:', 69, sigY + 2.5)
+        
+        // Signature Image
+        try {
+          const props = doc.getImageProperties(log.clientSignatureBase64);
+          const imgRatio = props.width / props.height;
+          let imgHeight = 14;
+          let imgWidth = 14 * imgRatio;
+          
+          // Cap the width so it doesn't overflow the page
+          if (imgWidth > 80) {
+            imgWidth = 80;
+            imgHeight = 80 / imgRatio;
+          }
+          
+          const yOffset = (15 - imgHeight) / 2;
+          doc.addImage(log.clientSignatureBase64, 'PNG', 69, sigY + 3 + yOffset, imgWidth, imgHeight);
+        } catch (e) {
+          doc.addImage(log.clientSignatureBase64, 'PNG', 69, sigY + 4, 50, 15);
+        }
+        
+        // Transaction ID text
+        doc.setFontSize(7)
+        doc.setFont('Helvetica', 'normal')
+        doc.setTextColor(100, 100, 100)
+        const transId = log._id ? log._id.toString() : 'N/A'
+        const shortId = transId.length > 15 ? transId.substring(0, 15) + '...' : transId
+        doc.text(`Transaction ID: ${shortId}`, 69, sigY + 23.5)
+        
+        // Date on right
+        doc.setFont('Times', 'normal')
+        doc.setFontSize(14)
+        doc.setTextColor(0, 0, 0)
+        const dateStr = new Date(log.agreedTimestamp).toLocaleDateString('en-US')
+        doc.text(`Date:  ${dateStr}`, 150, sigY + 13)
       }
 
       // --- FOOTER ---
@@ -1230,7 +1352,21 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       </>
                       )}
                       
-                      <div className="mt-8 pt-4 border-t border-zinc-100 flex justify-end">
+                      <div className="mt-8 pt-4 border-t border-zinc-100 flex justify-between items-center">
+                        {selectedLog.status !== 'Completed' ? (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Mark this transaction as paid manually? This will unlock the PDF consent log.')) {
+                                markLogAsPaid(selectedLog._id);
+                              }
+                            }}
+                            className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm cursor-pointer"
+                          >
+                            Mark as Paid
+                          </button>
+                        ) : (
+                          <div></div>
+                        )}
                         <button 
                           onClick={() => setSelectedLog(null)}
                           className="px-6 py-2 bg-zinc-900 text-white font-semibold rounded-lg hover:bg-zinc-800 transition-colors shadow-sm text-sm cursor-pointer"

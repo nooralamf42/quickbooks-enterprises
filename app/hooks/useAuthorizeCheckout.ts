@@ -131,7 +131,24 @@ export const useAuthorizeCheckout = () => {
       const sessionRes = await fetch('/api/authorize/start-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...paymentDetails, gateway: 'Authorize.net' })
+        body: JSON.stringify({
+          amountUSD: paymentDetails.amountUSD,
+          email: paymentDetails.email,
+          firstName: paymentDetails.firstName,
+          lastName: paymentDetails.lastName,
+          phone: paymentDetails.phone,
+          planDetails: paymentDetails.planDetails,
+          address: paymentDetails.address,
+          city: paymentDetails.city,
+          state: paymentDetails.state,
+          zipCode: paymentDetails.zipCode,
+          country: paymentDetails.country,
+          companyName: paymentDetails.companyName,
+          ein: paymentDetails.ein,
+          agreedToTerms: paymentDetails.agreedToTerms,
+          clientSignatureBase64: paymentDetails.clientSignatureBase64,
+          gateway: 'Authorize.net'
+        })
       });
 
       const sessionData = await sessionRes.json();

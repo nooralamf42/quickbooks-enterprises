@@ -138,6 +138,66 @@ export default function TestPaymentLinkCreator() {
       setIsSimulating(false)
     }
   }
+  const deleteTestLogs = async () => {
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      let passwordHash = ''
+      if (stored) {
+        passwordHash = JSON.parse(stored).passwordHash
+      }
+
+      const response = await fetch('/api/admin/delete-test-logs', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${passwordHash}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Deletion failed')
+      }
+
+      toast.success('Test logs deleted successfully!')
+      fetchLogs()
+      setSelectedLog(null)
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || 'Deletion failed')
+    }
+  }
+
+  const markLogAsPaid = async (id: string) => {
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      let passwordHash = ''
+      if (stored) {
+        passwordHash = JSON.parse(stored).passwordHash
+      }
+
+      const response = await fetch('/api/admin/mark-paid', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${passwordHash}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id })
+      })
+
+      if (!response.ok) {
+        throw new Error('Update failed')
+      }
+
+      toast.success('Transaction marked as paid!')
+      fetchLogs()
+      if (selectedLog && selectedLog._id === id) {
+        setSelectedLog({ ...selectedLog, status: 'Completed', paidAt: new Date().toISOString() })
+      }
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || 'Update failed')
+    }
+  }
 
   const productsAndServices = [
     { name: 'QuickBooks Enterprise 24.0 Silver', value: 'silver', type: 'qb' },
@@ -463,6 +523,12 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         doc.text(`Whop Session ID:    ${log.whopSessionId}`, 20, orderY + 18)
       }
 
+      if (log.clientSignatureBase64) {
+        doc.setFont('Helvetica', 'bold')
+        doc.text('CLIENT SIGNATURE', 20, orderY + 30)
+        doc.addImage(log.clientSignatureBase64, 'PNG', 20, orderY + 35, 80, 25)
+      }
+
       doc.setFontSize(8)
       doc.setFont('Helvetica', 'oblique')
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2])
@@ -777,6 +843,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 >
                   <RefreshCw size={12} className={isLoadingLogs ? 'animate-spin' : ''} />
                   Refresh
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm('Are you sure you want to delete all test logs?')) {
+                      deleteTestLogs();
+                    }
+                  }}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 font-semibold rounded-lg text-xs cursor-pointer"
+                >
+                  <AlertCircle size={12} />
+                  Delete Test Logs
                 </button>
               </div>
             </div>
@@ -1113,7 +1190,21 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         </>
                       )}
                       
-                      <div className="mt-8 pt-4 border-t border-zinc-100 flex justify-end">
+                      <div className="mt-8 pt-4 border-t border-zinc-100 flex justify-between items-center">
+                        {selectedLog.status !== 'Completed' ? (
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Mark this transaction as paid manually? This will unlock the PDF consent log.')) {
+                                markLogAsPaid(selectedLog._id);
+                              }
+                            }}
+                            className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm cursor-pointer"
+                          >
+                            Mark as Paid
+                          </button>
+                        ) : (
+                          <div></div>
+                        )}
                         <button 
                           onClick={() => setSelectedLog(null)}
                           className="px-6 py-2 bg-zinc-900 text-white font-semibold rounded-lg hover:bg-zinc-800 transition-colors shadow-sm text-sm cursor-pointer"

@@ -18,6 +18,7 @@ interface Props {
   state?: string;
   zipCode?: string;
   country?: string;
+  clientSignatureBase64?: string;
 }
 
 export default function WhopPaymentModal({
@@ -34,6 +35,7 @@ export default function WhopPaymentModal({
   state,
   zipCode,
   country,
+  clientSignatureBase64,
 }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [localOrderId, setLocalOrderId] = useState<string | null>(null);
@@ -76,7 +78,8 @@ export default function WhopPaymentModal({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             amountUSD, firstName, lastName, email, phone,
-            planDetails, address, city, state, zipCode, country
+            planDetails, address, city, state, zipCode, country,
+            clientSignatureBase64
           })
         });
         
