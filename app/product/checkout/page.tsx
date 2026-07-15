@@ -28,6 +28,7 @@ export default function QualityBusinessCheckout() {
     const {mutateAsync, isPending} = useCreateGuestUser()
     const [formData, setFormData] = useState({
         companyName: '',
+        ein: '',
         email: '',
         phone: '',
         firstName: '',
@@ -194,7 +195,7 @@ export default function QualityBusinessCheckout() {
                             {/* Form Section */}
                             <form onSubmit={handleSave} className="lg:col-span-2">
                                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8">
-                                    <CompanyInfo companyName={formData.companyName} onChange={(value: string) => handleInputChange('companyName', value)} />
+                                    <CompanyInfo companyName={formData.companyName} ein={formData.ein} onChange={handleInputChange} />
                                     <div className="border-t border-gray-200 my-8"></div>
                                     <ContactInfo email={formData.email} phone={formData.phone} firstName={formData.firstName} lastName={formData.lastName} onChange={handleInputChange} />
                                     <div className="border-t border-gray-200 my-8"></div>

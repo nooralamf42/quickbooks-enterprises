@@ -1,5 +1,5 @@
 // components/CompanyInfo.js
-export default function CompanyInfo({ companyName, ein, onChange }:{companyName: string, ein?: string, onChange: (field: string, value: string) => void}) {
+export default function CompanyInfo({ companyName, ein, onChange }:{companyName: string, ein: string, onChange: (field: string, value: string) => void}) {
     return (
       <div>
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Company information</h2>
@@ -22,10 +22,13 @@ export default function CompanyInfo({ companyName, ein, onChange }:{companyName:
               EIN
             </label>
             <input
+              required
               type="text"
               id="ein"
               placeholder="12-3456789"
-              value={ein || ''}
+              pattern="\d{2}-\d{7}"
+              title="Format must be 9 digits: 12-3456789"
+              value={ein}
               onChange={(e) => {
                 let val = e.target.value.replace(/\D/g, '');
                 if (val.length > 9) val = val.slice(0, 9);
