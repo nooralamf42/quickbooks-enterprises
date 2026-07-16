@@ -639,7 +639,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         doc.text(`${log._id}`, 60, 56);
         doc.setFont('Helvetica', 'normal');
         doc.text(`Payment Type:`, 110, 38);
-        doc.text(`${log.paymentType === 'wire_ach' ? 'Wire ACH' : log.paymentType === 'transaction_id' ? 'Transaction ID' : 'N/A'}`, 150, 38);
+        doc.text(`${log.paymentType === 'wire_ach' ? 'Wire/ACH' : 'N/A'}`, 150, 38);
         doc.text(`Amount:`, 110, 44);
         doc.setTextColor(44, 160, 28);
         doc.setFont('Helvetica', 'bold');

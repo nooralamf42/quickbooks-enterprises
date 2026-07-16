@@ -164,7 +164,7 @@ export default function CheckoutForm() {
             } else if (paymentObj?.gateway === 'Online Payment') {
                 // Validate Online Payment fields
                 if (!onlinePaymentType) {
-                    toast.error('Please select a payment method (Wire ACH or Transaction ID).');
+                    toast.error('Please select a payment method (Wire/ACH).');
                     return;
                 }
                 if (!proofFile) {
@@ -402,8 +402,7 @@ export default function CheckoutForm() {
                                         className="w-full px-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#2ca01c] focus:border-transparent text-gray-700 text-sm bg-white cursor-pointer"
                                     >
                                         <option value="" disabled>Select payment method...</option>
-                                        <option value="wire_ach">Wire ACH</option>
-                                        <option value="transaction_id">Transaction ID</option>
+                                        <option value="wire_ach">Wire/ACH</option>
                                     </select>
                                 </div>
                             )}
