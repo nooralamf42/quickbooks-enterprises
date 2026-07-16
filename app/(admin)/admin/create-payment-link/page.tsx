@@ -15,7 +15,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'whop' | 'authorize' | 'online'>('whop')
+  const [selectedGateway, setSelectedGateway] = useState<'whop' | 'authorize' | 'online' | 'stripe'>('whop')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -222,7 +222,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : 'GS'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'stripe' ? 'GT' : 'GS'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition)) {
@@ -814,6 +814,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       if (log.paymentGateway !== 'Authorize.net' && log.gateway !== 'Authorize.net' && !log.fsOrderReference) return false;
     } else if (advGateway === 'Online Payment') {
       if (log.paymentGateway !== 'Online Payment') return false;
+    } else if (advGateway === 'Stripe') {
+      if (log.paymentGateway !== 'Stripe' && !log.stripeSessionId) return false;
     }
     
     // 3. Status Filter
@@ -918,6 +920,15 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'online' ? 'bg-[#7c3aed] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Online Payment
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedGateway('stripe')
+                      setPaymentLink('')
+                    }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stripe' ? 'bg-[#635bff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Stripe
                   </button>
                 </div>
               </div>
@@ -1186,6 +1197,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="Whop">Whop Only</option>
                 <option value="Authorize.net">Authorize.net Only</option>
                 <option value="Online Payment">Online Payment Only</option>
+                <option value="Stripe">Stripe Only</option>
               </select>
               
               <select 
@@ -1346,10 +1358,24 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               </div>
                             )}
                             
+                            {log.stripeSessionId && (
+                              <div className="text-[9px] font-semibold text-zinc-500 mt-2 font-mono bg-zinc-50 p-1 border border-zinc-100 rounded inline-block">
+                                Ref: {log.stripeSessionId.substring(0, 18)}...
+                              </div>
+                            )}
+                            
                             {log.gateway === 'Authorize.net' && (
                               <div className="mt-1">
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
                                   AUTH.NET
+                                </span>
+                              </div>
+                            )}
+
+                            {log.paymentGateway === 'Stripe' && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                  STRIPE
                                 </span>
                               </div>
                             )}
@@ -1561,7 +1587,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               </div>
                               <div className="flex justify-between border-t border-zinc-200/60 pt-2 mt-2">
                                 <span className="text-zinc-500">Reference:</span>
-                                <span className="font-mono font-semibold text-zinc-900">{selectedLog.whopSessionId || selectedLog.fsOrderReference || selectedLog._id}</span>
+                                <span className="font-mono font-semibold text-zinc-900">{selectedLog.whopSessionId || selectedLog.fsOrderReference || selectedLog.stripeSessionId || selectedLog._id}</span>
                               </div>
                             </div>
                           </div>
@@ -1721,12 +1747,18 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
           <div className="text-[11px] text-zinc-600 bg-zinc-50 p-2.5 border border-zinc-200/50 rounded-lg leading-relaxed">
             <span className="font-bold text-zinc-700 block text-[9px] uppercase tracking-wider mb-1">Plan Details</span>
             {log.planDetails}
-            {log.companyName && (
-               <div className="mt-2 pt-2 border-t border-zinc-200/50">
+            <div className="mt-2 pt-2 border-t border-zinc-200/50 flex justify-between items-center">
+              <div>
+                <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Gateway</span>
+                <div className="text-[11px] font-semibold text-zinc-800 mt-0.5">{log.paymentGateway || log.gateway || 'Whop'}</div>
+              </div>
+              {log.companyName && (
+                <div className="text-right">
                   <span className="text-[9px] uppercase font-bold text-zinc-400 tracking-wider">Company</span>
                   <div className="text-[11px] font-semibold text-purple-700 mt-0.5">{log.companyName}</div>
-               </div>
-            )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Billing Address */}

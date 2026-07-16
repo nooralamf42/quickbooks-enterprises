@@ -6,6 +6,7 @@ import ContactInfo from './components/contactInfo';
 import OrderSummary from './components/orderSummary';
 import BusinessAddress from './components/businessAddress';
 import WhopPaymentModal from './components/WhopPaymentModal';
+import StripePaymentForm from './components/StripePaymentForm';
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
@@ -20,6 +21,8 @@ export default function CheckoutForm() {
     const { setUserDetails } = useUserDetails();
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [isWhopModalOpen, setIsWhopModalOpen] = useState(false);
+    const [stripeClientSecret, setStripeClientSecret] = useState('');
+    const [stripeLocalOrderId, setStripeLocalOrderId] = useState('');
     const [clientSignatureBase64, setClientSignatureBase64] = useState<string>('');
     const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw');
     const [typedSignature, setTypedSignature] = useState('');
@@ -29,6 +32,7 @@ export default function CheckoutForm() {
     const [onlinePaymentType, setOnlinePaymentType] = useState<'wire_ach' | 'transaction_id' | ''>('');
     const [proofFile, setProofFile] = useState<File | null>(null);
     const [isSubmittingOnline, setIsSubmittingOnline] = useState(false);
+    const [isSubmittingStripe, setIsSubmittingStripe] = useState(false);
 
     const updateTypedSignature = (text: string) => {
         setTypedSignature(text);
@@ -229,12 +233,60 @@ export default function CheckoutForm() {
                 toast.success('Payment proof submitted successfully!');
                 // Redirect to success page
                 window.location.href = '/payment-success';
+            } else if (paymentObj?.gateway === 'Stripe') {
+                setIsSubmittingStripe(true);
+                const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
+                const planDetails = paymentObj?.isService
+                    ? paymentObj.serviceName
+                    : paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined;
+
+                const res = await fetch('/api/stripe/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amountUSD,
+                        email: formData.email,
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        phone: formData.phone,
+                        planDetails,
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        companyName: formData.companyName,
+                        ein: formData.ein,
+                        clientSignatureBase64,
+                        agreedToTerms: agreedToTerms ? 'true' : 'false'
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Failed to initiate Stripe checkout');
+                }
+
+                const data = await res.json();
+                setIsSubmittingStripe(false);
+                if (data.clientSecret) {
+                    setStripeClientSecret(data.clientSecret);
+                    setStripeLocalOrderId(data.localOrderId);
+                    setStep(3);
+                } else {
+                    throw new Error('No checkout secret returned from Stripe');
+                }
             } else {
                 // Whop — open the embedded checkout modal
                 setIsWhopModalOpen(true);
             }
         } catch (err: any) {
             setIsSubmittingOnline(false);
+            setIsSubmittingStripe(false);
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
             setStep(1);
         }
@@ -254,11 +306,13 @@ export default function CheckoutForm() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <form onSubmit={handleSave} className="lg:col-span-2">
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8">
-                            <CompanyInfo
-                                companyName={formData.companyName}
-                                ein={formData.ein}
-                                onChange={handleInputChange}
-                            />
+                            {!stripeClientSecret ? (
+                                <>
+                                    <CompanyInfo
+                                        companyName={formData.companyName}
+                                        ein={formData.ein}
+                                        onChange={handleInputChange}
+                                    />
 
                             <div className="border-t border-gray-200 my-8" />
 
@@ -495,12 +549,19 @@ export default function CheckoutForm() {
                                 </div>
                             ) : (
                                 <button
-                                    disabled={authIsPending || !clientSignatureBase64}
+                                    disabled={authIsPending || isSubmittingStripe || !clientSignatureBase64}
                                     type="submit"
                                     className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {authIsPending ? 'Connecting...' : 'Proceed to Payment'}
+                                    {authIsPending || isSubmittingStripe ? 'Connecting...' : 'Proceed to Payment'}
                                 </button>
+                            )}
+                            </>
+                            ) : (
+                                <StripePaymentForm 
+                                    clientSecret={stripeClientSecret}
+                                    localOrderId={stripeLocalOrderId}
+                                />
                             )}
                         </div>
                     </form>
