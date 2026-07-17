@@ -15,7 +15,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'whop' | 'authorize' | 'online' | 'stripe'>('whop')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe'>('stripe')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -222,7 +222,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'stripe' ? 'GT' : 'GS'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : 'GT'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition)) {
@@ -894,15 +894,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               <div className="bg-zinc-50 rounded-lg p-4 border border-zinc-200">
                 <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Payment Gateway</label>
                 <div className="flex bg-white rounded-md border border-zinc-200 p-1">
-                  <button
-                    onClick={() => {
-                      setSelectedGateway('whop')
-                      setPaymentLink('')
-                    }}
-                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'whop' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
-                  >
-                    Whop Payments
-                  </button>
+
                   <button
                     onClick={() => {
                       setSelectedGateway('authorize')
@@ -949,9 +941,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     onChange={(e) => {
                       setSelectedEdition(e.target.value)
                       setPaymentLink('')
-                      if (e.target.value === 'whop') {
-                        setSelectedGateway('whop')
-                      }
                     }}
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
                   >

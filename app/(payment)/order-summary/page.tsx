@@ -5,7 +5,6 @@ import CompanyInfo from './components/companyInfo';
 import ContactInfo from './components/contactInfo';
 import OrderSummary from './components/orderSummary';
 import BusinessAddress from './components/businessAddress';
-import WhopPaymentModal from './components/WhopPaymentModal';
 import StripePaymentForm from './components/StripePaymentForm';
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
@@ -20,9 +19,9 @@ export default function CheckoutForm() {
     const { setStep } = useSteps();
     const { setUserDetails } = useUserDetails();
     const [agreedToTerms, setAgreedToTerms] = useState(false);
-    const [isWhopModalOpen, setIsWhopModalOpen] = useState(false);
-    const [stripeClientSecret, setStripeClientSecret] = useState('');
-    const [stripeLocalOrderId, setStripeLocalOrderId] = useState('');
+    const [isSubmittingStripe, setIsSubmittingStripe] = useState(false);
+    const [stripeClientSecret, setStripeClientSecret] = useState<string>('');
+    const [stripeLocalOrderId, setStripeLocalOrderId] = useState<string>('');
     const [clientSignatureBase64, setClientSignatureBase64] = useState<string>('');
     const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw');
     const [typedSignature, setTypedSignature] = useState('');
@@ -32,7 +31,6 @@ export default function CheckoutForm() {
     const [onlinePaymentType, setOnlinePaymentType] = useState<'wire_ach' | 'transaction_id' | ''>('');
     const [proofFile, setProofFile] = useState<File | null>(null);
     const [isSubmittingOnline, setIsSubmittingOnline] = useState(false);
-    const [isSubmittingStripe, setIsSubmittingStripe] = useState(false);
 
     const updateTypedSignature = (text: string) => {
         setTypedSignature(text);
@@ -281,8 +279,8 @@ export default function CheckoutForm() {
                     throw new Error('No checkout secret returned from Stripe');
                 }
             } else {
-                // Whop — open the embedded checkout modal
-                setIsWhopModalOpen(true);
+                // If this is reached without a gateway match, throw an error
+                throw new Error('No valid payment gateway selected.');
             }
         } catch (err: any) {
             setIsSubmittingOnline(false);
@@ -571,30 +569,6 @@ export default function CheckoutForm() {
                     </div>
                 </div>
             </div>
-
-            <WhopPaymentModal
-                isOpen={isWhopModalOpen}
-                onClose={() => setIsWhopModalOpen(false)}
-                amountUSD={amountUSD}
-                firstName={formData.firstName}
-                lastName={formData.lastName}
-                email={formData.email}
-                phone={formData.phone}
-                planDetails={paymentObj?.isService
-                    ? paymentObj.serviceName
-                    : paymentObj?.edition
-                    ? paymentObj.edition.toLowerCase() === 'fsp'
-                        ? 'QuickBooks Enterprise FSP Edition'
-                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
-                    : undefined
-                }
-                address={formData.address}
-                city={formData.city}
-                state={formData.state}
-                zipCode={formData.zipCode}
-                country={formData.country}
-                clientSignatureBase64={clientSignatureBase64}
-            />
         </div>
     );
 }

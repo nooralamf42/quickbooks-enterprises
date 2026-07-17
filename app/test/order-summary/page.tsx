@@ -8,7 +8,7 @@ import BusinessAddress from '@/app/(payment)/order-summary/components/businessAd
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
-import WhopPaymentModal from '@/app/(payment)/order-summary/components/WhopPaymentModal';
+
 import { useAuthorizeCheckout } from '@/app/hooks/useAuthorizeCheckout';
 import toast from 'react-hot-toast';
 import SignatureCanvas from 'react-signature-canvas';
@@ -19,7 +19,7 @@ export default function CheckoutForm() {
     const { setStep, step } = useSteps();
     const { setUserDetails } = useUserDetails();
     const [agreedToTerms, setAgreedToTerms] = useState(false);
-    const [isWhopModalOpen, setIsWhopModalOpen] = useState(false);
+
     const [clientSignatureBase64, setClientSignatureBase64] = useState<string>('');
     const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw');
     const [typedSignature, setTypedSignature] = useState('');
@@ -161,7 +161,7 @@ export default function CheckoutForm() {
             if (paymentObj?.gateway === 'Authorize.net') {
                 await authCheckout(payload);
             } else {
-                setIsWhopModalOpen(true);
+                throw new Error('No valid payment gateway selected.');
             }
         } catch (err: any) {
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
@@ -369,29 +369,6 @@ export default function CheckoutForm() {
                     </div>
                 </div>
             </div>
-            
-            <WhopPaymentModal
-                isOpen={isWhopModalOpen}
-                onClose={() => setIsWhopModalOpen(false)}
-                amountUSD={paymentObj?.total ? paymentObj.total / 100 : 0}
-                firstName={formData.firstName}
-                lastName={formData.lastName}
-                email={formData.email}
-                phone={formData.phone}
-                planDetails={paymentObj?.isService 
-                    ? paymentObj.serviceName 
-                    : paymentObj?.edition
-                    ? paymentObj.edition.toLowerCase() === 'fsp'
-                        ? 'QuickBooks Enterprise FSP Edition'
-                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
-                    : undefined}
-                address={formData.address}
-                city={formData.city}
-                state={formData.state}
-                zipCode={formData.zipCode}
-                country={formData.country}
-                clientSignatureBase64={clientSignatureBase64}
-            />
         </div>
     );
 }

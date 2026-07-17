@@ -72,7 +72,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           serviceName: serviceItem ? serviceItem.name : 'Unknown Service',
           disc: parseInt(matchService[2], 36) / 100,
           total: parseInt(matchService[3], 36) / 100,
-          gateway: matchService[4] === 'GA' ? 'Authorize.net' : matchService[4] === 'GS' ? 'Whop' : matchService[4] === 'GO' ? 'Online Payment' : matchService[4] === 'GT' ? 'Stripe' : 'FastSpring',
+          gateway: matchService[4] === 'GA' ? 'Authorize.net' : matchService[4] === 'GO' ? 'Online Payment' : matchService[4] === 'GT' || matchService[4] === 'GS' ? 'Stripe' : 'FastSpring',
           time: Date.now()
         };
       } else if (match) {
@@ -83,7 +83,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           year: parseInt(match[3], 36),
           disc: parseInt(match[4], 36) / 100,
           total: parseInt(match[5], 36) / 100,
-          gateway: match[6] === 'GA' ? 'Authorize.net' : match[6] === 'GS' ? 'Whop' : match[6] === 'GO' ? 'Online Payment' : match[6] === 'GT' ? 'Stripe' : 'FastSpring',
+          gateway: match[6] === 'GA' ? 'Authorize.net' : match[6] === 'GO' ? 'Online Payment' : match[6] === 'GT' || match[6] === 'GS' ? 'Stripe' : 'FastSpring',
           time: Date.now()
         };
       } else if (decodedString.startsWith('{')) {
