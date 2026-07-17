@@ -1,5 +1,6 @@
 'use client';
 
+import React, { useEffect } from 'react';
 import { CheckCircle, Mail, Hash, DollarSign, Package } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -10,6 +11,21 @@ export default function PaymentSuccessPage() {
   const transactionId = params.get('txn') || params.get('reference') || params.get('id');
   const amount = params.get('amount');
   const plan = params.get('plan');
+
+  const paymentIntentId = params.get('payment_intent');
+  const orderId = params.get('order_id');
+
+  useEffect(() => {
+    // If returning from Stripe Custom Elements, verify the payment immediately 
+    // to act as a fallback in case the webhook fails or is delayed.
+    if (paymentIntentId && orderId) {
+      fetch('/api/stripe/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payment_intent: paymentIntentId, order_id: orderId })
+      }).catch(err => console.error('Verification fallback failed:', err));
+    }
+  }, [paymentIntentId, orderId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
