@@ -15,7 +15,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe'>('stripe')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay'>('stripe')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -222,7 +222,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : 'GT'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'asiapay' ? 'GAP' : 'GT'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition)) {
@@ -914,6 +914,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     Online Payment
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setSelectedGateway('stripe')
                       setPaymentLink('')
@@ -921,6 +922,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stripe' ? 'bg-[#635bff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Stripe
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGateway('asiapay')
+                      setPaymentLink('')
+                    }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'asiapay' ? 'bg-[#F36E17] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    AsiaPay
                   </button>
                 </div>
               </div>

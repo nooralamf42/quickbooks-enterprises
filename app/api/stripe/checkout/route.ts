@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(amountUSD * 100),
       currency: 'usd',
+      payment_method_types: ['card'],
       description: planDetails ? `License subscription - ${planDetails}` : `License subscription - ${companyName || 'B2B Client'}`,
       metadata: {
         localOrderId
