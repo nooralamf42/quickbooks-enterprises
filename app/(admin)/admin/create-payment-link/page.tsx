@@ -1266,7 +1266,28 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 </div>
                                 {log.email && <div className="text-zinc-900 font-medium mt-2">{log.email}</div>}
                                 <div className="text-[10px] text-zinc-400 mt-1 font-medium">IP: {log.ipAddress}</div>
-                                {log.paymentId && <div className="text-[10px] text-zinc-400 mt-0.5 font-medium">ID: {log.paymentId}</div>}
+                                {log.paymentId && <div className="text-[10px] text-zinc-400 mt-0.5 font-medium mb-1">ID: {log.paymentId}</div>}
+                                
+                                {log.paymentGateway === 'Authorize.net' && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-200 mt-1">
+                                    AUTH.NET
+                                  </span>
+                                )}
+                                {log.paymentGateway === 'Stripe' && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 mt-1">
+                                    STRIPE
+                                  </span>
+                                )}
+                                {log.paymentGateway === 'AsiaPay' && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-50 text-rose-700 border border-rose-200 mt-1">
+                                    ASIAPAY
+                                  </span>
+                                )}
+                                {log.paymentGateway === 'Online Payment' && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-50 text-violet-700 border border-violet-200 mt-1">
+                                    MANUAL
+                                  </span>
+                                )}
                               </td>
                               <td className="py-4 px-4 align-top">
                                 {log.amount ? (
@@ -1376,6 +1397,22 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               <div className="mt-1">
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                                   STRIPE
+                                </span>
+                              </div>
+                            )}
+
+                            {log.paymentGateway === 'AsiaPay' && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  ASIAPAY
+                                </span>
+                              </div>
+                            )}
+
+                            {log.paymentGateway === 'Online Payment' && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                                  MANUAL
                                 </span>
                               </div>
                             )}
@@ -1683,9 +1720,29 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
             <p className="text-xs text-zinc-500 font-medium">{log.email || log.ipAddress}</p>
           </div>
           <div className="flex flex-col items-end gap-1.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-blue-50 text-blue-700 border border-blue-200 mb-1">
               Tracked
             </span>
+            {log.paymentGateway === 'Authorize.net' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                AUTH.NET
+              </span>
+            )}
+            {log.paymentGateway === 'Stripe' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                STRIPE
+              </span>
+            )}
+            {log.paymentGateway === 'AsiaPay' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                ASIAPAY
+              </span>
+            )}
+            {log.paymentGateway === 'Online Payment' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
+                MANUAL
+              </span>
+            )}
             {log.amount ? (
               <div className="text-sm font-extrabold text-blue-700">
                 ${Number(log.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}

@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
     const base = isLocalhost ? 'http://localhost:3000' : (process.env.NEXT_PUBLIC_BASE_URL || 'https://www.quickbooks-enterprises.com');
 
-    const currCode = '036'; // 036 is AUD
+    const currCode = '840'; // 840 is USD
     const payType = 'N'; // Normal sale
     const amount = amountUSD.toFixed(2); // e.g. "10.00"
 
