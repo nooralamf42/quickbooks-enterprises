@@ -13,6 +13,14 @@ export async function POST(req: Request) {
       clientSignatureBase64, agreedToTerms
     } = body;
 
+    // Extract IP and device info from request headers
+    const forwarded = req.headers.get('x-forwarded-for');
+    const ipAddress = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || 'Unknown';
+    const userAgent = req.headers.get('user-agent') || '';
+    const deviceType = /mobile|android|iphone|ipad/i.test(userAgent) ? 'Mobile' : 'Desktop';
+    const browserMatch = userAgent.match(/(chrome|firefox|safari|edge|opera)[\/\s][\d.]+/i);
+    const browser = browserMatch ? browserMatch[0] : userAgent.substring(0, 60) || 'Unknown';
+
     if (!process.env.STRIPE_SECRET_KEY) {
       return NextResponse.json({ error: 'Stripe API key is not configured' }, { status: 500 });
     }
@@ -30,7 +38,10 @@ export async function POST(req: Request) {
       agreedTimestamp: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
-      paymentGateway: 'Stripe'
+      paymentGateway: 'Stripe',
+      ipAddress,
+      deviceType,
+      browser
     });
 
     const localOrderId = result.insertedId.toString();

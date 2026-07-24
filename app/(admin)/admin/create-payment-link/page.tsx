@@ -1626,6 +1626,14 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 <span className="text-zinc-500">Reference:</span>
                                 <span className="font-mono font-semibold text-zinc-900">{selectedLog.whopSessionId || selectedLog.fsOrderReference || selectedLog.stripeSessionId || selectedLog._id}</span>
                               </div>
+                              <div className="flex justify-between border-t border-zinc-200/60 pt-2 mt-2">
+                                <span className="text-zinc-500">IP Address:</span>
+                                <span className="font-mono font-semibold text-zinc-900">{selectedLog.ipAddress || 'Unknown'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-zinc-500">Device/Browser:</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.deviceType || 'Unknown'} / {selectedLog.browser || 'Unknown'}</span>
+                              </div>
                             </div>
                           </div>
                         </div>
