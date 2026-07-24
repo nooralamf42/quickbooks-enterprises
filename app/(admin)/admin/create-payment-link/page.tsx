@@ -803,8 +803,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
   
   const displayedLogs = logs.filter(log => {
     // 1. Basic Mode
+    const isTestRecord = (
+      (log.email && TEST_EMAILS.includes(log.email.toLowerCase())) ||
+      (log.fsOrderReference && log.fsOrderReference.includes('MOCK')) ||
+      (log.fsOrderId && log.fsOrderId.includes('MOCK'))
+    );
+
     if (filterMode === 'Test') {
-      if (!log.email || !TEST_EMAILS.includes(log.email.toLowerCase())) return false;
+      if (!isTestRecord) return false;
+    } else {
+      if (isTestRecord) return false;
     }
     
     // 2. Gateway Filter
