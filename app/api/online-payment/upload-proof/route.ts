@@ -46,8 +46,14 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
     const isImage = file.type.startsWith('image/');
     const proofType = isImage ? 'image' : 'pdf';
-    // Always use 'image' resource type so Cloudinary treats PDFs as document/image assets and serves them with proper application/pdf content type.
-    const cloudinaryResourceType = 'image';
+    
+    // Cloudinary blocks PDF delivery by default (401 error).
+    // To bypass this without requiring security setting changes, we store PDFs as base64-encoded .txt files.
+    const cloudinaryResourceType = proofType === 'pdf' ? 'raw' : 'image';
+    const publicId = `proof_${orderId}_${Date.now()}${proofType === 'pdf' ? '.txt' : ''}`;
+    
+    // For PDFs, we convert the buffer to a base64 string to store as text
+    const uploadBuffer = proofType === 'pdf' ? Buffer.from(buffer.toString('base64'), 'utf-8') : buffer;
 
     // Upload to Cloudinary via signed upload (server-side)
     const uploadResult = await new Promise<any>((resolve, reject) => {
@@ -55,8 +61,7 @@ export async function POST(req: NextRequest) {
         {
           folder: 'qb_payment_proofs',
           resource_type: cloudinaryResourceType,
-          public_id: `proof_${orderId}_${Date.now()}`,
-          // Tag for easy searching in Cloudinary dashboard
+          public_id: publicId,
           tags: ['payment_proof', proofType],
         },
         (error, result) => {
@@ -68,7 +73,7 @@ export async function POST(req: NextRequest) {
           }
         }
       );
-      uploadStream.end(buffer);
+      uploadStream.end(uploadBuffer);
     });
 
     const proofUrl = uploadResult.secure_url;

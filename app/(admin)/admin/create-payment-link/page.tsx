@@ -746,15 +746,20 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
           const consentPdfBytes = doc.output('arraybuffer');
 
           // 2. Load the consent log PDF into pdf-lib
-          const mergedDoc = await PDFDocument.load(consentPdfBytes);
+          const mergedDoc = await PDFDocument.load(consentPdfBytes, { ignoreEncryption: true });
 
           // 3. Fetch the proof PDF from Cloudinary via proxy
-          const proofResponse = await fetch(`/api/proxy-fetch?url=${encodeURIComponent(log.paymentProofUrl)}`);
+          let pdfFetchUrl = log.paymentProofUrl;
+          if (!pdfFetchUrl.toLowerCase().endsWith('.pdf') && !pdfFetchUrl.toLowerCase().endsWith('.txt')) {
+            pdfFetchUrl = pdfFetchUrl + '.txt'; // Default to txt fallback just in case
+          }
+          
+          const proofResponse = await fetch(`/api/proxy-fetch?url=${encodeURIComponent(pdfFetchUrl)}`);
           if (!proofResponse.ok) throw new Error('Could not fetch proof PDF from Cloudinary.');
           const proofPdfBytes = await proofResponse.arrayBuffer();
 
           // 4. Load the proof PDF and copy all its pages into the merged doc
-          const proofDoc = await PDFDocument.load(proofPdfBytes);
+          const proofDoc = await PDFDocument.load(proofPdfBytes, { ignoreEncryption: true });
           const proofPageCount = proofDoc.getPageCount();
           const copiedPages = await mergedDoc.copyPages(proofDoc, Array.from({ length: proofPageCount }, (_, i) => i));
 
@@ -1674,7 +1679,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               </div>
                             ) : (
                               <a
-                                href={selectedLog.paymentProofUrl}
+                                href={`/api/proxy-fetch?url=${encodeURIComponent(selectedLog.paymentProofUrl)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-2 px-4 py-2 bg-violet-700 text-white text-xs font-semibold rounded-lg hover:bg-violet-800 transition-colors"

@@ -25,9 +25,20 @@ export async function GET(req: NextRequest) {
     }
 
     const buffer = await response.arrayBuffer();
-    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    let finalBuffer: Buffer;
+    let contentType = response.headers.get('content-type') || 'application/octet-stream';
 
-    return new NextResponse(buffer, {
+    if (url.toLowerCase().endsWith('.txt')) {
+      const base64Text = Buffer.from(buffer).toString('utf-8');
+      console.log('[Proxy Fetch] base64Text length:', base64Text.length);
+      finalBuffer = Buffer.from(base64Text, 'base64');
+      console.log('[Proxy Fetch] decoded buffer length:', finalBuffer.length);
+      contentType = 'application/pdf';
+    } else {
+      finalBuffer = Buffer.from(buffer);
+    }
+
+    return new NextResponse(finalBuffer, {
       status: 200,
       headers: {
         'Content-Type': contentType,
