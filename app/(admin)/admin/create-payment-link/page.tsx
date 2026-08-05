@@ -849,14 +849,15 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const searchableString = `
-        ${log.firstName || ''} 
-        ${log.lastName || ''} 
+        ${log.firstName || ''} ${log.lastName || ''} 
         ${log.email || ''} 
         ${log.planDetails || ''} 
         ${log.ipAddress || ''}
         ${log.agreedTimestamp ? new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : ''}
       `.toLowerCase();
-      if (!searchableString.includes(query)) return false;
+      
+      const queryParts = query.split(/\s+/).filter(Boolean);
+      if (!queryParts.every(part => searchableString.includes(part))) return false;
     }
     
     return true;
