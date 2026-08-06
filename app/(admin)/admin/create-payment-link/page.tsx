@@ -15,7 +15,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay'>('stripe')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay'>('authorize')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
@@ -932,16 +932,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     Online Payment
                   </button>
+                  {/* STRIPE CURRENTLY DISABLED
                   <button
-                    type="button"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault()
                       setSelectedGateway('stripe')
-                      setPaymentLink('')
                     }}
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stripe' ? 'bg-[#635bff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Stripe
                   </button>
+                  */}
                   <button
                     type="button"
                     onClick={() => {
