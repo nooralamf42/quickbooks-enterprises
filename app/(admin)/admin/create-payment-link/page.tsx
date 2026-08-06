@@ -202,7 +202,8 @@ export default function QuickBooksPaymentLinkCreator() {
     { name: 'Offshore Development Center', value: 'i' },
     { name: 'Product Engineering Services', value: 'j' },
     { name: 'IT Staff Augmentation', value: 'k' },
-    { name: 'Dedicated Development Team', value: 'l' }
+    { name: 'Dedicated Development Team', value: 'l' },
+    { name: 'PAYROLL', value: 'm' }
   ]
 
   const yearOptions = [
@@ -229,7 +230,7 @@ export default function QuickBooksPaymentLinkCreator() {
     const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'asiapay' ? 'GAP' : 'GT'
     let paymentString = '';
 
-    if (['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition)) {
+    if (['a','b','c','d','e','f','g','h','i','j','k','l','m'].includes(selectedEdition)) {
       const dVal = Math.round((Number(discountAmount) || 0) * 100)
       const dStr = dVal.toString(36)
       const tVal = Math.round(calculateTotal() * 100)
@@ -1076,7 +1077,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   <div className="flex justify-between text-zinc-500">
                     <span>Edition:</span>
                     <span className="text-zinc-900 font-semibold">
-                      {['a','b','c','d','e','f','g','h','i','j','k','l'].includes(selectedEdition) 
+                      {['a','b','c','d','e','f','g','h','i','j','k','l','m'].includes(selectedEdition) 
                         ? customProducts.find(c => c.value === selectedEdition)?.name 
                         : `24.0 ${selectedEdition === 'whop' ? 'Whop' : selectedEdition.charAt(0).toUpperCase() + selectedEdition.slice(1)}`
                       }
