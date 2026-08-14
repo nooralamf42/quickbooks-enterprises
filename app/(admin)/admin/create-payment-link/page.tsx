@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
-import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search } from 'lucide-react'
+import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search, Mail, MailWarning } from 'lucide-react'
 
 export default function QuickBooksPaymentLinkCreator() {
   const [users, setUsers] = useState(1)
@@ -18,7 +18,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay'>('authorize')
   
   // Navigation tabs state
-  const [activeTab, setActiveTab] = useState<'create' | 'logs'>('create')
+  const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email'>('create')
   
   // Consent Logs state
   const [logs, setLogs] = useState<any[]>([])
@@ -37,6 +37,79 @@ export default function QuickBooksPaymentLinkCreator() {
   const [advAmount, setAdvAmount] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
   const logsPerPage = 5
+
+  // Send Email tab state
+  const [emailType, setEmailType] = useState<'success' | 'failed'>('success')
+  const [emailForm, setEmailForm] = useState({
+    toEmail: '',
+    customerName: '',
+    companyName: '',
+    orderId: '',
+    planDetails: '',
+    paymentMethodLabel: '',
+    amountUSD: '',
+    paidAt: new Date().toISOString().slice(0, 10),
+    amountDueUSD: '',
+    billingDate: new Date().toISOString().slice(0, 10),
+    cancellationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+  })
+  const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
+
+  const updateEmailForm = (field: string, value: string) => {
+    setEmailForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  const sendCustomEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSendingCustomEmail(true)
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      let passwordHash = ''
+      if (stored) {
+        passwordHash = JSON.parse(stored).passwordHash
+      }
+
+      const payload: any = {
+        type: emailType,
+        toEmail: emailForm.toEmail,
+        customerName: emailForm.customerName,
+        companyName: emailForm.companyName,
+        orderId: emailForm.orderId,
+        planDetails: emailForm.planDetails,
+        paymentMethodLabel: emailForm.paymentMethodLabel,
+      }
+
+      if (emailType === 'success') {
+        payload.amountUSD = emailForm.amountUSD
+        payload.paidAt = emailForm.paidAt
+      } else {
+        payload.amountDueUSD = emailForm.amountDueUSD
+        payload.billingDate = emailForm.billingDate
+        payload.cancellationDate = emailForm.cancellationDate
+      }
+
+      const response = await fetch('/api/admin/send-custom-email', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${passwordHash}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Send failed')
+      }
+
+      toast.success(emailType === 'success' ? 'Receipt email sent!' : 'Payment reminder sent!')
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || 'Failed to send email')
+    } finally {
+      setIsSendingCustomEmail(false)
+    }
+  }
 
   const router = useRouter()
   const { admin } = useAdmin()
@@ -147,6 +220,40 @@ export default function QuickBooksPaymentLinkCreator() {
     } catch (error: any) {
       console.error(error)
       toast.error(error.message || 'Deletion failed')
+    }
+  }
+
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null)
+
+  const sendOrderEmail = async (id: string, type: 'success' | 'failed') => {
+    setSendingEmailId(id + type)
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      let passwordHash = ''
+      if (stored) {
+        passwordHash = JSON.parse(stored).passwordHash
+      }
+
+      const response = await fetch('/api/admin/send-order-email', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${passwordHash}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ id, type })
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Send failed')
+      }
+
+      toast.success(type === 'success' ? 'Receipt email sent!' : 'Payment reminder sent!')
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || 'Failed to send email')
+    } finally {
+      setSendingEmailId(null)
     }
   }
 
@@ -899,6 +1006,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               <ShieldCheck size={14} className="text-[#2ca01c]" />
               Consent Logs
             </button>
+            <button
+              onClick={() => setActiveTab('email')}
+              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'email' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+            >
+              <Mail size={14} className="text-[#2ca01c]" />
+              Send Email
+            </button>
           </div>
         </div>
 
@@ -1458,6 +1572,26 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               <FileText size={12} className={log.status === 'Completed' ? 'text-zinc-500' : 'text-zinc-400'} />
                               PDF Consent
                             </button>
+                            <br />
+                            {log.status === 'Completed' ? (
+                              <button
+                                onClick={() => sendOrderEmail(log._id, 'success')}
+                                disabled={sendingEmailId === log._id + 'success'}
+                                className="w-full inline-flex justify-center items-center gap-1.5 px-3 py-1.5 border border-green-200 font-bold rounded-lg text-[10px] transition-colors shadow-xs bg-white hover:bg-green-50 text-green-700 cursor-pointer disabled:opacity-50"
+                              >
+                                <Mail size={12} className="text-green-500" />
+                                {sendingEmailId === log._id + 'success' ? 'Sending...' : 'Resend Receipt'}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => sendOrderEmail(log._id, 'failed')}
+                                disabled={sendingEmailId === log._id + 'failed'}
+                                className="w-full inline-flex justify-center items-center gap-1.5 px-3 py-1.5 border border-amber-200 font-bold rounded-lg text-[10px] transition-colors shadow-xs bg-white hover:bg-amber-50 text-amber-700 cursor-pointer disabled:opacity-50"
+                              >
+                                <MailWarning size={12} className="text-amber-500" />
+                                {sendingEmailId === log._id + 'failed' ? 'Sending...' : 'Send Reminder'}
+                              </button>
+                            )}
                           </td>
                         </tr>
                         );
@@ -1696,22 +1830,41 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         </div>
                       )}
                       
-                      <div className="mt-8 pt-4 border-t border-zinc-100 flex justify-between items-center">
-                        {process.env.NODE_ENV === 'development' && selectedLog.status !== 'Completed' ? (
-                          <button
-                            onClick={() => {
-                              if (window.confirm('Mark this transaction as paid manually? This will unlock the PDF consent log.')) {
-                                markLogAsPaid(selectedLog._id);
-                              }
-                            }}
-                            className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm cursor-pointer"
-                          >
-                            Mark as Paid
-                          </button>
-                        ) : (
-                          <div></div>
-                        )}
-                        <button 
+                      <div className="mt-8 pt-4 border-t border-zinc-100 flex flex-wrap justify-between items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {process.env.NODE_ENV === 'development' && selectedLog.status !== 'Completed' && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Mark this transaction as paid manually? This will unlock the PDF consent log.')) {
+                                  markLogAsPaid(selectedLog._id);
+                                }
+                              }}
+                              className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors shadow-sm text-sm cursor-pointer"
+                            >
+                              Mark as Paid
+                            </button>
+                          )}
+                          {selectedLog.status === 'Completed' ? (
+                            <button
+                              onClick={() => sendOrderEmail(selectedLog._id, 'success')}
+                              disabled={sendingEmailId === selectedLog._id + 'success'}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 border border-green-200 bg-white hover:bg-green-50 text-green-700 font-semibold rounded-lg text-sm transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                            >
+                              <Mail size={14} />
+                              {sendingEmailId === selectedLog._id + 'success' ? 'Sending...' : 'Resend Receipt Email'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => sendOrderEmail(selectedLog._id, 'failed')}
+                              disabled={sendingEmailId === selectedLog._id + 'failed'}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 border border-amber-200 bg-white hover:bg-amber-50 text-amber-700 font-semibold rounded-lg text-sm transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+                            >
+                              <MailWarning size={14} />
+                              {sendingEmailId === selectedLog._id + 'failed' ? 'Sending...' : 'Send Payment Reminder'}
+                            </button>
+                          )}
+                        </div>
+                        <button
                           onClick={() => setSelectedLog(null)}
                           className="px-6 py-2 bg-zinc-900 text-white font-semibold rounded-lg hover:bg-zinc-800 transition-colors shadow-sm text-sm cursor-pointer"
                         >
@@ -1726,6 +1879,179 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Tab 3: Send a standalone email (not tied to an existing order) */}
+        {activeTab === 'email' && (
+          <div className="max-w-2xl">
+            <form onSubmit={sendCustomEmail} className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8 space-y-6">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900 flex items-center gap-2">
+                  <Mail size={16} className="text-zinc-400" />
+                  Send Transactional Email
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Fill in the fields and send a receipt or payment reminder directly — no existing order required.</p>
+              </div>
+
+              {/* Email type toggle */}
+              <div className="bg-zinc-50 rounded-lg p-4 border border-zinc-200">
+                <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Email Type</label>
+                <div className="flex bg-white rounded-md border border-zinc-200 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setEmailType('success')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${emailType === 'success' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Payment Receipt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailType('failed')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${emailType === 'failed' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Payment Reminder
+                  </button>
+                </div>
+              </div>
+
+              {/* Common fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t pt-5 border-zinc-100">
+                <div>
+                  <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Recipient Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={emailForm.toEmail}
+                    onChange={(e) => updateEmailForm('toEmail', e.target.value)}
+                    placeholder="customer@example.com"
+                    className="flex h-10 w-full rounded-md border border-[#2ca01c] bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Customer Name</label>
+                  <input
+                    type="text"
+                    value={emailForm.customerName}
+                    onChange={(e) => updateEmailForm('customerName', e.target.value)}
+                    placeholder="Jane Doe"
+                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Company Name</label>
+                  <input
+                    type="text"
+                    value={emailForm.companyName}
+                    onChange={(e) => updateEmailForm('companyName', e.target.value)}
+                    placeholder="Acme Corp"
+                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                  />
+                </div>
+                <div>
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Order ID <span className="text-[10px] text-zinc-400 italic font-normal">(optional, auto-generated if blank)</span></label>
+                  <input
+                    type="text"
+                    value={emailForm.orderId}
+                    onChange={(e) => updateEmailForm('orderId', e.target.value)}
+                    placeholder="e.g. Mongo _id or invoice #"
+                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Plan / Product Details</label>
+                  <input
+                    type="text"
+                    value={emailForm.planDetails}
+                    onChange={(e) => updateEmailForm('planDetails', e.target.value)}
+                    placeholder="QuickBooks Enterprise Gold Edition"
+                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Payment Method Label</label>
+                  <input
+                    type="text"
+                    value={emailForm.paymentMethodLabel}
+                    onChange={(e) => updateEmailForm('paymentMethodLabel', e.target.value)}
+                    placeholder={emailType === 'success' ? 'e.g. VISA ending in 1234' : 'e.g. AMEX ending in 6043'}
+                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                  />
+                </div>
+              </div>
+
+              {/* Type-specific fields */}
+              {emailType === 'success' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t pt-5 border-zinc-100">
+                  <div>
+                    <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Amount Paid ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={emailForm.amountUSD}
+                      onChange={(e) => updateEmailForm('amountUSD', e.target.value)}
+                      placeholder="22.05"
+                      className="flex h-10 w-full rounded-md border border-[#2ca01c] bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Payment Date</label>
+                    <input
+                      type="date"
+                      value={emailForm.paidAt}
+                      onChange={(e) => updateEmailForm('paidAt', e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 border-t pt-5 border-zinc-100">
+                  <div>
+                    <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Amount Due ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={emailForm.amountDueUSD}
+                      onChange={(e) => updateEmailForm('amountDueUSD', e.target.value)}
+                      placeholder="22.05"
+                      className="flex h-10 w-full rounded-md border border-amber-500 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Billing Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={emailForm.billingDate}
+                      onChange={(e) => updateEmailForm('billingDate', e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Cancellation Date *</label>
+                    <input
+                      type="date"
+                      required
+                      value={emailForm.cancellationDate}
+                      onChange={(e) => updateEmailForm('cancellationDate', e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSendingCustomEmail}
+                className={`w-full py-2.5 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-semibold rounded-lg text-xs transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed border border-zinc-950/10 ${emailType === 'success' ? 'bg-[#2ca01c] hover:bg-[#248a18]' : 'bg-amber-500 hover:bg-amber-600'}`}
+              >
+                {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : 'Send Payment Reminder'}
+              </button>
+            </form>
           </div>
         )}
       </div>

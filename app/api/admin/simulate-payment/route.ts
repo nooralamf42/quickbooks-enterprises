@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
+import { Resend } from 'resend';
+import { renderPaymentReceiptEmailHtml } from '@/app/lib/emailTemplates';
 
 export async function POST(req: NextRequest) {
   try {
@@ -21,10 +23,18 @@ export async function POST(req: NextRequest) {
     const states = ['NY', 'CA', 'TX', 'FL', 'IL', 'KY', 'OH', 'WA'];
     const editions = ['SILVER', 'GOLD', 'PLATINUM', 'DIAMOND', 'FSP'];
 
+    let overrideEmail: string | undefined;
+    try {
+      const body = await req.json();
+      overrideEmail = typeof body?.demoEmail === 'string' ? body.demoEmail : undefined;
+    } catch {
+      // no body sent — fine, we fall back to a random mock email
+    }
+
     // Select random mock billing details
     const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
     const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
-    const email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
+    const email = overrideEmail || `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`;
     const companyName = companies[Math.floor(Math.random() * companies.length)];
     const state = states[Math.floor(Math.random() * states.length)];
     const edition = editions[Math.floor(Math.random() * editions.length)];
@@ -61,7 +71,32 @@ export async function POST(req: NextRequest) {
 
     const result = await db.collection('admindata').insertOne(mockRecord);
 
-    return NextResponse.json({ success: true, insertedId: result.insertedId, record: mockRecord });
+    let emailSent = false;
+    if (process.env.RESEND_API_KEY) {
+      try {
+        const resend = new Resend(process.env.RESEND_API_KEY);
+        await resend.emails.send({
+          from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+          to: email,
+          subject: 'We received your QuickBooks Enterprise payment!',
+          html: renderPaymentReceiptEmailHtml({
+            customerName: `${firstName} ${lastName}`,
+            toEmail: email,
+            companyName,
+            orderId: result.insertedId.toString(),
+            paidAt: mockRecord.paidAt,
+            amountUSD,
+            paymentMethodLabel: 'Card on file',
+            planDetails: mockRecord.planDetails,
+          }),
+        });
+        emailSent = true;
+      } catch (emailErr) {
+        console.error('[Simulate Payment] Email error:', emailErr);
+      }
+    }
+
+    return NextResponse.json({ success: true, insertedId: result.insertedId, record: mockRecord, emailSent });
   } catch (err: any) {
     console.error('[Simulate Payment Error]:', err);
     return NextResponse.json({ error: 'Simulation failed', message: err.message || 'Something went wrong' }, { status: 500 });

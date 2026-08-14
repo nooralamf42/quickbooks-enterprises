@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { Resend } from 'resend';
 import crypto from 'crypto';
+import { renderPaymentReceiptEmailHtml } from '@/app/lib/emailTemplates';
 
 // Authorize.net pings this with GET to verify the endpoint is live before saving the webhook
 export async function GET() {
@@ -132,6 +133,11 @@ export async function POST(req: NextRequest) {
 
     console.log('[Webhook] Order marked Completed:', localOrderId);
 
+    const card = transaction.payment?.creditCard;
+    const paymentMethodLabel = card?.cardNumber
+      ? `${card.cardType || 'Card'} ending in ${String(card.cardNumber).slice(-4)}`
+      : 'Card on file';
+
     // Send success email
     if (process.env.RESEND_API_KEY) {
       try {
@@ -159,6 +165,25 @@ export async function POST(req: NextRequest) {
           `
         });
         console.log('[Webhook] Email sent for order:', localOrderId);
+
+        if (record.email) {
+          await resend.emails.send({
+            from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+            to: record.email,
+            subject: `We received your QuickBooks Enterprise payment!`,
+            html: renderPaymentReceiptEmailHtml({
+              customerName,
+              toEmail: record.email,
+              companyName: record.companyName,
+              orderId: localOrderId,
+              paidAt: new Date(),
+              amountUSD,
+              paymentMethodLabel,
+              planDetails: record.planDetails,
+            }),
+          });
+          console.log('[Webhook] Customer receipt sent for order:', localOrderId);
+        }
       } catch (emailErr) {
         console.error('[Webhook] Email error:', emailErr);
       }

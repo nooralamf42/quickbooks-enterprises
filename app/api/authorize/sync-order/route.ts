@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { Resend } from 'resend';
+import { renderPaymentReceiptEmailHtml } from '@/app/lib/emailTemplates';
 
 export async function POST(req: NextRequest) {
   try {
@@ -121,6 +122,29 @@ export async function POST(req: NextRequest) {
               </div>
             `
           });
+
+          if (record.email) {
+            const card = transaction.payment?.creditCard;
+            const paymentMethodLabel = card?.cardNumber
+              ? `${card.cardType || 'Card'} ending in ${String(card.cardNumber).slice(-4)}`
+              : 'Card on file';
+
+            await resend.emails.send({
+              from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+              to: record.email,
+              subject: `We received your QuickBooks Enterprise payment!`,
+              html: renderPaymentReceiptEmailHtml({
+                customerName,
+                toEmail: record.email,
+                companyName: record.companyName,
+                orderId: localOrderId,
+                paidAt: new Date(),
+                amountUSD: record.amountUSD,
+                paymentMethodLabel,
+                planDetails: record.planDetails,
+              }),
+            });
+          }
         } catch (e) {
           console.error('[Sync Order] Failed to send Resend email', e);
         }
