@@ -55,19 +55,80 @@ export default function QuickBooksPaymentLinkCreator() {
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
   const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'asiapay'>('')
-  const [reminderServiceCode, setReminderServiceCode] = useState('n')
+  const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
+
+  const editions = [
+    { name: 'Silver', value: 'silver' },
+    { name: 'Gold', value: 'gold' },
+    { name: 'Platinum', value: 'platinum' },
+    { name: 'Diamond', value: 'diamond' },
+    { name: 'FSP', value: 'fsp' }
+  ]
+
+  const customProducts = [
+    { name: 'Strategic Mobile Consulting', value: 'a' },
+    { name: 'Mobile Application Porting', value: 'b' },
+    { name: 'Technology Outsourcing', value: 'c' },
+    { name: 'UI/UX Design', value: 'd' },
+    { name: 'Ecommerce App Development', value: 'e' },
+    { name: 'Startup app development', value: 'f' },
+    { name: 'Custom CRM Development', value: 'g' },
+    { name: 'SaaS App Development', value: 'h' },
+    { name: 'Offshore Development Center', value: 'i' },
+    { name: 'Product Engineering Services', value: 'j' },
+    { name: 'IT Staff Augmentation', value: 'k' },
+    { name: 'Dedicated Development Team', value: 'l' },
+    { name: 'PAYROLL', value: 'm' },
+    { name: 'Outstanding Balance Payment', value: 'n' }
+  ]
+
+  // Unified product selection — drives both the "Plan / Product Details"
+  // email text AND the "Update now" checkout link, exactly like the
+  // Payment Links tab's selectedEdition/users/years combo.
+  const [emailProductCode, setEmailProductCode] = useState('silver')
+  const [emailUsers, setEmailUsers] = useState(1)
+  const [emailYears, setEmailYears] = useState(1)
+  const isEmailProductQbEdition = ['silver', 'gold', 'platinum', 'diamond', 'fsp'].includes(emailProductCode)
+
+  const emailProductDisplayName = (() => {
+    if (isEmailProductQbEdition) {
+      const e = editions.find(ed => ed.value === emailProductCode)
+      return `QuickBooks Enterprise ${e?.name || 'Silver'} Edition`
+    }
+    return customProducts.find(p => p.value === emailProductCode)?.name || ''
+  })()
 
   const updateEmailForm = (field: string, value: string) => {
     setEmailForm(prev => ({ ...prev, [field]: value }))
   }
 
-  // Builds the same "S<code>K<disc>M<total><gateway>" encoded link the
-  // Payment Links tab produces, so "Update now" opens a real, working
-  // checkout for this exact amount, product, and gateway.
-  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'asiapay', serviceCode: string) => {
+  // Keep the email's displayed "Plan / Product Details" text in sync with
+  // the selected product, unless the admin has switched to custom text.
+  useEffect(() => {
+    if (!planDetailsIsCustom) {
+      updateEmailForm('planDetails', emailProductDisplayName)
+    }
+  }, [emailProductCode, planDetailsIsCustom, emailProductDisplayName])
+
+  // Builds the same encoded link the Payment Links tab produces — the QB
+  // edition format (needs users/years) or the plain service-code format —
+  // so "Update now" opens a real, working checkout for this exact amount,
+  // product, and gateway.
+  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'asiapay') => {
     const gatewayFlag = gateway === 'authorize' ? 'GA' : 'GAP'
     const tStr = Math.round(amountUSD * 100).toString(36)
-    const paymentString = `S${serviceCode}K0M${tStr}${gatewayFlag}`
+
+    let paymentString: string
+    if (isEmailProductQbEdition) {
+      const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F' }
+      const shortEdition = editionMap[emailProductCode] || 'S'
+      const uStr = emailUsers.toString(36)
+      const yStr = emailYears.toString(36)
+      paymentString = `${uStr}${shortEdition}${yStr}K0M${tStr}${gatewayFlag}`
+    } else {
+      paymentString = `S${emailProductCode}K0M${tStr}${gatewayFlag}`
+    }
+
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     const base = isLocalhost ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin)
     return `${base}/invoice/${paymentString}`
@@ -101,7 +162,7 @@ export default function QuickBooksPaymentLinkCreator() {
         payload.billingDate = emailForm.billingDate
         payload.cancellationDate = emailForm.cancellationDate
         if (reminderGateway && emailForm.amountDueUSD) {
-          payload.updateUrl = buildUpdateLink(Number(emailForm.amountDueUSD), reminderGateway, reminderServiceCode)
+          payload.updateUrl = buildUpdateLink(Number(emailForm.amountDueUSD), reminderGateway)
         }
       }
 
@@ -305,31 +366,6 @@ export default function QuickBooksPaymentLinkCreator() {
       toast.error(error.message || 'Update failed')
     }
   }
-
-  const editions = [
-    { name: 'Silver', value: 'silver' },
-    { name: 'Gold', value: 'gold' },
-    { name: 'Platinum', value: 'platinum' },
-    { name: 'Diamond', value: 'diamond' },
-    { name: 'FSP', value: 'fsp' }
-  ]
-
-  const customProducts = [
-    { name: 'Strategic Mobile Consulting', value: 'a' },
-    { name: 'Mobile Application Porting', value: 'b' },
-    { name: 'Technology Outsourcing', value: 'c' },
-    { name: 'UI/UX Design', value: 'd' },
-    { name: 'Ecommerce App Development', value: 'e' },
-    { name: 'Startup app development', value: 'f' },
-    { name: 'Custom CRM Development', value: 'g' },
-    { name: 'SaaS App Development', value: 'h' },
-    { name: 'Offshore Development Center', value: 'i' },
-    { name: 'Product Engineering Services', value: 'j' },
-    { name: 'IT Staff Augmentation', value: 'k' },
-    { name: 'Dedicated Development Team', value: 'l' },
-    { name: 'PAYROLL', value: 'm' },
-    { name: 'Outstanding Balance Payment', value: 'n' }
-  ]
 
   const yearOptions = [
     { value: 1, label: '1 Year' },
@@ -1988,15 +2024,90 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                   />
                 </div>
+                <div>
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Product</label>
+                  <select
+                    value={emailProductCode}
+                    onChange={(e) => setEmailProductCode(e.target.value)}
+                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
+                  >
+                    <optgroup label="QuickBooks Enterprise">
+                      {editions.map((e) => (
+                        <option key={e.value} value={e.value}>{`QuickBooks Enterprise ${e.name} Edition`}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Custom Products">
+                      {customProducts.map((p) => (
+                        <option key={p.value} value={p.value}>{p.name}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+
+                {isEmailProductQbEdition && (
+                  <>
+                    <div>
+                      <label className="block mb-1.5 font-medium text-xs text-zinc-500">Number of Users</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={emailUsers}
+                        onChange={(e) => setEmailUsers(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block mb-1.5 font-medium text-xs text-zinc-500">Contract Period</label>
+                      <select
+                        value={emailYears}
+                        onChange={(e) => setEmailYears(parseInt(e.target.value))}
+                        className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
+                      >
+                        <option value={1}>1 Year</option>
+                        <option value={2}>2 Years</option>
+                        <option value={3}>3 Years</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
                 <div className="md:col-span-2">
-                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Plan / Product Details</label>
-                  <input
-                    type="text"
-                    value={emailForm.planDetails}
-                    onChange={(e) => updateEmailForm('planDetails', e.target.value)}
-                    placeholder="QuickBooks Enterprise Gold Edition"
-                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
-                  />
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Plan / Product Details <span className="text-[10px] text-zinc-400 italic font-normal">(shown in the email — auto-filled from Product above)</span></label>
+                  {!planDetailsIsCustom ? (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={emailForm.planDetails}
+                        className="flex h-10 w-full rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 shadow-xs cursor-not-allowed"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPlanDetailsIsCustom(true)}
+                        className="shrink-0 px-3 rounded-md border border-zinc-200 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 cursor-pointer"
+                      >
+                        Edit text
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        autoFocus
+                        value={emailForm.planDetails}
+                        onChange={(e) => updateEmailForm('planDetails', e.target.value)}
+                        placeholder="Type a custom plan/product name"
+                        className="flex h-10 w-full rounded-md border border-[#2ca01c] bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPlanDetailsIsCustom(false)}
+                        className="shrink-0 px-3 rounded-md border border-zinc-200 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 cursor-pointer"
+                      >
+                        Back to auto
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label className="block mb-1.5 font-medium text-xs text-zinc-500">Payment Method Label</label>
@@ -2098,24 +2209,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       </button>
                     </div>
 
-                    {reminderGateway && (
-                      <div className="mt-3">
-                        <label className="block mb-1.5 font-medium text-xs text-amber-700">Checkout Product <span className="text-[10px] text-amber-600/80 italic font-normal">(what the customer sees on the payment page)</span></label>
-                        <select
-                          value={reminderServiceCode}
-                          onChange={(e) => setReminderServiceCode(e.target.value)}
-                          className="flex h-10 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 cursor-pointer"
-                        >
-                          {customProducts.map((p) => (
-                            <option key={p.value} value={p.value}>{p.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
                     <p className="text-[10px] text-amber-700/80 mt-2 leading-relaxed">
                       {reminderGateway
-                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'AsiaPay'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${customProducts.find(p => p.value === reminderServiceCode)?.name}" — the customer logs in and pays like any other invoice link.`
+                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'AsiaPay'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
                         : 'No gateway selected — "Update now" will just open a support email instead of a live checkout.'}
                     </p>
                   </div>
