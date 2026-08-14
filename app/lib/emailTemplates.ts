@@ -13,6 +13,7 @@ const SUCCESS_ICON_URL = `${BASE_URL}/email-success-check.svg`;
 const ALERT_ICON_URL = `${BASE_URL}/email-alert.svg`;
 
 const SUPPORT_MAILTO = 'mailto:billing@quickbooks-enterprises.com';
+const SUPPORT_TEL = 'tel:+18888298848';
 
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
@@ -123,8 +124,8 @@ function supportBox(heading = 'Questions or concerns?'): string {
                       <table align="center" role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin:0 auto;text-align:center">
                         <tr>
                           <td align="center" height="44" style="font-size:16px;color:${BRAND_GREEN};font-family:Avenir,Arial,sans-serif;border-radius:4px;border:2px solid ${BRAND_GREEN};text-decoration:none;height:44px;text-align:center">
-                            <a href="${SUPPORT_MAILTO}" style="text-align:center;font-family:Avenir,Arial,sans-serif;color:${BRAND_GREEN};text-decoration:none;font-weight:600;font-size:16px;line-height:24px;display:block;margin:0 auto;padding:0 20px">
-                              billing@quickbooks-enterprises.com
+                            <a href="${SUPPORT_TEL}" style="text-align:center;font-family:Avenir,Arial,sans-serif;color:${BRAND_GREEN};text-decoration:none;font-weight:600;font-size:16px;line-height:24px;display:block;margin:0 auto;padding:0 20px">
+                              (888) 829-8848
                             </a>
                           </td>
                         </tr>

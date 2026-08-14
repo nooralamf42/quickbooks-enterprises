@@ -161,6 +161,13 @@ export async function POST(req: NextRequest) {
 
         const amountUSD = parseFloat(transaction.authAmount || existingRecord.amountUSD);
 
+        const card = transaction.payment?.creditCard;
+        const cardLast4 = card?.cardNumber ? String(card.cardNumber).slice(-4) : undefined;
+        const cardType = card?.cardType || undefined;
+        const paymentMethodLabel = cardLast4
+          ? `${cardType || 'Card'} ending in ${cardLast4}`
+          : 'Card on file';
+
         await db.collection('admindata').updateOne(
           { _id: new ObjectId(localOrderId) },
           {
@@ -171,6 +178,9 @@ export async function POST(req: NextRequest) {
               gateway: 'Authorize.net',
               paidAt: new Date(),
               amountUSD: amountUSD,
+              cardType,
+              cardLast4,
+              paymentMethodLabel,
             }
           }
         );

@@ -54,9 +54,23 @@ export default function QuickBooksPaymentLinkCreator() {
     cancellationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
+  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'asiapay'>('')
+  const [reminderServiceCode, setReminderServiceCode] = useState('n')
 
   const updateEmailForm = (field: string, value: string) => {
     setEmailForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  // Builds the same "S<code>K<disc>M<total><gateway>" encoded link the
+  // Payment Links tab produces, so "Update now" opens a real, working
+  // checkout for this exact amount, product, and gateway.
+  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'asiapay', serviceCode: string) => {
+    const gatewayFlag = gateway === 'authorize' ? 'GA' : 'GAP'
+    const tStr = Math.round(amountUSD * 100).toString(36)
+    const paymentString = `S${serviceCode}K0M${tStr}${gatewayFlag}`
+    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    const base = isLocalhost ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin)
+    return `${base}/invoice/${paymentString}`
   }
 
   const sendCustomEmail = async (e: React.FormEvent) => {
@@ -86,6 +100,9 @@ export default function QuickBooksPaymentLinkCreator() {
         payload.amountDueUSD = emailForm.amountDueUSD
         payload.billingDate = emailForm.billingDate
         payload.cancellationDate = emailForm.cancellationDate
+        if (reminderGateway && emailForm.amountDueUSD) {
+          payload.updateUrl = buildUpdateLink(Number(emailForm.amountDueUSD), reminderGateway, reminderServiceCode)
+        }
       }
 
       const response = await fetch('/api/admin/send-custom-email', {
@@ -310,7 +327,8 @@ export default function QuickBooksPaymentLinkCreator() {
     { name: 'Product Engineering Services', value: 'j' },
     { name: 'IT Staff Augmentation', value: 'k' },
     { name: 'Dedicated Development Team', value: 'l' },
-    { name: 'PAYROLL', value: 'm' }
+    { name: 'PAYROLL', value: 'm' },
+    { name: 'Outstanding Balance Payment', value: 'n' }
   ]
 
   const yearOptions = [
@@ -1491,6 +1509,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <td className="py-4 px-4 align-top">
                             <div className="font-extrabold text-[#2ca01c] text-sm">${log.amountUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                             <div className="text-[10px] text-zinc-500 mt-1.5 leading-relaxed max-w-xs font-medium bg-zinc-50 p-1.5 rounded-lg border border-zinc-100">{log.planDetails}</div>
+                            {log.paymentMethodLabel && (
+                              <div className="text-[10px] font-semibold text-zinc-600 mt-1.5 inline-flex items-center gap-1">
+                                💳 {log.paymentMethodLabel}
+                              </div>
+                            )}
                           </td>
                           
                           {/* Compliance Status */}
@@ -1760,7 +1783,14 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Product Details</p>
                             <p className="font-medium text-zinc-800">{selectedLog.planDetails}</p>
                           </div>
-                          
+
+                          {selectedLog.paymentMethodLabel && (
+                            <div>
+                              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Payment Method</p>
+                              <p className="font-medium text-zinc-800">{selectedLog.paymentMethodLabel}</p>
+                            </div>
+                          )}
+
                           <div>
                             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Transaction Data</p>
                             <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 space-y-2 text-xs">
@@ -2040,6 +2070,54 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       onChange={(e) => updateEmailForm('cancellationDate', e.target.value)}
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                     />
+                  </div>
+
+                  <div className="md:col-span-3 bg-amber-50/60 rounded-lg p-4 border border-amber-200">
+                    <label className="block mb-2 font-medium text-xs text-amber-700 uppercase tracking-wider">"Update now" button link</label>
+                    <div className="flex bg-white rounded-md border border-zinc-200 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setReminderGateway('')}
+                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === '' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                      >
+                        Contact support (default)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReminderGateway('authorize')}
+                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                      >
+                        Authorize.net
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReminderGateway('asiapay')}
+                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === 'asiapay' ? 'bg-[#F36E17] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                      >
+                        AsiaPay
+                      </button>
+                    </div>
+
+                    {reminderGateway && (
+                      <div className="mt-3">
+                        <label className="block mb-1.5 font-medium text-xs text-amber-700">Checkout Product <span className="text-[10px] text-amber-600/80 italic font-normal">(what the customer sees on the payment page)</span></label>
+                        <select
+                          value={reminderServiceCode}
+                          onChange={(e) => setReminderServiceCode(e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500 cursor-pointer"
+                        >
+                          {customProducts.map((p) => (
+                            <option key={p.value} value={p.value}>{p.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-amber-700/80 mt-2 leading-relaxed">
+                      {reminderGateway
+                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'AsiaPay'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${customProducts.find(p => p.value === reminderServiceCode)?.name}" — the customer logs in and pays like any other invoice link.`
+                        : 'No gateway selected — "Update now" will just open a support email instead of a live checkout.'}
+                    </p>
                   </div>
                 </div>
               )}

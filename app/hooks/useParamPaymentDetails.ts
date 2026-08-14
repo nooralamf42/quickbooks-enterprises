@@ -29,6 +29,7 @@ export const SERVICES = [
   { code: 'k', name: 'IT Staff Augmentation' },
   { code: 'l', name: 'Dedicated Development Team' },
   { code: 'm', name: 'PAYROLL' },
+  { code: 'n', name: 'Outstanding Balance Payment' },
 ];
 
 const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }: { noLinkRedirection: boolean, enableToast: boolean, noLoginRedir?: boolean}) => {
@@ -49,7 +50,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
       let decodedString = paymentBase64;
       
       const customFormatRegex = /^([0-9a-z]+)([SGPDFX])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(GA|GF|GS|GO|GT|GAP)?$/;
-      const serviceFormatRegex = /^S([a-m])K([0-9a-z]+)M([0-9a-z]+)(GA|GF|GS|GO|GT|GAP)?$/;
+      const serviceFormatRegex = /^S([a-n])K([0-9a-z]+)M([0-9a-z]+)(GA|GF|GS|GO|GT|GAP)?$/;
       
       const match = decodedString.match(customFormatRegex);
       const matchService = decodedString.match(serviceFormatRegex);

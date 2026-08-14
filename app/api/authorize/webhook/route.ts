@@ -116,6 +116,14 @@ export async function POST(req: NextRequest) {
 
     // Update order to Completed
     const amountUSD = parseFloat(transaction.authAmount || record.amountUSD);
+
+    const card = transaction.payment?.creditCard;
+    const cardLast4 = card?.cardNumber ? String(card.cardNumber).slice(-4) : undefined;
+    const cardType = card?.cardType || undefined;
+    const paymentMethodLabel = cardLast4
+      ? `${cardType || 'Card'} ending in ${cardLast4}`
+      : 'Card on file';
+
     await db.collection('admindata').updateOne(
       { _id: new ObjectId(localOrderId) },
       {
@@ -126,17 +134,15 @@ export async function POST(req: NextRequest) {
           gateway: 'Authorize.net',
           paidAt: new Date(),
           amountUSD,
+          cardType,
+          cardLast4,
+          paymentMethodLabel,
           updatedAt: new Date()
         }
       }
     );
 
     console.log('[Webhook] Order marked Completed:', localOrderId);
-
-    const card = transaction.payment?.creditCard;
-    const paymentMethodLabel = card?.cardNumber
-      ? `${card.cardType || 'Card'} ending in ${String(card.cardNumber).slice(-4)}`
-      : 'Card on file';
 
     // Send success email
     if (process.env.RESEND_API_KEY) {

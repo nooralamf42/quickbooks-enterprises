@@ -18,6 +18,10 @@ export async function POST(req: Request) {
     const Amt = params.get('Amt') || '';
     const payerAuth = params.get('payerAuth') || '';
     const secureHash = params.get('secureHash') || '';
+    // Optional card-brand/masked-PAN fields — only present if enabled on the
+    // AsiaPay merchant account's Data Feed configuration.
+    const pMethod = params.get('pMethod') || '';
+    const panLast4 = params.get('panLast4') || '';
 
     const { db } = await connectToDatabase();
     const secureHashSecret = process.env.ASIAPAY_HASH_SECRET;
@@ -54,14 +58,21 @@ export async function POST(req: Request) {
     // successcode = '0' means payment success
     if (successcode === '0') {
       try {
+        const paymentMethodLabel = panLast4
+          ? `${pMethod || 'Card'} ending in ${panLast4}`
+          : 'Card on file';
+
         await db.collection('admindata').updateOne(
           { _id: new ObjectId(Ref) },
-          { 
-            $set: { 
+          {
+            $set: {
               status: 'Completed',
               paymentRef: PayRef,
+              cardType: pMethod || undefined,
+              cardLast4: panLast4 || undefined,
+              paymentMethodLabel,
               updatedAt: new Date()
-            } 
+            }
           }
         );
         console.log(`AsiaPay Payment verified and updated for order: ${Ref}`);

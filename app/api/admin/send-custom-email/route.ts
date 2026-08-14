@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         }),
       });
     } else {
-      const { amountDueUSD, billingDate, cancellationDate } = body;
+      const { amountDueUSD, billingDate, cancellationDate, updateUrl } = body;
       if (amountDueUSD === undefined || amountDueUSD === null || isNaN(Number(amountDueUSD))) {
         return NextResponse.json({ error: 'amountDueUSD is required' }, { status: 400 });
       }
@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
           billingDate: new Date(billingDate),
           cancellationDate: new Date(cancellationDate),
           planDetails,
+          updateUrl: updateUrl || undefined,
         }),
       });
     }
