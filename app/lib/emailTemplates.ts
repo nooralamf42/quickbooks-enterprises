@@ -79,10 +79,12 @@ function detailRow(label: string, value: string, first = false, labelWidth = 200
 }
 
 function emailHeader(): string {
-  const logoUrl = `${BASE_URL}/email-logo.webp`;
-  // email-logo.webp is a white-wordmark/green-icon variant (724x241,
-  // ~3.0:1) made specifically for dark backgrounds — unlike
-  // quickbooks_logo.png, which is solid black and unreadable on navy.
+  const logoUrl = `${BASE_URL}/email-logo.png`;
+  // White-wordmark/green-icon variant (724x241, ~3.0:1) made for dark
+  // backgrounds — unlike quickbooks_logo.png (solid black, unreadable on
+  // navy). Served as PNG, not WebP: several mail clients (including
+  // Gmail's own image proxy) fail to decode WebP correctly and render
+  // corrupted/garbled pixels instead of a clean image.
   return `
     <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" bgcolor="${BRAND_NAVY}" style="width:660px;text-align:center;background-color:${BRAND_NAVY}">
       <tr>
