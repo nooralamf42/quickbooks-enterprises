@@ -15,6 +15,28 @@ const ALERT_ICON_URL = `${BASE_URL}/email-alert.svg`;
 const SUPPORT_MAILTO = 'mailto:billing@quickbooks-enterprises.com';
 const SUPPORT_TEL = 'tel:+18888298848';
 
+// Wraps a body fragment as a full HTML document. Without a real <head>,
+// Gmail and other clients apply their own automatic dark-mode color
+// remapping to bare fragments — these meta tags tell them the email already
+// has a deliberate light design, so our navy/white colors render as-sent
+// instead of being selectively "fixed" by the client.
+function wrapEmailDocument(title: string, bodyHtml: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>${escapeHtml(title)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f5f8">
+${bodyHtml}
+</body>
+</html>`;
+}
+
 const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
@@ -39,14 +61,16 @@ function detailRow(label: string, value: string, first = false, labelWidth = 200
 
 function emailHeader(): string {
   const logoUrl = `${BASE_URL}/quickbooks_logo.png`;
+  // Logo asset is 2560x656 (~3.9:1) — explicit width+height keeps every
+  // mail client sizing it the same way instead of guessing from CSS alone.
   return `
-    <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" style="width:660px;text-align:center">
+    <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" bgcolor="${BRAND_NAVY}" style="width:660px;text-align:center;background-color:${BRAND_NAVY}">
       <tr>
         <td height="90" align="center" bgcolor="${BRAND_NAVY}" style="background-color:${BRAND_NAVY};height:90px">
-          <table border="0" cellpadding="0" cellspacing="0" width="580" align="center" style="width:580px;margin:0 auto">
+          <table border="0" cellpadding="0" cellspacing="0" width="580" align="center" bgcolor="${BRAND_NAVY}" style="width:580px;margin:0 auto;background-color:${BRAND_NAVY}">
             <tr>
-              <td align="left" valign="middle" style="text-align:left;padding:15px 0">
-                <img src="${logoUrl}" alt="QuickBooks Enterprise" height="34" style="display:inline-block;vertical-align:middle;border:0;height:34px">
+              <td align="left" valign="middle" bgcolor="${BRAND_NAVY}" style="text-align:left;padding:15px 0;background-color:${BRAND_NAVY}">
+                <img src="${logoUrl}" alt="QuickBooks Enterprise" width="133" height="34" style="display:inline-block;vertical-align:middle;border:0;width:133px;height:34px">
               </td>
             </tr>
           </table>
@@ -186,7 +210,7 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
   const dateStr = paidAt.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const amountStr = `$${amountUSD.toFixed(2)}`;
 
-  return `
+  return wrapEmailDocument('Payment success', `
 <div style="margin:0;padding:0;font-family:Avenir,Arial,sans-serif;background-color:#f4f5f8">
   <div style="background-color:#f4f5f8;width:100%">
 
@@ -294,7 +318,7 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
     ${emailFooter(data.toEmail)}
 
   </div>
-</div>`;
+</div>`);
 }
 
 export interface PaymentFailedEmailData {
@@ -323,7 +347,7 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
   const cancellationDateStr = cancellationDate.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const ctaUrl = updateUrl || SUPPORT_MAILTO;
 
-  return `
+  return wrapEmailDocument('Action needed on your payment', `
 <div style="margin:0;padding:0;font-family:Avenir,Arial,sans-serif;background-color:#f4f5f8">
   <div style="background-color:#f4f5f8;width:100%">
 
@@ -436,5 +460,5 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
     ${emailFooter(data.toEmail)}
 
   </div>
-</div>`;
+</div>`);
 }
