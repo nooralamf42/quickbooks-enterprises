@@ -15,11 +15,15 @@ const ALERT_ICON_URL = `${BASE_URL}/email-alert.svg`;
 const SUPPORT_MAILTO = 'mailto:billing@quickbooks-enterprises.com';
 const SUPPORT_TEL = 'tel:+18888298848';
 
-// Wraps a body fragment as a full HTML document. Without a real <head>,
-// Gmail and other clients apply their own automatic dark-mode color
-// remapping to bare fragments — these meta tags tell them the email already
-// has a deliberate light design, so our navy/white colors render as-sent
-// instead of being selectively "fixed" by the client.
+// Wraps a body fragment as a full HTML document. The color-scheme meta tags
+// cover Apple Mail/Outlook.com, but Gmail's mobile apps ignore them and use
+// their own heuristic instead: when Gmail auto-dark-modes a message it
+// stamps `data-ogsc`/`data-ogsb` on the content, then repaints near-white
+// backgrounds and near-black text to dark/light — while usually leaving
+// strongly saturated brand colors (our navy/green) alone. The <style>
+// block below targets Gmail's marker directly and forces our real colors
+// back with !important, which is the standard workaround for this since
+// inline styles/attributes alone can't be selectively overridden.
 function wrapEmailDocument(title: string, bodyHtml: string): string {
   return `<!doctype html>
 <html lang="en">
@@ -30,6 +34,21 @@ function wrapEmailDocument(title: string, bodyHtml: string): string {
 <meta name="color-scheme" content="light">
 <meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(title)}</title>
+<style>
+  [data-ogsc] [bgcolor="${BRAND_NAVY}"], [data-ogsc][bgcolor="${BRAND_NAVY}"] { background-color: ${BRAND_NAVY} !important; }
+  [data-ogsc] [bgcolor="#F4F4EF"], [data-ogsc][bgcolor="#F4F4EF"] { background-color: #F4F4EF !important; }
+  [data-ogsc] [bgcolor="#ffffff"], [data-ogsc][bgcolor="#ffffff"] { background-color: #ffffff !important; }
+  [data-ogsc] [bgcolor="#EFF4F9"], [data-ogsc][bgcolor="#EFF4F9"] { background-color: #EFF4F9 !important; }
+  [data-ogsc] [bgcolor="${BRAND_GREEN}"], [data-ogsc][bgcolor="${BRAND_GREEN}"] { background-color: ${BRAND_GREEN} !important; }
+  [data-ogsc] [bgcolor="#21262A"], [data-ogsc][bgcolor="#21262A"] { background-color: #21262A !important; }
+  [data-ogsc] [style*="background-color:#f4f5f8"], [data-ogsc][style*="background-color:#f4f5f8"] { background-color: #f4f5f8 !important; }
+  [data-ogsc] [style*="background-color:#f4f4ef"], [data-ogsc][style*="background-color:#f4f4ef"] { background-color: #f4f4ef !important; }
+  [data-ogsc] [style*="background-color:#ffffff"], [data-ogsc][style*="background-color:#ffffff"] { background-color: #ffffff !important; }
+  [data-ogsc] [style*="background-color:${BRAND_NAVY}"], [data-ogsc][style*="background-color:${BRAND_NAVY}"] { background-color: ${BRAND_NAVY} !important; }
+  [data-ogsc] [style*="color:#000000"], [data-ogsc][style*="color:#000000"] { color: #000000 !important; }
+  [data-ogsc] [style*="color:#555555"], [data-ogsc][style*="color:#555555"] { color: #555555 !important; }
+  [data-ogsc] body, body[data-ogsc] { background-color: #f4f5f8 !important; }
+</style>
 </head>
 <body style="margin:0;padding:0;background-color:#f4f5f8">
 ${bodyHtml}
@@ -63,13 +82,17 @@ function emailHeader(): string {
   const logoUrl = `${BASE_URL}/quickbooks_logo.png`;
   // Logo asset is 2560x656 (~3.9:1) — explicit width+height keeps every
   // mail client sizing it the same way instead of guessing from CSS alone.
+  // The wordmark is baked in as solid black with no white/reverse variant
+  // (checked the file directly), so the header sits on white — the same
+  // background this logo is designed for everywhere else on the site —
+  // instead of navy, which made the text unreadable.
   return `
-    <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" bgcolor="${BRAND_NAVY}" style="width:660px;text-align:center;background-color:${BRAND_NAVY}">
+    <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" bgcolor="#ffffff" style="width:660px;text-align:center;background-color:#ffffff;border-bottom:1px solid #e5e7eb">
       <tr>
-        <td height="90" align="center" bgcolor="${BRAND_NAVY}" style="background-color:${BRAND_NAVY};height:90px">
-          <table border="0" cellpadding="0" cellspacing="0" width="580" align="center" bgcolor="${BRAND_NAVY}" style="width:580px;margin:0 auto;background-color:${BRAND_NAVY}">
+        <td height="90" align="center" bgcolor="#ffffff" style="background-color:#ffffff;height:90px">
+          <table border="0" cellpadding="0" cellspacing="0" width="580" align="center" bgcolor="#ffffff" style="width:580px;margin:0 auto;background-color:#ffffff">
             <tr>
-              <td align="left" valign="middle" bgcolor="${BRAND_NAVY}" style="text-align:left;padding:15px 0;background-color:${BRAND_NAVY}">
+              <td align="left" valign="middle" bgcolor="#ffffff" style="text-align:left;padding:15px 0;background-color:#ffffff">
                 <img src="${logoUrl}" alt="QuickBooks Enterprise" width="133" height="34" style="display:inline-block;vertical-align:middle;border:0;width:133px;height:34px">
               </td>
             </tr>
