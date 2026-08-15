@@ -86,10 +86,10 @@ function emailHeader(): string {
   // Gmail's own image proxy) fail to decode WebP correctly and render
   // corrupted/garbled pixels instead of a clean image.
   return `
-    <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" bgcolor="${BRAND_NAVY}" style="width:660px;text-align:center;background-color:${BRAND_NAVY}">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" align="center" bgcolor="${BRAND_NAVY}" style="width:100%;max-width:660px;text-align:center;background-color:${BRAND_NAVY}">
       <tr>
         <td height="90" align="center" bgcolor="${BRAND_NAVY}" style="background-color:${BRAND_NAVY};height:90px">
-          <table border="0" cellpadding="0" cellspacing="0" width="580" align="center" bgcolor="${BRAND_NAVY}" style="width:580px;margin:0 auto;background-color:${BRAND_NAVY}">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" align="center" bgcolor="${BRAND_NAVY}" style="width:100%;max-width:580px;margin:0 auto;background-color:${BRAND_NAVY}">
             <tr>
               <td align="left" valign="middle" bgcolor="${BRAND_NAVY}" style="text-align:left;padding:15px 0;background-color:${BRAND_NAVY}">
                 <img src="${logoUrl}" alt="QuickBooks Enterprise" width="144" height="48" style="display:inline-block;vertical-align:middle;border:0;width:144px;height:48px">
@@ -103,10 +103,10 @@ function emailHeader(): string {
 
 function orderDetailsSection(companyName: string, orderId: string, planDetails?: string): string {
   return `
-    <table align="center" width="660" border="0" cellpadding="0" cellspacing="0" style="width:660px" bgcolor="#ffffff">
+    <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:660px" bgcolor="#ffffff">
       <tr>
         <td>
-          <table align="center" border="0" cellpadding="0" cellspacing="0" width="580" style="width:580px">
+          <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:580px">
             <tr>
               <td valign="top" align="left" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:26px;font-weight:600;padding-top:40px;padding-bottom:20px;color:#000000">
                 Order details
@@ -117,7 +117,7 @@ function orderDetailsSection(companyName: string, orderId: string, planDetails?:
       </tr>
       <tr>
         <td>
-          <table align="center" border="0" cellpadding="0" cellspacing="0" width="580" style="width:580px">
+          <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:580px">
             <tr>
               <td align="left" valign="top" width="240" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:600;color:#000000">Billed to:</td>
               <td width="20" style="width:20px">&nbsp;</td>
@@ -139,7 +139,7 @@ function orderDetailsSection(companyName: string, orderId: string, planDetails?:
       </tr>
       <tr>
         <td>
-          <table align="center" bgcolor="#ffffff" width="580" cellspacing="0" cellpadding="0" border="0" style="text-align:center;width:580px;color:#000000;padding-top:40px">
+          <table align="center" bgcolor="#ffffff" width="100%" cellspacing="0" cellpadding="0" border="0" style="text-align:center;width:100%;max-width:580px;color:#000000;padding-top:40px">
             <tr>
               <td style="font-size:12px;line-height:16px;font-weight:400;font-family:Avenir,Arial,sans-serif;text-align:left;color:#555555" align="left">
                 Intuit, QuickBooks, QuickBooks ProAdvisor and logo are registered trademarks of Intuit Inc. Used here with permission under the QuickBooks ProAdvisor Agreement. Terms and conditions, features, support, pricing, and service options are subject to change without notice.
@@ -153,13 +153,13 @@ function orderDetailsSection(companyName: string, orderId: string, planDetails?:
 
 function supportBox(heading = 'Questions or concerns?'): string {
   return `
-    <table bgcolor="#ffffff" border="0" cellpadding="0" cellspacing="0" width="660" align="center" style="text-align:center;width:660px;background-color:#ffffff">
+    <table bgcolor="#ffffff" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="text-align:center;width:100%;max-width:660px;background-color:#ffffff">
       <tr>
         <td align="center" style="padding:40px 0px;text-align:center">
-          <table bgcolor="#EFF4F9" width="580" border="0" cellpadding="0" cellspacing="0" align="center" style="padding:38px 0px;width:580px;border-radius:4px;text-align:center;margin:0 auto;border:1px solid #c3ced5">
+          <table bgcolor="#EFF4F9" width="100%" border="0" cellpadding="0" cellspacing="0" align="center" style="padding:38px 0px;width:100%;max-width:580px;border-radius:4px;text-align:center;margin:0 auto;border:1px solid #c3ced5">
             <tr>
               <td align="center">
-                <table border="0" cellpadding="0" cellspacing="0" align="center" width="500" style="width:500px;margin:0 auto">
+                <table border="0" cellpadding="0" cellspacing="0" align="center" width="100%" style="width:100%;max-width:500px;margin:0 auto">
                   <tr>
                     <td style="color:${BRAND_GREEN};text-align:center;line-height:33px;padding:0 0 20px 0;font-size:26px;font-weight:600;font-family:Avenir,Arial,sans-serif">
                       ${heading}
@@ -190,10 +190,10 @@ function supportBox(heading = 'Questions or concerns?'): string {
 function emailFooter(toEmail: string): string {
   const year = new Date().getFullYear();
   return `
-    <table bgcolor="#21262A" border="0" cellpadding="0" cellspacing="0" width="660" align="center" style="text-align:center;background-color:#21262a;width:660px">
+    <table bgcolor="#21262A" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="text-align:center;background-color:#21262a;width:100%;max-width:660px">
       <tr>
         <td style="padding-top:40px">
-          <table cellspacing="0" cellpadding="0" width="580" align="center" style="margin:0 auto;width:580px">
+          <table cellspacing="0" cellpadding="0" width="100%" align="center" style="margin:0 auto;width:100%;max-width:580px">
             <tr>
               <td style="color:#ffffff;text-align:left;font-size:12px;line-height:16px;font-weight:400;font-family:Avenir,Arial,sans-serif;padding-bottom:20px">
                 This email was sent to ${escapeHtml(toEmail)} regarding your QuickBooks Enterprise order.
@@ -238,10 +238,10 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
 
     ${emailHeader()}
 
-    <table bgcolor="#F4F4EF" border="0" cellpadding="0" cellspacing="0" width="660" align="center" style="background-color:#f4f4ef;text-align:center;width:660px">
+    <table bgcolor="#F4F4EF" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="background-color:#f4f4ef;text-align:center;width:100%;max-width:660px">
       <tr>
         <td align="center" style="text-align:center">
-          <table width="580" align="center" cellspacing="0" cellpadding="0" border="0" style="width:580px;text-align:center;margin:0 auto">
+          <table width="100%" align="center" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:580px;text-align:center;margin:0 auto">
             <tr>
               <td align="center" style="text-align:center;padding-top:40px">
                 <img alt="Payment successful" width="72" height="72" style="width:72px;height:72px;display:block;margin:0 auto;border:0" src="${SUCCESS_ICON_URL}">
@@ -260,17 +260,17 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
 
             <tr>
               <td align="center" style="text-align:center;padding-top:40px;padding-bottom:40px">
-                <table align="center" width="580" style="width:580px;border-radius:4px;background-color:#ffffff;border:1px solid #c3ced5;margin:0 auto;text-align:center">
+                <table align="center" width="100%" style="width:100%;max-width:580px;border-radius:4px;background-color:#ffffff;border:1px solid #c3ced5;margin:0 auto;text-align:center">
                   <tr>
                     <td align="center" style="text-align:center;padding-top:36px;padding-bottom:38px">
-                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="500" style="text-align:center;width:500px;margin:0 auto">
+                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="text-align:center;width:100%;max-width:500px;margin:0 auto">
                         ${detailRow('Invoice number:', orderId, true)}
                         ${detailRow('Invoice date:', dateStr)}
                         ${detailRow('Total:', amountStr)}
                         ${detailRow('Payment method:', escapeHtml(paymentMethodLabel))}
                       </table>
 
-                      <table role="presentation" width="500" align="center" border="0" cellpadding="0" cellspacing="0" style="width:500px">
+                      <table role="presentation" width="100%" align="center" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:500px">
                         <tr>
                           <td style="padding-top:24px">
                             <table cellspacing="0" cellpadding="0" border="0" align="center">
@@ -286,7 +286,7 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
                         </tr>
                       </table>
 
-                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="500" style="text-align:center;width:500px;margin:0 auto">
+                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="text-align:center;width:100%;max-width:500px;margin:0 auto">
                         <tr>
                           <td style="padding-top:14px">
                             <table width="100%" align="center" style="text-align:center;width:100%;margin:0 auto">
@@ -310,7 +310,7 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
 
       <tr>
         <td align="center" style="padding-bottom:40px;text-align:center">
-          <table width="580" border="0" cellpadding="0" cellspacing="0" align="center" style="width:580px;background-color:#ffffff;border-radius:4px;padding:16px">
+          <table width="100%" border="0" cellpadding="0" cellspacing="0" align="center" style="width:100%;max-width:580px;background-color:#ffffff;border-radius:4px;padding:16px">
             <tr>
               <td align="left" valign="top" width="24" style="padding-right:8px">
                 <table role="presentation" width="24" height="24" cellpadding="0" cellspacing="0">
@@ -375,10 +375,10 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
 
     ${emailHeader()}
 
-    <table bgcolor="#F4F4EF" border="0" cellpadding="0" cellspacing="0" width="660" align="center" style="background-color:#f4f4ef;text-align:center;width:660px">
+    <table bgcolor="#F4F4EF" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="background-color:#f4f4ef;text-align:center;width:100%;max-width:660px">
       <tr>
         <td align="center" style="text-align:center">
-          <table width="580" align="center" cellspacing="0" cellpadding="0" border="0" style="width:580px;text-align:center;margin:0 auto">
+          <table width="100%" align="center" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:580px;text-align:center;margin:0 auto">
             <tr>
               <td align="center" style="text-align:center;padding-top:40px">
                 <img alt="Action needed" width="72" height="72" style="width:72px;height:72px;display:block;margin:0 auto;border:0" src="${ALERT_ICON_URL}">
@@ -397,10 +397,10 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
 
             <tr>
               <td align="center" style="text-align:center;padding:40px 0px">
-                <table align="center" width="580" style="width:580px;border-radius:4px;background-color:#ffffff;border:1px solid #c3ced5;margin:0 auto;text-align:center">
+                <table align="center" width="100%" style="width:100%;max-width:580px;border-radius:4px;background-color:#ffffff;border:1px solid #c3ced5;margin:0 auto;text-align:center">
                   <tr>
                     <td align="center" style="text-align:center;padding-top:36px;padding-bottom:38px">
-                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="500" style="text-align:center;width:500px;margin:0 auto">
+                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="text-align:center;width:100%;max-width:500px;margin:0 auto">
                         ${detailRow('Company name:', escapeHtml(companyName || customerName), true, 240)}
                         ${detailRow('Payment method:', escapeHtml(paymentMethodLabel), false, 240)}
                         ${detailRow('Amount due:', amountStr, false, 240)}
@@ -411,7 +411,7 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
                   </tr>
                 </table>
 
-                <table role="presentation" width="500" align="center" border="0" cellpadding="0" cellspacing="0" style="width:500px;margin:0 auto;max-width:fit-content">
+                <table role="presentation" align="center" border="0" cellpadding="0" cellspacing="0" style="margin:0 auto">
                   <tr>
                     <td style="padding-top:16px">
                       <table cellspacing="0" cellpadding="0" border="0" align="center">
@@ -433,10 +433,10 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
       </tr>
     </table>
 
-    <table align="center" width="660" border="0" cellpadding="0" cellspacing="0" style="width:660px;background-color:#ffffff;border-collapse:collapse" bgcolor="#ffffff">
+    <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:660px;background-color:#ffffff;border-collapse:collapse" bgcolor="#ffffff">
       <tr>
         <td align="center" style="padding-top:40px">
-          <table align="center" width="580" border="0" cellpadding="0" cellspacing="0" style="width:580px">
+          <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:580px">
             <tr>
               <td align="left" style="text-align:left;color:#000000;font-size:16px;line-height:24px;font-weight:400;font-family:Avenir,Arial,sans-serif">
                 We&rsquo;ll try one more time to renew your subscription, so please update your payment info as soon as you can.
@@ -447,10 +447,10 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
       </tr>
       <tr>
         <td>
-          <table align="center" width="660" border="0" cellpadding="0" cellspacing="0" style="width:660px" bgcolor="#ffffff">
+          <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:660px" bgcolor="#ffffff">
             <tr>
               <td align="center" style="padding-top:40px">
-                <table align="center" width="580" border="0" cellpadding="0" cellspacing="0" style="width:580px">
+                <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:580px">
                   <tr>
                     <td align="left" style="font-family:Avenir,Arial,sans-serif;font-size:28px;line-height:36px;color:#000000;font-weight:600;padding-bottom:20px">
                       Account details
@@ -461,7 +461,7 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
             </tr>
             <tr>
               <td>
-                <table align="center" width="580" border="0" cellpadding="0" cellspacing="0" style="width:580px">
+                <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:580px">
                   <tr>
                     <td width="50%" valign="top" align="left" style="width:50%;color:#000000;font-size:16px;line-height:26px;font-weight:600;font-family:Avenir,Arial,sans-serif">
                       Affected subscriptions:
