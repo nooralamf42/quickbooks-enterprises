@@ -79,21 +79,18 @@ function detailRow(label: string, value: string, first = false, labelWidth = 200
 }
 
 function emailHeader(): string {
-  const logoUrl = `${BASE_URL}/quickbooks_logo.png`;
-  // Logo asset is 2560x656 (~3.9:1) — explicit width+height keeps every
-  // mail client sizing it the same way instead of guessing from CSS alone.
-  // The wordmark is baked in as solid black with no white/reverse variant
-  // (checked the file directly), so the header sits on white — the same
-  // background this logo is designed for everywhere else on the site —
-  // instead of navy, which made the text unreadable.
+  const logoUrl = `${BASE_URL}/email-logo.webp`;
+  // email-logo.webp is a white-wordmark/green-icon variant (724x241,
+  // ~3.0:1) made specifically for dark backgrounds — unlike
+  // quickbooks_logo.png, which is solid black and unreadable on navy.
   return `
-    <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" bgcolor="#ffffff" style="width:660px;text-align:center;background-color:#ffffff;border-bottom:1px solid #e5e7eb">
+    <table border="0" cellpadding="0" cellspacing="0" width="660" align="center" bgcolor="${BRAND_NAVY}" style="width:660px;text-align:center;background-color:${BRAND_NAVY}">
       <tr>
-        <td height="90" align="center" bgcolor="#ffffff" style="background-color:#ffffff;height:90px">
-          <table border="0" cellpadding="0" cellspacing="0" width="580" align="center" bgcolor="#ffffff" style="width:580px;margin:0 auto;background-color:#ffffff">
+        <td height="90" align="center" bgcolor="${BRAND_NAVY}" style="background-color:${BRAND_NAVY};height:90px">
+          <table border="0" cellpadding="0" cellspacing="0" width="580" align="center" bgcolor="${BRAND_NAVY}" style="width:580px;margin:0 auto;background-color:${BRAND_NAVY}">
             <tr>
-              <td align="left" valign="middle" bgcolor="#ffffff" style="text-align:left;padding:15px 0;background-color:#ffffff">
-                <img src="${logoUrl}" alt="QuickBooks Enterprise" width="133" height="34" style="display:inline-block;vertical-align:middle;border:0;width:133px;height:34px">
+              <td align="left" valign="middle" bgcolor="${BRAND_NAVY}" style="text-align:left;padding:15px 0;background-color:${BRAND_NAVY}">
+                <img src="${logoUrl}" alt="QuickBooks Enterprise" width="144" height="48" style="display:inline-block;vertical-align:middle;border:0;width:144px;height:48px">
               </td>
             </tr>
           </table>
