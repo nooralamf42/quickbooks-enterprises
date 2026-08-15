@@ -79,7 +79,7 @@ function detailRow(label: string, value: string, first = false, labelWidth = 200
 }
 
 function emailHeader(): string {
-  const logoUrl = `${BASE_URL}/email-logo.png`;
+  const logoUrl = `${BASE_URL}/template-logo-image.png`;
   // White-wordmark/green-icon variant (724x241, ~3.0:1) made for dark
   // backgrounds — unlike quickbooks_logo.png (solid black, unreadable on
   // navy). Served as PNG, not WebP: several mail clients (including
@@ -92,7 +92,7 @@ function emailHeader(): string {
           <table border="0" cellpadding="0" cellspacing="0" width="100%" align="center" bgcolor="${BRAND_NAVY}" style="width:100%;max-width:580px;margin:0 auto;background-color:${BRAND_NAVY}">
             <tr>
               <td align="left" valign="middle" bgcolor="${BRAND_NAVY}" style="text-align:left;padding:15px 0;background-color:${BRAND_NAVY}">
-                <img src="${logoUrl}" alt="QuickBooks Enterprise" width="144" height="48" style="display:inline-block;vertical-align:middle;border:0;width:144px;height:48px">
+                <img src="${logoUrl}" alt="QuickBooks Enterprise" width="144" style="display:inline-block;vertical-align:middle;border:0;width:144px;height:auto">
               </td>
             </tr>
           </table>
