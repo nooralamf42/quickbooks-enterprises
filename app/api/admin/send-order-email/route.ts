@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
           amountUSD: record.amountUSD || 0,
           paymentMethodLabel: record.paymentMethodLabel || 'Card on file',
           planDetails: record.planDetails,
+          licenseNumber: record.licenseNumber || undefined,
+          productNumber: record.productNumber || undefined,
         }),
       });
     } else {

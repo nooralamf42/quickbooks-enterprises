@@ -47,6 +47,8 @@ export default function QuickBooksPaymentLinkCreator() {
     orderId: '',
     planDetails: '',
     paymentMethodLabel: '',
+    licenseNumber: '',
+    productNumber: '',
     amountUSD: '',
     paidAt: new Date().toISOString().slice(0, 10),
     amountDueUSD: '',
@@ -157,6 +159,8 @@ export default function QuickBooksPaymentLinkCreator() {
       if (emailType === 'success') {
         payload.amountUSD = emailForm.amountUSD
         payload.paidAt = emailForm.paidAt
+        payload.licenseNumber = emailForm.licenseNumber
+        payload.productNumber = emailForm.productNumber
       } else {
         payload.amountDueUSD = emailForm.amountDueUSD
         payload.billingDate = emailForm.billingDate
@@ -2119,6 +2123,30 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                   />
                 </div>
+                {emailType === 'success' && (
+                  <>
+                    <div>
+                      <label className="block mb-1.5 font-medium text-xs text-zinc-500">License Number <span className="text-[10px] text-zinc-400 italic font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={emailForm.licenseNumber}
+                        onChange={(e) => updateEmailForm('licenseNumber', e.target.value)}
+                        placeholder="e.g. 1234-5678-9012-345"
+                        className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block mb-1.5 font-medium text-xs text-zinc-500">Product Number <span className="text-[10px] text-zinc-400 italic font-normal">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={emailForm.productNumber}
+                        onChange={(e) => updateEmailForm('productNumber', e.target.value)}
+                        placeholder="e.g. 962-891"
+                        className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Type-specific fields */}

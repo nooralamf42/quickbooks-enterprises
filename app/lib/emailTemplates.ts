@@ -221,11 +221,14 @@ export interface PaymentReceiptEmailData {
   amountUSD: number;
   paymentMethodLabel: string;
   planDetails?: string;
+  licenseNumber?: string;
+  productNumber?: string;
 }
 
 export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): string {
   const {
     customerName, companyName, orderId, paidAt, amountUSD, paymentMethodLabel, planDetails,
+    licenseNumber, productNumber,
   } = data;
 
   const name = escapeHtml(customerName || 'there');
@@ -268,6 +271,8 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
                         ${detailRow('Invoice date:', dateStr)}
                         ${detailRow('Total:', amountStr)}
                         ${detailRow('Payment method:', escapeHtml(paymentMethodLabel))}
+                        ${licenseNumber ? detailRow('License number:', escapeHtml(licenseNumber)) : ''}
+                        ${productNumber ? detailRow('Product number:', escapeHtml(productNumber)) : ''}
                       </table>
 
                       <table role="presentation" width="100%" align="center" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:500px">

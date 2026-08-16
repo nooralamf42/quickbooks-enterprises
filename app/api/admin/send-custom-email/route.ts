@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { type, toEmail, customerName, companyName, orderId, planDetails, paymentMethodLabel } = body;
+    const { type, toEmail, customerName, companyName, orderId, planDetails, paymentMethodLabel, licenseNumber, productNumber } = body;
 
     if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
       return NextResponse.json({ error: 'A valid recipient email is required' }, { status: 400 });
@@ -48,6 +48,8 @@ export async function POST(req: NextRequest) {
           amountUSD: Number(amountUSD),
           paymentMethodLabel: paymentMethodLabel || 'Card on file',
           planDetails,
+          licenseNumber: licenseNumber || undefined,
+          productNumber: productNumber || undefined,
         }),
       });
     } else {
