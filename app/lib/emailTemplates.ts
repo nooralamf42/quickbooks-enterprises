@@ -91,8 +91,8 @@ function emailHeader(): string {
         <td height="90" align="center" bgcolor="${BRAND_NAVY}" style="background-color:${BRAND_NAVY};height:90px">
           <table border="0" cellpadding="0" cellspacing="0" width="100%" align="center" bgcolor="${BRAND_NAVY}" style="width:100%;max-width:580px;margin:0 auto;background-color:${BRAND_NAVY}">
             <tr>
-              <td align="left" valign="middle" bgcolor="${BRAND_NAVY}" style="text-align:center;padding:15px 0;background-color:${BRAND_NAVY}">
-                <img src="${logoUrl}" alt="QuickBooks Enterprise" width="540" style="display:inline-block;vertical-align:middle;border:0;width:100%;max-width:540px;height:auto">
+              <td align="center" valign="middle" bgcolor="${BRAND_NAVY}" style="text-align:center;padding:15px 20px;background-color:${BRAND_NAVY}">
+                <img src="${logoUrl}" alt="QuickBooks Enterprise" width="540" style="display:block;margin:0 auto;border:0;width:100% !important;max-width:540px;height:auto">
               </td>
             </tr>
           </table>
