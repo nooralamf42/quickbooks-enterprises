@@ -223,12 +223,16 @@ export interface PaymentReceiptEmailData {
   planDetails?: string;
   licenseNumber?: string;
   productNumber?: string;
+  /** Only meaningful for QuickBooks Enterprise editions — omit/undefined for other services so the row is hidden. */
+  numUsers?: number;
+  /** Contract term in years. Only meaningful for QuickBooks Enterprise editions — omit/undefined for other services so the row is hidden. */
+  contractYears?: number;
 }
 
 export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): string {
   const {
     customerName, companyName, orderId, paidAt, amountUSD, paymentMethodLabel, planDetails,
-    licenseNumber, productNumber,
+    licenseNumber, productNumber, numUsers, contractYears,
   } = data;
 
   const name = escapeHtml(customerName || 'there');
@@ -271,6 +275,9 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
                         ${detailRow('Invoice date:', dateStr)}
                         ${detailRow('Total:', amountStr)}
                         ${detailRow('Payment method:', escapeHtml(paymentMethodLabel))}
+                        ${planDetails ? detailRow('Plan:', escapeHtml(planDetails)) : ''}
+                        ${numUsers ? detailRow('Number of users:', String(numUsers)) : ''}
+                        ${contractYears ? detailRow('Contract term:', `${contractYears} Year${contractYears === 1 ? '' : 's'}`) : ''}
                         ${licenseNumber ? detailRow('License number:', escapeHtml(licenseNumber)) : ''}
                         ${productNumber ? detailRow('Product number:', escapeHtml(productNumber)) : ''}
                       </table>
@@ -358,6 +365,10 @@ export interface PaymentFailedEmailData {
   billingDate: Date;
   cancellationDate: Date;
   planDetails?: string;
+  /** Only meaningful for QuickBooks Enterprise editions — omit/undefined for other services so the row is hidden. */
+  numUsers?: number;
+  /** Contract term in years. Only meaningful for QuickBooks Enterprise editions — omit/undefined for other services so the row is hidden. */
+  contractYears?: number;
   /** Where the "Update payment method" button should send them. Defaults to the support mailto since there's no self-service billing portal. */
   updateUrl?: string;
 }
@@ -365,7 +376,7 @@ export interface PaymentFailedEmailData {
 export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): string {
   const {
     customerName, companyName, amountDueUSD, paymentMethodLabel,
-    billingDate, cancellationDate, planDetails, updateUrl,
+    billingDate, cancellationDate, planDetails, numUsers, contractYears, updateUrl,
   } = data;
 
   const name = escapeHtml(customerName || 'there');
@@ -408,6 +419,9 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
                       <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="text-align:center;width:100%;max-width:500px;margin:0 auto">
                         ${detailRow('Company name:', escapeHtml(companyName || customerName), true, 240)}
                         ${detailRow('Payment method:', escapeHtml(paymentMethodLabel), false, 240)}
+                        ${planDetails ? detailRow('Plan:', escapeHtml(planDetails), false, 240) : ''}
+                        ${numUsers ? detailRow('Number of users:', String(numUsers), false, 240) : ''}
+                        ${contractYears ? detailRow('Contract term:', `${contractYears} Year${contractYears === 1 ? '' : 's'}`, false, 240) : ''}
                         ${detailRow('Amount due:', amountStr, false, 240)}
                         ${detailRow('Billing date:', billingDateStr, false, 240)}
                         ${detailRow('Cancellation date:', cancellationDateStr, false, 240)}

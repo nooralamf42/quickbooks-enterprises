@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { type, toEmail, customerName, companyName, orderId, planDetails, paymentMethodLabel, licenseNumber, productNumber } = body;
+    const { type, toEmail, customerName, companyName, orderId, planDetails, paymentMethodLabel, licenseNumber, productNumber, numUsers, contractYears } = body;
 
     if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
       return NextResponse.json({ error: 'A valid recipient email is required' }, { status: 400 });
@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
           planDetails,
           licenseNumber: licenseNumber || undefined,
           productNumber: productNumber || undefined,
+          numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
+          contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
         }),
       });
     } else {
@@ -75,6 +77,8 @@ export async function POST(req: NextRequest) {
           billingDate: new Date(billingDate),
           cancellationDate: new Date(cancellationDate),
           planDetails,
+          numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
+          contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
           updateUrl: updateUrl || undefined,
         }),
       });
