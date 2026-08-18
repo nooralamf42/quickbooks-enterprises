@@ -59,6 +59,11 @@ export default function QuickBooksPaymentLinkCreator() {
   const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'asiapay'>('')
   const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
 
+  // Sent Emails history (emailLogs collection)
+  const [emailLogsList, setEmailLogsList] = useState<any[]>([])
+  const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(false)
+  const [selectedEmailLog, setSelectedEmailLog] = useState<any>(null)
+
   const editions = [
     { name: 'Silver', value: 'silver' },
     { name: 'Gold', value: 'gold' },
@@ -190,6 +195,7 @@ export default function QuickBooksPaymentLinkCreator() {
       }
 
       toast.success(emailType === 'success' ? 'Receipt email sent!' : 'Payment reminder sent!')
+      fetchEmailLogs()
     } catch (error: any) {
       console.error(error)
       toast.error(error.message || 'Failed to send email')
@@ -248,6 +254,45 @@ export default function QuickBooksPaymentLinkCreator() {
   useEffect(() => {
     if (activeTab === 'logs') {
       fetchLogs()
+    }
+  }, [activeTab])
+
+  const fetchEmailLogs = async () => {
+    setIsLoadingEmailLogs(true)
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      let passwordHash = ''
+      if (stored) {
+        passwordHash = JSON.parse(stored).passwordHash
+      }
+
+      const response = await fetch('/api/admin/email-logs', {
+        headers: {
+          'Authorization': `Bearer ${passwordHash}`,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        },
+        cache: 'no-store'
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch email logs')
+      }
+
+      const data = await response.json()
+      setEmailLogsList(data.logs || [])
+    } catch (error: any) {
+      console.error(error)
+      toast.error(error.message || 'Failed to load sent emails')
+    } finally {
+      setIsLoadingEmailLogs(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'email') {
+      fetchEmailLogs()
     }
   }, [activeTab])
 
@@ -1952,6 +1997,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
         {/* Tab 3: Send a standalone email (not tied to an existing order) */}
         {activeTab === 'email' && (
+          <div className="space-y-8">
           <div className="max-w-2xl">
             <form onSubmit={sendCustomEmail} className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8 space-y-6">
               <div>
@@ -2252,6 +2298,137 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : 'Send Payment Reminder'}
               </button>
             </form>
+          </div>
+
+          {/* Sent Emails history */}
+          <div className="bg-white border border-zinc-200 rounded-xl shadow-xs">
+            <div className="p-6 md:p-8 pb-4 flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900 flex items-center gap-2">
+                  <Mail size={16} className="text-zinc-400" />
+                  Sent Emails
+                </h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Every receipt and reminder ever sent, automatic or manual, with the data used to build it.</p>
+              </div>
+              <button
+                type="button"
+                onClick={fetchEmailLogs}
+                disabled={isLoadingEmailLogs}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer disabled:opacity-50"
+              >
+                <RefreshCw size={12} className={isLoadingEmailLogs ? 'animate-spin' : ''} />
+                Refresh
+              </button>
+            </div>
+
+            {isLoadingEmailLogs ? (
+              <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">Loading sent emails...</p>
+            ) : emailLogsList.length === 0 ? (
+              <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">No emails have been sent yet.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-t border-zinc-100 bg-zinc-50/60 text-left text-[10px] uppercase tracking-wider text-zinc-500">
+                      <th className="py-2.5 px-4 font-semibold">Sent</th>
+                      <th className="py-2.5 px-4 font-semibold">Type</th>
+                      <th className="py-2.5 px-4 font-semibold">Recipient</th>
+                      <th className="py-2.5 px-4 font-semibold">Plan</th>
+                      <th className="py-2.5 px-4 font-semibold">Amount</th>
+                      <th className="py-2.5 px-4 font-semibold">Trigger</th>
+                      <th className="py-2.5 px-4 font-semibold text-right">Data</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {emailLogsList.map((entry) => (
+                      <tr key={entry._id} className="hover:bg-zinc-50/40 transition-colors">
+                        <td className="py-3 px-4 align-top whitespace-nowrap text-zinc-500">
+                          {entry.sentAt ? new Date(entry.sentAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}
+                          <div className="text-[10px] text-zinc-400">{entry.sentAt ? new Date(entry.sentAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' EST' : ''}</div>
+                        </td>
+                        <td className="py-3 px-4 align-top">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${entry.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                            {entry.type === 'reminder' ? 'REMINDER' : 'RECEIPT'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 align-top">
+                          <div className="font-semibold text-zinc-900">{entry.customerName || '—'}</div>
+                          <div className="text-zinc-500">{entry.toEmail}</div>
+                        </td>
+                        <td className="py-3 px-4 align-top text-zinc-600 max-w-[220px] truncate" title={entry.planDetails}>{entry.planDetails || '—'}</td>
+                        <td className="py-3 px-4 align-top font-semibold text-zinc-800">{entry.amountUSD !== undefined && entry.amountUSD !== null ? `$${Number(entry.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
+                        <td className="py-3 px-4 align-top">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200">
+                            {entry.trigger || 'unknown'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 align-top text-right">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEmailLog(entry)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 border border-blue-200 font-semibold rounded-md text-[10px] transition-colors shadow-xs bg-white hover:bg-blue-50 text-blue-700 cursor-pointer"
+                          >
+                            <Eye size={11} />
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+          </div>
+        )}
+
+        {selectedEmailLog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg relative flex flex-col" style={{ maxHeight: '90vh' }}>
+              <button
+                onClick={() => setSelectedEmailLog(null)}
+                className="absolute top-4 right-4 z-10 text-zinc-400 hover:text-zinc-800 transition-colors p-1 bg-white/90 backdrop-blur-sm rounded-full shadow-sm border border-zinc-200"
+              >
+                <X size={20} />
+              </button>
+
+              <div className="overflow-y-auto flex-1 p-6 md:p-8">
+                <div className="flex items-center justify-between mb-6 border-b border-zinc-100 pb-4">
+                  <h2 className="text-lg font-bold text-zinc-900">Email Data Used</h2>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${selectedEmailLog.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                    {selectedEmailLog.type === 'reminder' ? 'REMINDER' : 'RECEIPT'}
+                  </span>
+                </div>
+
+                <div className="space-y-3 text-sm">
+                  {[
+                    ['Sent at', selectedEmailLog.sentAt ? new Date(selectedEmailLog.sentAt).toLocaleString('en-US', { timeZone: 'America/New_York' }) + ' EST' : 'N/A'],
+                    ['Subject', selectedEmailLog.subject],
+                    ['Recipient email', selectedEmailLog.toEmail],
+                    ['Customer name', selectedEmailLog.customerName],
+                    ['Order ID', selectedEmailLog.orderId],
+                    ['Plan details', selectedEmailLog.planDetails],
+                    ['Amount (USD)', selectedEmailLog.amountUSD !== undefined && selectedEmailLog.amountUSD !== null ? `$${Number(selectedEmailLog.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : undefined],
+                    ['Trigger', selectedEmailLog.trigger],
+                    ['Record ID', selectedEmailLog._id],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex justify-between gap-4 border-b border-zinc-50 pb-2">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider shrink-0 pt-0.5">{label}</span>
+                      <span className="font-medium text-zinc-800 text-right break-words">{value || <span className="text-zinc-300 italic">Not provided</span>}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-zinc-100 flex justify-end">
+                <button
+                  onClick={() => setSelectedEmailLog(null)}
+                  className="px-5 py-2 bg-zinc-900 text-white font-semibold rounded-lg hover:bg-zinc-800 transition-colors shadow-sm text-sm cursor-pointer"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

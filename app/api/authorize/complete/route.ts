@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { Resend } from 'resend';
 
 /**
  * This endpoint is called by Authorize.net after a successful payment.
@@ -66,23 +65,7 @@ async function handleComplete(req: NextRequest) {
             }
           );
 
-          // Send success email
-          if (process.env.RESEND_API_KEY) {
-            try {
-              const resend = new Resend(process.env.RESEND_API_KEY);
-              await resend.emails.send({
-                from: 'QuickBooks Enterprises <noreply@powerjobsusa.com>',
-                to: [record.email || record.customerInfo?.email],
-                subject: 'Payment Confirmed - QuickBooks Enterprise Subscription',
-                html: `<p>Dear ${record.firstName || record.customerInfo?.firstName || 'Customer'},</p>
-                <p>Your payment of $${record.amountUSD || record.price} has been confirmed.</p>
-                <p><strong>Transaction ID:</strong> ${transId}</p>
-                <p>Thank you for your purchase!</p>`
-              });
-            } catch (emailErr) {
-              console.error('[AuthNet Complete] Email error:', emailErr);
-            }
-          }
+          // Customer receipt emails are sent manually from the admin dashboard, not automatically here.
 
           syncSuccess = true;
         }

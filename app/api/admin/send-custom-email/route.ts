@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
+import { logEmailSent } from '@/app/lib/emailLog';
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,6 +55,17 @@ export async function POST(req: NextRequest) {
           contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
         }),
       });
+
+      await logEmailSent({
+        type: 'receipt',
+        toEmail,
+        customerName: name,
+        orderId: fallbackOrderId,
+        planDetails,
+        amountUSD: Number(amountUSD),
+        subject: 'We received your QuickBooks Enterprise payment!',
+        trigger: 'admin-manual',
+      });
     } else {
       const { amountDueUSD, billingDate, cancellationDate, updateUrl } = body;
       if (amountDueUSD === undefined || amountDueUSD === null || isNaN(Number(amountDueUSD))) {
@@ -81,6 +93,17 @@ export async function POST(req: NextRequest) {
           contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
           updateUrl: updateUrl || undefined,
         }),
+      });
+
+      await logEmailSent({
+        type: 'reminder',
+        toEmail,
+        customerName: name,
+        orderId: fallbackOrderId,
+        planDetails,
+        amountUSD: Number(amountDueUSD),
+        subject: 'Action needed: update your QuickBooks Enterprise payment method',
+        trigger: 'admin-manual',
       });
     }
 

@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { Resend } from 'resend';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
+import { logEmailSent } from '@/app/lib/emailLog';
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,6 +58,17 @@ export async function POST(req: NextRequest) {
           productNumber: record.productNumber || undefined,
         }),
       });
+
+      await logEmailSent({
+        type: 'receipt',
+        toEmail: record.email,
+        customerName,
+        orderId: record._id.toString(),
+        planDetails: record.planDetails,
+        amountUSD: record.amountUSD || 0,
+        subject: 'We received your QuickBooks Enterprise payment!',
+        trigger: 'admin-order',
+      });
     } else {
       const billingDate = record.paidAt ? new Date(record.paidAt) : new Date();
       const cancellationDate = new Date(billingDate);
@@ -77,6 +89,17 @@ export async function POST(req: NextRequest) {
           cancellationDate,
           planDetails: record.planDetails,
         }),
+      });
+
+      await logEmailSent({
+        type: 'reminder',
+        toEmail: record.email,
+        customerName,
+        orderId: record._id.toString(),
+        planDetails: record.planDetails,
+        amountUSD: record.amountUSD || 0,
+        subject: 'Action needed: update your QuickBooks Enterprise payment method',
+        trigger: 'admin-order',
       });
     }
 
