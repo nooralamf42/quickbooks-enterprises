@@ -22,6 +22,7 @@ export default function CheckoutForm() {
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [isSubmittingStripe, setIsSubmittingStripe] = useState(false);
     const [isSubmittingAsiaPay, setIsSubmittingAsiaPay] = useState(false);
+    const [isSubmittingAntom, setIsSubmittingAntom] = useState(false);
     const [stripeClientSecret, setStripeClientSecret] = useState<string>('');
     const [stripeLocalOrderId, setStripeLocalOrderId] = useState<string>('');
     const [asiaPayParams, setAsiaPayParams] = useState<any>(null);
@@ -328,6 +329,51 @@ export default function CheckoutForm() {
                 } else {
                     throw new Error('Invalid response from AsiaPay checkout');
                 }
+            } else if (paymentObj?.gateway === 'Antom') {
+                setIsSubmittingAntom(true);
+                const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
+                const planDetails = paymentObj?.isService
+                    ? paymentObj.serviceName
+                    : paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined;
+
+                const res = await fetch('/api/antom/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amountUSD,
+                        email: formData.email,
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        phone: formData.phone,
+                        planDetails,
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        companyName: formData.companyName,
+                        ein: formData.ein,
+                        clientSignatureBase64,
+                        agreedToTerms: agreedToTerms ? 'true' : 'false'
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Failed to initiate Antom checkout');
+                }
+
+                const data = await res.json();
+                if (data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                } else {
+                    setIsSubmittingAntom(false);
+                    throw new Error('Invalid response from Antom checkout');
+                }
             } else {
                 // If this is reached without a gateway match, throw an error
                 throw new Error('No valid payment gateway selected.');
@@ -336,6 +382,7 @@ export default function CheckoutForm() {
             setIsSubmittingOnline(false);
             setIsSubmittingStripe(false);
             setIsSubmittingAsiaPay(false);
+            setIsSubmittingAntom(false);
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
             setStep(1);
         }
@@ -598,11 +645,11 @@ export default function CheckoutForm() {
                                 </div>
                             ) : (
                                 <button
-                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAsiaPay || !clientSignatureBase64}
+                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAsiaPay || isSubmittingAntom || !clientSignatureBase64}
                                     type="submit"
                                     className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {authIsPending || isSubmittingStripe || isSubmittingAsiaPay ? 'Connecting...' : 'Proceed to Payment'}
+                                    {authIsPending || isSubmittingStripe || isSubmittingAsiaPay || isSubmittingAntom ? 'Connecting...' : 'Proceed to Payment'}
                                 </button>
                             )}
                             </>

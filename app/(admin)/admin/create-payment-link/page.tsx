@@ -15,7 +15,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay'>('authorize')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay' | 'antom'>('authorize')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email'>('create')
@@ -63,6 +63,8 @@ export default function QuickBooksPaymentLinkCreator() {
   const [emailLogsList, setEmailLogsList] = useState<any[]>([])
   const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(false)
   const [selectedEmailLog, setSelectedEmailLog] = useState<any>(null)
+  const [emailLogsPage, setEmailLogsPage] = useState(1)
+  const emailLogsPerPage = 10
 
   const editions = [
     { name: 'Silver', value: 'silver' },
@@ -282,6 +284,7 @@ export default function QuickBooksPaymentLinkCreator() {
 
       const data = await response.json()
       setEmailLogsList(data.logs || [])
+      setEmailLogsPage(1)
     } catch (error: any) {
       console.error(error)
       toast.error(error.message || 'Failed to load sent emails')
@@ -442,7 +445,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'asiapay' ? 'GAP' : 'GT'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'asiapay' ? 'GAP' : selectedGateway === 'antom' ? 'GAN' : 'GT'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l','m'].includes(selectedEdition)) {
@@ -669,52 +672,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       const metaY = 57
       doc.text(`Consent Record ID:   ${log._id}`, 20, metaY)
 
-      // Guess Timezone based on State for US Customers
-      const guessTimeZone = (country: string, state: string) => {
-        if (!state) return undefined;
-        const c = (country || '').toUpperCase();
-        if (c !== 'US' && c !== 'USA' && c !== 'UNITED STATES') return undefined;
-        
-        const st = state.toUpperCase().trim();
-        const est = ['CT', 'DE', 'FL', 'GA', 'ME', 'MD', 'MA', 'MI', 'NH', 'NJ', 'NY', 'NC', 'OH', 'PA', 'RI', 'SC', 'VT', 'VA', 'WV', 'DC', 'CONNECTICUT', 'DELAWARE', 'FLORIDA', 'GEORGIA', 'MAINE', 'MARYLAND', 'MASSACHUSETTS', 'MICHIGAN', 'NEW HAMPSHIRE', 'NEW JERSEY', 'NEW YORK', 'NORTH CAROLINA', 'OHIO', 'PENNSYLVANIA', 'RHODE ISLAND', 'SOUTH CAROLINA', 'VERMONT', 'VIRGINIA', 'WEST VIRGINIA', 'DISTRICT OF COLUMBIA'];
-        const cst = ['AL', 'AR', 'IL', 'IA', 'KS', 'KY', 'LA', 'MN', 'MS', 'MO', 'NE', 'ND', 'OK', 'SD', 'TN', 'TX', 'WI', 'ALABAMA', 'ARKANSAS', 'ILLINOIS', 'IOWA', 'KANSAS', 'KENTUCKY', 'LOUISIANA', 'MINNESOTA', 'MISSISSIPPI', 'MISSOURI', 'NEBRASKA', 'NORTH DAKOTA', 'OKLAHOMA', 'SOUTH DAKOTA', 'TENNESSEE', 'TEXAS', 'WISCONSIN'];
-        const mst = ['AZ', 'CO', 'ID', 'MT', 'NM', 'UT', 'WY', 'ARIZONA', 'COLORADO', 'IDAHO', 'MONTANA', 'NEW MEXICO', 'UTAH', 'WYOMING'];
-        const pst = ['CA', 'NV', 'OR', 'WA', 'CALIFORNIA', 'NEVADA', 'OREGON', 'WASHINGTON'];
-        const akst = ['AK', 'ALASKA'];
-        const hst = ['HI', 'HAWAII'];
-
-        if (est.includes(st)) return 'America/New_York';
-        if (cst.includes(st)) return 'America/Chicago';
-        if (mst.includes(st)) return 'America/Denver';
-        if (pst.includes(st)) return 'America/Los_Angeles';
-        if (akst.includes(st)) return 'America/Anchorage';
-        if (hst.includes(st)) return 'Pacific/Honolulu';
-        
-        return undefined;
-      };
-
-      const tz = guessTimeZone(log.country, log.state);
-      let timeString = '';
-      if (tz) {
-        try {
-          const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: tz,
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            timeZoneName: 'short'
-          });
-          const locStr = log.city ? `${log.city}, ${log.state}` : log.state;
-          timeString = `${formatter.format(new Date(log.agreedTimestamp))} (Local to ${locStr})`;
-        } catch (e) {
-          timeString = new Date(log.agreedTimestamp).toUTCString() + ' (UTC)';
-        }
-      } else {
-        timeString = new Date(log.agreedTimestamp).toUTCString() + ' (UTC)';
-      }
+      const timeString = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/New_York',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        timeZoneName: 'short'
+      }).format(new Date(log.agreedTimestamp));
 
       doc.text(`Timestamp:          ${timeString}`, 20, metaY + 6)
       doc.text(`IP Address:         ${log.ipAddress}`, 20, metaY + 12)
@@ -1183,6 +1150,18 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     AsiaPay
                   </button>
+                  {/* ANTOM CURRENTLY DISABLED — merchant account not yet cleared for card processing
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGateway('antom')
+                      setPaymentLink('')
+                    }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'antom' ? 'bg-[#1a73e8] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Antom
+                  </button>
+                  */}
                 </div>
               </div>
 
@@ -2340,7 +2319,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {emailLogsList.map((entry) => (
+                    {emailLogsList.slice((emailLogsPage - 1) * emailLogsPerPage, emailLogsPage * emailLogsPerPage).map((entry) => (
                       <tr key={entry._id} className="hover:bg-zinc-50/40 transition-colors">
                         <td className="py-3 px-4 align-top whitespace-nowrap text-zinc-500">
                           {entry.sentAt ? new Date(entry.sentAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}
@@ -2376,6 +2355,30 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {!isLoadingEmailLogs && emailLogsList.length > emailLogsPerPage && (
+              <div className="flex items-center justify-between border-t border-zinc-100 px-6 md:px-8 py-4">
+                <button
+                  type="button"
+                  onClick={() => setEmailLogsPage(prev => Math.max(prev - 1, 1))}
+                  disabled={emailLogsPage === 1}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 disabled:opacity-50 text-zinc-700 shadow-xs transition-colors cursor-pointer"
+                >
+                  <ChevronLeft size={14} /> Previous
+                </button>
+                <span className="text-xs text-zinc-500 font-semibold bg-zinc-50 px-3 py-1.5 rounded-md border border-zinc-200/50">
+                  Page {emailLogsPage} of {Math.ceil(emailLogsList.length / emailLogsPerPage)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEmailLogsPage(prev => Math.min(prev + 1, Math.ceil(emailLogsList.length / emailLogsPerPage)))}
+                  disabled={emailLogsPage === Math.ceil(emailLogsList.length / emailLogsPerPage)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 disabled:opacity-50 text-zinc-700 shadow-xs transition-colors cursor-pointer"
+                >
+                  Next <ChevronRight size={14} />
+                </button>
               </div>
             )}
           </div>

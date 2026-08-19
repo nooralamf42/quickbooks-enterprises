@@ -14,9 +14,10 @@ export default function PaymentSuccessPage() {
 
   const paymentIntentId = params.get('payment_intent');
   const orderId = params.get('order_id');
+  const gateway = params.get('gateway');
 
   useEffect(() => {
-    // If returning from Stripe Custom Elements, verify the payment immediately 
+    // If returning from Stripe Custom Elements, verify the payment immediately
     // to act as a fallback in case the webhook fails or is delayed.
     if (paymentIntentId && orderId) {
       fetch('/api/stripe/verify', {
@@ -26,6 +27,18 @@ export default function PaymentSuccessPage() {
       }).catch(err => console.error('Verification fallback failed:', err));
     }
   }, [paymentIntentId, orderId]);
+
+  useEffect(() => {
+    // Antom redirects back before the webhook necessarily lands (especially on localhost
+    // where Antom's servers can't reach our notify URL) — inquire directly as a fallback.
+    if (gateway === 'antom' && orderId) {
+      fetch('/api/antom/sync-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ localOrderId: orderId })
+      }).catch(err => console.error('Antom sync fallback failed:', err));
+    }
+  }, [gateway, orderId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
