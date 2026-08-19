@@ -680,8 +680,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
-        timeZoneName: 'short'
-      }).format(new Date(log.agreedTimestamp));
+      }).format(new Date(log.agreedTimestamp)) + ' EST';
 
       doc.text(`Timestamp:          ${timeString}`, 20, metaY + 6)
       doc.text(`IP Address:         ${log.ipAddress}`, 20, metaY + 12)
