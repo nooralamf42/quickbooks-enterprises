@@ -15,7 +15,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay' | 'antom'>('authorize')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay' | 'antom' | 'shopify'>('authorize')
   
   // Navigation tabs state
   const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email'>('create')
@@ -56,7 +56,7 @@ export default function QuickBooksPaymentLinkCreator() {
     cancellationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
-  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'asiapay'>('')
+  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'asiapay' | 'shopify'>('')
   const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
 
   // Sent Emails history (emailLogs collection)
@@ -123,8 +123,8 @@ export default function QuickBooksPaymentLinkCreator() {
   // edition format (needs users/years) or the plain service-code format —
   // so "Update now" opens a real, working checkout for this exact amount,
   // product, and gateway.
-  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'asiapay') => {
-    const gatewayFlag = gateway === 'authorize' ? 'GA' : 'GAP'
+  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'asiapay' | 'shopify') => {
+    const gatewayFlag = gateway === 'authorize' ? 'GA' : gateway === 'shopify' ? 'GSH' : 'GAP'
     const tStr = Math.round(amountUSD * 100).toString(36)
 
     let paymentString: string
@@ -445,7 +445,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'asiapay' ? 'GAP' : selectedGateway === 'antom' ? 'GAN' : 'GT'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'asiapay' ? 'GAP' : selectedGateway === 'antom' ? 'GAN' : selectedGateway === 'shopify' ? 'GSH' : 'GT'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l','m'].includes(selectedEdition)) {
@@ -1024,6 +1024,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       if (log.paymentGateway !== 'Online Payment') return false;
     } else if (advGateway === 'Stripe') {
       if (log.paymentGateway !== 'Stripe' && !log.stripeSessionId) return false;
+    } else if (advGateway === 'Shopify') {
+      if (log.paymentGateway !== 'Shopify' && log.gateway !== 'Shopify') return false;
     }
     
     // 3. Status Filter
@@ -1162,6 +1164,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     Antom
                   </button>
                   */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGateway('shopify')
+                      setPaymentLink('')
+                    }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'shopify' ? 'bg-[#95BF47] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Shopify
+                  </button>
                 </div>
               </div>
 
@@ -1428,6 +1440,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="AsiaPay">AsiaPay Only</option>
                 <option value="Online Payment">Online Payment Only</option>
                 <option value="Stripe">Stripe Only</option>
+                <option value="Shopify">Shopify Only</option>
               </select>
               
               <select 
@@ -1516,6 +1529,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 {log.paymentGateway === 'Online Payment' && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-50 text-violet-700 border border-violet-200 mt-1">
                                     MANUAL
+                                  </span>
+                                )}
+                                {log.paymentGateway === 'Shopify' && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200 mt-1">
+                                    SHOPIFY
                                   </span>
                                 )}
                               </td>
@@ -1652,8 +1670,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               </div>
                             )}
 
+                            {log.paymentGateway === 'Shopify' && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200">
+                                  SHOPIFY
+                                </span>
+                              </div>
+                            )}
+
                           </td>
-                          
+
                           {/* Action Button */}
                           <td className="py-4 px-4 align-top text-center whitespace-nowrap space-y-2">
                             <button
@@ -2258,11 +2284,18 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       >
                         AsiaPay
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => setReminderGateway('shopify')}
+                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === 'shopify' ? 'bg-[#95BF47] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                      >
+                        Shopify
+                      </button>
                     </div>
 
                     <p className="text-[10px] text-amber-700/80 mt-2 leading-relaxed">
                       {reminderGateway
-                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'AsiaPay'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
+                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : reminderGateway === 'shopify' ? 'Shopify' : 'AsiaPay'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
                         : 'No gateway selected — "Update now" will just open a support email instead of a live checkout.'}
                     </p>
                   </div>
@@ -2475,6 +2508,11 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
             {log.paymentGateway === 'Online Payment' && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-violet-50 text-violet-700 border border-violet-200">
                 MANUAL
+              </span>
+            )}
+            {log.paymentGateway === 'Shopify' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200">
+                SHOPIFY
               </span>
             )}
             {log.amount ? (

@@ -40,6 +40,18 @@ export default function PaymentSuccessPage() {
     }
   }, [gateway, orderId]);
 
+  useEffect(() => {
+    // Shopify's Order Status page redirects here via an "Additional scripts" snippet —
+    // there's no webhook set up yet, so confirm payment directly against the Admin API.
+    if (gateway === 'shopify' && orderId) {
+      fetch('/api/shopify/sync-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ localOrderId: orderId })
+      }).catch(err => console.error('Shopify sync fallback failed:', err));
+    }
+  }, [gateway, orderId]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
       <div className="bg-white shadow-xl rounded-2xl p-8 max-w-lg w-full">

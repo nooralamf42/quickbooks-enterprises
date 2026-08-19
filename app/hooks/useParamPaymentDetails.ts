@@ -49,8 +49,8 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
     try {
       let decodedString = paymentBase64;
       
-      const customFormatRegex = /^([0-9a-z]+)([SGPDFX])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(GA|GF|GS|GO|GT|GAP|GAN)?$/;
-      const serviceFormatRegex = /^S([a-n])K([0-9a-z]+)M([0-9a-z]+)(GA|GF|GS|GO|GT|GAP|GAN)?$/;
+      const customFormatRegex = /^([0-9a-z]+)([SGPDFX])([0-9a-z]+)K([0-9a-z]+)M([0-9a-z]+)(GA|GF|GS|GO|GT|GAP|GAN|GSH)?$/;
+      const serviceFormatRegex = /^S([a-n])K([0-9a-z]+)M([0-9a-z]+)(GA|GF|GS|GO|GT|GAP|GAN|GSH)?$/;
       
       const match = decodedString.match(customFormatRegex);
       const matchService = decodedString.match(serviceFormatRegex);
@@ -74,7 +74,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           serviceName: serviceItem ? serviceItem.name : 'Unknown Service',
           disc: parseInt(matchService[2], 36) / 100,
           total: parseInt(matchService[3], 36) / 100,
-          gateway: matchService[4] === 'GA' ? 'Authorize.net' : matchService[4] === 'GO' ? 'Online Payment' : matchService[4] === 'GAP' ? 'AsiaPay' : matchService[4] === 'GAN' ? 'Antom' : matchService[4] === 'GT' || matchService[4] === 'GS' ? 'Stripe' : 'FastSpring',
+          gateway: matchService[4] === 'GA' ? 'Authorize.net' : matchService[4] === 'GO' ? 'Online Payment' : matchService[4] === 'GAP' ? 'AsiaPay' : matchService[4] === 'GAN' ? 'Antom' : matchService[4] === 'GSH' ? 'Shopify' : matchService[4] === 'GT' || matchService[4] === 'GS' ? 'Stripe' : 'FastSpring',
           time: Date.now()
         };
       } else if (match) {
@@ -85,7 +85,7 @@ const useParamPaymentDetails = ({ noLinkRedirection, enableToast, noLoginRedir }
           year: parseInt(match[3], 36),
           disc: parseInt(match[4], 36) / 100,
           total: parseInt(match[5], 36) / 100,
-          gateway: match[6] === 'GA' ? 'Authorize.net' : match[6] === 'GO' ? 'Online Payment' : match[6] === 'GAP' ? 'AsiaPay' : match[6] === 'GAN' ? 'Antom' : match[6] === 'GT' || match[6] === 'GS' ? 'Stripe' : 'FastSpring',
+          gateway: match[6] === 'GA' ? 'Authorize.net' : match[6] === 'GO' ? 'Online Payment' : match[6] === 'GAP' ? 'AsiaPay' : match[6] === 'GAN' ? 'Antom' : match[6] === 'GSH' ? 'Shopify' : match[6] === 'GT' || match[6] === 'GS' ? 'Stripe' : 'FastSpring',
           time: Date.now()
         };
       } else if (decodedString.startsWith('{')) {
