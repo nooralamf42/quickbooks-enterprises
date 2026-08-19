@@ -481,6 +481,25 @@ export default function QuickBooksPaymentLinkCreator() {
     setTimeout(() => setCopiedLink(false), 2000)
   }
 
+  // QuickBooks Payroll recurring subscription tiers (Shopify selling plan — fixed monthly prices).
+  const PAYROLL_SUBSCRIPTION_TIERS = [49.87, 98.78, 149.10, 198.70, 298.00, 349.89]
+  const [copiedSubTier, setCopiedSubTier] = useState<number | null>(null)
+
+  const copySubscriptionLink = (tierPrice: number) => {
+    const tVal = Math.round(tierPrice * 100)
+    const tStr = tVal.toString(36)
+    const paymentString = `SmK0M${tStr}GSHS`
+
+    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const base = isLocalhost ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin);
+    const link = `${base}/invoice/${paymentString}`
+
+    navigator.clipboard.writeText(link)
+    setCopiedSubTier(tierPrice)
+    toast.success(`$${tierPrice.toFixed(2)}/mo link copied!`)
+    setTimeout(() => setCopiedSubTier(null), 2000)
+  }
+
   const downloadPDF = async (log: any) => {
     try {
       const doc = new jsPDF({
@@ -1102,8 +1121,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
         {/* Tab 1: Configure & Create Payment Link */}
         {activeTab === 'create' && (
+          <>
           <div className="grid lg:grid-cols-12 gap-8 items-start">
-            
+
             {/* Left Column: Form Configuration Card */}
             <div className="lg:col-span-7 bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8 space-y-6">
               
@@ -1363,6 +1383,32 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               </div>
             </div>
           </div>
+
+          {/* Separate Section: QuickBooks Payroll Recurring Subscription Links */}
+          <div className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8 mt-8">
+            <div className="mb-5">
+              <h3 className="font-semibold text-lg text-zinc-900">QuickBooks Payroll — Subscription Links</h3>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Fixed monthly recurring plans, billed automatically through Shopify. Same flow as other payment links (login → order summary → checkout), redirecting to a real Shopify recurring checkout.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {PAYROLL_SUBSCRIPTION_TIERS.map((tier) => (
+                <button
+                  key={tier}
+                  onClick={() => copySubscriptionLink(tier)}
+                  className="flex flex-col items-center justify-center gap-1.5 py-4 px-3 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-lg transition-all cursor-pointer text-center"
+                >
+                  <span className="text-base font-extrabold text-zinc-900">${tier.toFixed(2)}</span>
+                  <span className="text-[10px] text-zinc-500 font-medium uppercase tracking-wider">per month</span>
+                  <span className="flex items-center gap-1 text-[11px] font-semibold text-[#2ca01c] mt-1">
+                    {copiedSubTier === tier ? <><Check size={12} /> Copied!</> : <><Copy size={12} /> Copy Link</>}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+          </>
         )}
 
         {/* Tab 2: Compliance T&C Logs */}

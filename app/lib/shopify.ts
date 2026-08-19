@@ -6,7 +6,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-export const SHOPIFY_SCOPES = 'write_draft_orders,read_draft_orders,read_orders';
+export const SHOPIFY_SCOPES = 'write_draft_orders,read_draft_orders,read_orders,read_products,write_products,read_purchase_options,write_purchase_options';
 
 export function getAuthorizeUrl(redirectUri: string, state: string): string {
   const shop = requireEnv('SHOPIFY_SHOP_DOMAIN');
@@ -165,16 +165,43 @@ export async function findOrderByLocalOrderId(localOrderId: string) {
             totalPriceSet {
               shopMoney { amount currencyCode }
             }
+            transactions(first: 5) {
+              kind
+              status
+              paymentDetails {
+                ... on CardPaymentDetails {
+                  company
+                  number
+                }
+              }
+            }
           }
         }
       }
     }
   `;
   const result = await adminGraphQL<{
-    orders: { edges: { node: { id: string; name: string; displayFinancialStatus: string; totalPriceSet: { shopMoney: { amount: string; currencyCode: string } } } }[] };
+    orders: {
+      edges: {
+        node: {
+          id: string;
+          name: string;
+          displayFinancialStatus: string;
+          totalPriceSet: { shopMoney: { amount: string; currencyCode: string } };
+          transactions: { kind: string; status: string; paymentDetails: { company?: string; number?: string } | null }[];
+        };
+      }[];
+    };
   }>(query, { search: `tag:'localOrderId:${localOrderId}'` });
 
   return result;
+}
+
+/** Builds a "Visa ending in 4242" style label from Shopify's card payment details, matching other gateways. */
+export function formatCardLabel(company?: string, maskedNumber?: string): string {
+  const last4 = maskedNumber?.match(/(\d{4})\s*$/)?.[1];
+  if (!last4) return 'Card on file';
+  return `${company || 'Card'} ending in ${last4}`;
 }
 
 export async function registerOrdersPaidWebhook(callbackUrl: string) {
@@ -190,6 +217,55 @@ export async function registerOrdersPaidWebhook(callbackUrl: string) {
     topic: 'ORDERS_PAID',
     webhookSubscription: { callbackUrl, format: 'JSON' },
   });
+}
+
+export const PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID = 'gid://shopify/SellingPlan/693802336620';
+
+export const PAYROLL_SUBSCRIPTION_VARIANTS: Record<string, string> = {
+  '49.87': 'gid://shopify/ProductVariant/54224799433068',
+  '98.78': 'gid://shopify/ProductVariant/54224800579948',
+  '149.10': 'gid://shopify/ProductVariant/54224800612716',
+  '198.70': 'gid://shopify/ProductVariant/54224800645484',
+  '298.00': 'gid://shopify/ProductVariant/54224800678252',
+  '349.89': 'gid://shopify/ProductVariant/54224800711020',
+};
+
+/** Creates a fresh Storefront API cart for a QuickBooks Payroll subscription tier and returns its checkout URL. */
+export async function createSubscriptionCheckoutUrl(tier: string): Promise<string | null> {
+  const variantId = PAYROLL_SUBSCRIPTION_VARIANTS[tier];
+  if (!variantId) return null;
+
+  const shop = requireEnv('SHOPIFY_SHOP_DOMAIN');
+  const storefrontToken = requireEnv('SHOPIFY_STOREFRONT_ACCESS_TOKEN');
+  const apiVersion = process.env.SHOPIFY_API_VERSION || '2026-01';
+
+  const mutation = `
+    mutation cartCreate($input: CartInput!) {
+      cartCreate(input: $input) {
+        cart { checkoutUrl }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  const res = await fetch(`https://${shop}/api/${apiVersion}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': storefrontToken,
+    },
+    body: JSON.stringify({
+      query: mutation,
+      variables: {
+        input: {
+          lines: [{ merchandiseId: variantId, quantity: 1, sellingPlanId: PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID }],
+        },
+      },
+    }),
+  });
+
+  const json = await res.json();
+  return json?.data?.cartCreate?.cart?.checkoutUrl ?? null;
 }
 
 /** Verifies the X-Shopify-Hmac-Sha256 header on inbound webhooks. */

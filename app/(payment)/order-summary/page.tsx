@@ -420,6 +420,11 @@ export default function CheckoutForm() {
                     setIsSubmittingShopify(false);
                     throw new Error('Invalid response from Shopify checkout');
                 }
+            } else if (paymentObj?.gateway === 'Shopify Subscription') {
+                setIsSubmittingShopify(true);
+                const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
+                const tier = amountUSD.toFixed(2);
+                window.location.href = `/api/shopify/subscribe?tier=${tier}`;
             } else {
                 // If this is reached without a gateway match, throw an error
                 throw new Error('No valid payment gateway selected.');

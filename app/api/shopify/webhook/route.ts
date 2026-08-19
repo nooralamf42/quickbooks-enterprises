@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { verifyWebhookHmac } from '@/app/lib/shopify';
+import { verifyWebhookHmac, formatCardLabel } from '@/app/lib/shopify';
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    const cardNumber: string | undefined = order.payment_details?.credit_card_number;
+    const cardCompany: string | undefined = order.payment_details?.credit_card_company;
+    const paymentMethodLabel = formatCardLabel(cardCompany, cardNumber);
+
     await db.collection('admindata').updateOne(
       { _id: new ObjectId(localOrderId) },
       {
@@ -48,7 +52,9 @@ export async function POST(req: NextRequest) {
           gateway: 'Shopify',
           paidAt: new Date(),
           amountUSD: Number(order.total_price),
-          paymentMethodLabel: 'Card on file',
+          cardType: cardCompany,
+          cardLast4: cardNumber?.match(/(\d{4})\s*$/)?.[1],
+          paymentMethodLabel,
           updatedAt: new Date(),
         }
       }

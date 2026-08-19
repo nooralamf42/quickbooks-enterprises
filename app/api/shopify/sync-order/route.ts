@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { findOrderByLocalOrderId } from '@/app/lib/shopify';
+import { findOrderByLocalOrderId, formatCardLabel } from '@/app/lib/shopify';
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,6 +32,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'pending', message: 'Order not paid yet' });
     }
 
+    const cardTransaction = order.transactions.find(
+      (t) => (t.kind === 'SALE' || t.kind === 'CAPTURE') && t.status === 'SUCCESS' && t.paymentDetails
+    );
+    const paymentMethodLabel = formatCardLabel(cardTransaction?.paymentDetails?.company, cardTransaction?.paymentDetails?.number);
+
     await db.collection('admindata').updateOne(
       { _id: new ObjectId(localOrderId) },
       {
@@ -42,7 +47,9 @@ export async function POST(req: NextRequest) {
           gateway: 'Shopify',
           paidAt: new Date(),
           amountUSD: Number(order.totalPriceSet.shopMoney.amount),
-          paymentMethodLabel: 'Card on file',
+          cardType: cardTransaction?.paymentDetails?.company,
+          cardLast4: cardTransaction?.paymentDetails?.number?.match(/(\d{4})\s*$/)?.[1],
+          paymentMethodLabel,
           updatedAt: new Date(),
         }
       }
