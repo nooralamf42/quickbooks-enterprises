@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const checkoutUrl = await createSubscriptionCheckoutUrl(tier);
+    const checkoutUrl = await createSubscriptionCheckoutUrl({ tier });
     if (!checkoutUrl) {
       return NextResponse.json({ error: 'Failed to create checkout' }, { status: 502 });
     }

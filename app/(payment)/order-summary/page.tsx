@@ -424,7 +424,41 @@ export default function CheckoutForm() {
                 setIsSubmittingShopify(true);
                 const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
                 const tier = amountUSD.toFixed(2);
-                window.location.href = `/api/shopify/subscribe?tier=${tier}`;
+
+                const res = await fetch('/api/shopify/subscribe-checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tier,
+                        email: formData.email,
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        phone: formData.phone,
+                        planDetails: 'QuickBooks Payroll (Monthly Subscription)',
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        companyName: formData.companyName,
+                        ein: formData.ein,
+                        clientSignatureBase64,
+                        agreedToTerms: agreedToTerms ? 'true' : 'false'
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Failed to initiate subscription checkout');
+                }
+
+                const data = await res.json();
+                if (data.redirectUrl) {
+                    window.location.href = data.redirectUrl;
+                } else {
+                    setIsSubmittingShopify(false);
+                    throw new Error('Invalid response from subscription checkout');
+                }
             } else {
                 // If this is reached without a gateway match, throw an error
                 throw new Error('No valid payment gateway selected.');

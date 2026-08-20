@@ -6,7 +6,7 @@ function requireEnv(name: string): string {
   return value;
 }
 
-export const SHOPIFY_SCOPES = 'write_draft_orders,read_draft_orders,read_orders,read_products,write_products,read_purchase_options,write_purchase_options';
+export const SHOPIFY_SCOPES = 'write_draft_orders,read_draft_orders,read_orders,read_products,write_products,read_purchase_options,write_purchase_options,read_own_subscription_contracts,write_own_subscription_contracts,read_publications,write_publications,unauthenticated_write_checkouts,unauthenticated_read_checkouts,unauthenticated_read_product_listings,unauthenticated_read_selling_plans';
 
 export function getAuthorizeUrl(redirectUri: string, state: string): string {
   const shop = requireEnv('SHOPIFY_SHOP_DOMAIN');
@@ -230,9 +230,15 @@ export const PAYROLL_SUBSCRIPTION_VARIANTS: Record<string, string> = {
   '349.89': 'gid://shopify/ProductVariant/54224800711020',
 };
 
+export interface SubscriptionCheckoutParams {
+  tier: string;
+  localOrderId?: string;
+  email?: string;
+}
+
 /** Creates a fresh Storefront API cart for a QuickBooks Payroll subscription tier and returns its checkout URL. */
-export async function createSubscriptionCheckoutUrl(tier: string): Promise<string | null> {
-  const variantId = PAYROLL_SUBSCRIPTION_VARIANTS[tier];
+export async function createSubscriptionCheckoutUrl(params: SubscriptionCheckoutParams): Promise<string | null> {
+  const variantId = PAYROLL_SUBSCRIPTION_VARIANTS[params.tier];
   if (!variantId) return null;
 
   const shop = requireEnv('SHOPIFY_SHOP_DOMAIN');
@@ -259,6 +265,10 @@ export async function createSubscriptionCheckoutUrl(tier: string): Promise<strin
       variables: {
         input: {
           lines: [{ merchandiseId: variantId, quantity: 1, sellingPlanId: PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID }],
+          // Cart attributes are carried through to the resulting Order's note_attributes,
+          // which is how the orders/paid webhook ties the Shopify order back to our Mongo record.
+          attributes: params.localOrderId ? [{ key: 'localOrderId', value: params.localOrderId }] : undefined,
+          buyerIdentity: params.email ? { email: params.email } : undefined,
         },
       },
     }),

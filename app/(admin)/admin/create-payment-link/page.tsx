@@ -1044,6 +1044,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       if (log.paymentGateway !== 'Stripe' && !log.stripeSessionId) return false;
     } else if (advGateway === 'Shopify') {
       if (log.paymentGateway !== 'Shopify' && log.gateway !== 'Shopify') return false;
+    } else if (advGateway === 'Shopify Subscription') {
+      if (log.paymentGateway !== 'Shopify Subscription' && log.gateway !== 'Shopify Subscription') return false;
     }
     
     // 3. Status Filter
@@ -1486,6 +1488,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="Online Payment">Online Payment Only</option>
                 <option value="Stripe">Stripe Only</option>
                 <option value="Shopify">Shopify Only</option>
+                <option value="Shopify Subscription">Shopify Subscription Only</option>
               </select>
               
               <select 
@@ -1579,6 +1582,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 {log.paymentGateway === 'Shopify' && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200 mt-1">
                                     SHOPIFY
+                                  </span>
+                                )}
+                                {log.paymentGateway === 'Shopify Subscription' && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 mt-1">
+                                    SUBSCRIPTION
                                   </span>
                                 )}
                               </td>
@@ -1715,6 +1723,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               </div>
                             )}
 
+                            {log.paymentGateway === 'Shopify Subscription' && (
+                              <div className="mt-1">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  SUBSCRIPTION
+                                </span>
+                              </div>
+                            )}
                             {log.paymentGateway === 'Shopify' && (
                               <div className="mt-1">
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200">
@@ -2558,6 +2573,11 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
             {log.paymentGateway === 'Shopify' && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-green-50 text-green-700 border border-green-200">
                 SHOPIFY
+              </span>
+            )}
+            {log.paymentGateway === 'Shopify Subscription' && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                SUBSCRIPTION
               </span>
             )}
             {log.amount ? (
