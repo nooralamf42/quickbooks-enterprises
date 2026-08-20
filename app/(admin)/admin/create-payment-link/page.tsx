@@ -518,6 +518,13 @@ export default function QuickBooksPaymentLinkCreator() {
       const initials = `${firstInitial}${lastInitial}`;
       const watermarkText = `Initial: ${initials}`;
 
+      // Distinguishes multiple charges for the same subscriber (e.g. monthly recurring
+      // payments), which would otherwise all produce an identically-named PDF.
+      const dateSuffix = (() => {
+        const d = new Date(log.paidAt || log.createdAt || log.agreedTimestamp);
+        return isNaN(d.getTime()) ? '' : `_${d.toISOString().slice(0, 10)}`;
+      })();
+
       const drawWatermark = () => {
         doc.setFont('Helvetica', 'bold');
         doc.setFontSize(18);
@@ -991,7 +998,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = `Consent_Certificate_${log.lastName}_${log.firstName}.pdf`;
+          a.download = `Consent_Certificate_${log.lastName}_${log.firstName}${dateSuffix}.pdf`;
           a.click();
           URL.revokeObjectURL(url);
 
@@ -1001,12 +1008,12 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
           toast.dismiss('pdf-merge');
           console.error('[PDF Merge Error]', mergeErr);
           // Fallback: download consent log only
-          doc.save(`Consent_Certificate_${log.lastName}_${log.firstName}.pdf`);
+          doc.save(`Consent_Certificate_${log.lastName}_${log.firstName}${dateSuffix}.pdf`);
           toast.success('PDF downloaded (proof merge failed — downloading consent log only).');
         }
       } else {
         // No proof to merge — standard download
-        doc.save(`Consent_Certificate_${log.lastName}_${log.firstName}.pdf`)
+        doc.save(`Consent_Certificate_${log.lastName}_${log.firstName}${dateSuffix}.pdf`)
         toast.success('PDF Certificate downloaded!')
       }
     } catch (err) {
@@ -1663,8 +1670,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 💳 {log.paymentMethodLabel}
                               </div>
                             )}
+                            {log.charges && log.charges.length > 1 && (
+                              <div className="text-[10px] font-semibold text-emerald-700 mt-1.5 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200 inline-block">
+                                {log.charges.length} payments · ${log.totalCollectedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total collected
+                              </div>
+                            )}
                           </td>
-                          
+
                           {/* Compliance Status */}
                           <td className="py-4 px-4 align-top whitespace-nowrap">
                             {log.status === 'Completed' ? (
@@ -2016,7 +2028,44 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           )}
                         </div>
                       )}
-                      
+
+                      {selectedLog.charges && selectedLog.charges.length > 1 && (
+                        <div className="mt-6">
+                          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-3">
+                            Billing History — {selectedLog.charges.length} payments · ${selectedLog.totalCollectedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total
+                          </p>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {selectedLog.charges.map((charge: any, i: number) => (
+                              <div key={charge._id || i} className="flex justify-between items-center bg-zinc-50 border border-zinc-100 p-3 rounded-lg">
+                                <div>
+                                  <div className="text-xs font-semibold text-zinc-900">
+                                    {new Date(charge.paidAt || charge.createdAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                                  </div>
+                                  {charge.fsOrderReference && (
+                                    <div className="text-[9px] font-mono text-zinc-400 mt-0.5">Ref: {charge.fsOrderReference}</div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${charge.status === 'Completed' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                                    {charge.status}
+                                  </span>
+                                  <span className="text-sm font-extrabold text-[#2ca01c]">
+                                    ${Number(charge.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  </span>
+                                  <button
+                                    onClick={() => downloadPDF(charge)}
+                                    disabled={charge.status !== 'Completed'}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-200 font-bold rounded-lg text-[9px] bg-white hover:bg-zinc-50 text-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                                  >
+                                    <FileText size={10} /> PDF
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="mt-8 pt-4 border-t border-zinc-100 flex flex-wrap justify-between items-center gap-2">
                         <div className="flex flex-wrap items-center gap-2">
                           {process.env.NODE_ENV === 'development' && selectedLog.status !== 'Completed' && (
@@ -2670,6 +2719,30 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
               <p className="text-xs text-zinc-600">
                 {log.address}, {log.city}, {log.state} {log.zipCode}, {log.country}
               </p>
+            </div>
+          )}
+
+          {/* Billing History (subscription groups only) */}
+          {log.charges && log.charges.length > 1 && (
+            <div className="bg-zinc-50 p-3 rounded-lg border border-zinc-200/50">
+              <span className="font-bold text-zinc-700 block text-[9px] uppercase tracking-wider mb-2">
+                Billing History ({log.charges.length} payments · ${log.totalCollectedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total)
+              </span>
+              <div className="space-y-1.5">
+                {log.charges.map((charge: any, i: number) => (
+                  <div key={charge._id || i} className="flex justify-between items-center text-[11px] bg-white px-2 py-1.5 rounded-md border border-zinc-100">
+                    <span className="text-zinc-500 font-medium">
+                      {new Date(charge.paidAt || charge.createdAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                    </span>
+                    <span className="font-bold text-[#2ca01c]">
+                      ${Number(charge.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${charge.status === 'Completed' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                      {charge.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
