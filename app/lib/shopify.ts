@@ -104,6 +104,12 @@ export interface CreateDraftOrderParams {
   billingAddress?: DraftOrderAddress;
 }
 
+// Representative product used so QuickBooks Enterprise edition purchases (any custom price)
+// show a real image at checkout instead of the generic placeholder icon. Custom services
+// (Payroll, Consulting, etc.) still fall back to a plain custom line item until they get
+// their own mapped product/image.
+const QUICKBOOKS_ENTERPRISE_VARIANT_ID = 'gid://shopify/ProductVariant/54230108504428';
+
 /** Creates a draft order with a single custom-priced line item and returns its invoice URL. */
 export async function createDraftOrderInvoice(params: CreateDraftOrderParams) {
   const mutation = `
@@ -123,6 +129,8 @@ export async function createDraftOrderInvoice(params: CreateDraftOrderParams) {
     }
   `;
 
+  const isQuickBooksEdition = params.title?.toLowerCase().startsWith('quickbooks enterprise');
+
   const variables = {
     input: {
       email: params.customerEmail,
@@ -133,11 +141,17 @@ export async function createDraftOrderInvoice(params: CreateDraftOrderParams) {
       customAttributes: [{ key: 'localOrderId', value: params.localOrderId }],
       billingAddress: params.billingAddress,
       lineItems: [
-        {
-          title: params.title,
-          originalUnitPrice: params.amountUSD.toFixed(2),
-          quantity: 1,
-        },
+        isQuickBooksEdition
+          ? {
+              variantId: QUICKBOOKS_ENTERPRISE_VARIANT_ID,
+              priceOverride: { amount: params.amountUSD.toFixed(2), currencyCode: 'USD' },
+              quantity: 1,
+            }
+          : {
+              title: params.title,
+              originalUnitPrice: params.amountUSD.toFixed(2),
+              quantity: 1,
+            },
       ],
     },
   };

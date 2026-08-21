@@ -56,7 +56,9 @@ export default function QuickBooksPaymentLinkCreator() {
     cancellationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
-  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'asiapay' | 'shopify'>('')
+  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'shopify' | 'shopifySubscription'>('')
+  const [emailSubscriptionTier, setEmailSubscriptionTier] = useState('49.87')
+  const EMAIL_SUBSCRIPTION_TIERS = ['49.87', '98.78', '149.10', '198.70', '298.00', '349.89']
   const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
 
   // Sent Emails history (emailLogs collection)
@@ -87,7 +89,7 @@ export default function QuickBooksPaymentLinkCreator() {
     { name: 'Product Engineering Services', value: 'j' },
     { name: 'IT Staff Augmentation', value: 'k' },
     { name: 'Dedicated Development Team', value: 'l' },
-    { name: 'PAYROLL', value: 'm' },
+    { name: 'QuickBooks Payroll (Monthly Subscription)', value: 'm' },
     { name: 'Outstanding Balance Payment', value: 'n' }
   ]
 
@@ -119,12 +121,23 @@ export default function QuickBooksPaymentLinkCreator() {
     }
   }, [emailProductCode, planDetailsIsCustom, emailProductDisplayName])
 
+  // Shopify Subscription only offers the fixed Payroll tiers — lock the
+  // product to PAYROLL and the amount to the selected tier so the link
+  // always points at a real, working subscription checkout.
+  useEffect(() => {
+    if (reminderGateway === 'shopifySubscription') {
+      setEmailProductCode('m')
+      setPlanDetailsIsCustom(false)
+      updateEmailForm('amountDueUSD', emailSubscriptionTier)
+    }
+  }, [reminderGateway, emailSubscriptionTier])
+
   // Builds the same encoded link the Payment Links tab produces — the QB
   // edition format (needs users/years) or the plain service-code format —
   // so "Update now" opens a real, working checkout for this exact amount,
   // product, and gateway.
-  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'asiapay' | 'shopify') => {
-    const gatewayFlag = gateway === 'authorize' ? 'GA' : gateway === 'shopify' ? 'GSH' : 'GAP'
+  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'shopify' | 'shopifySubscription') => {
+    const gatewayFlag = gateway === 'authorize' ? 'GA' : gateway === 'shopifySubscription' ? 'GSHS' : 'GSH'
     const tStr = Math.round(amountUSD * 100).toString(36)
 
     let paymentString: string
@@ -2187,11 +2200,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   />
                 </div>
                 <div>
-                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Product</label>
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">
+                    Product
+                    {reminderGateway === 'shopifySubscription' && (
+                      <span className="text-[10px] text-zinc-400 italic font-normal"> (fixed to Payroll for Shopify Subscription)</span>
+                    )}
+                  </label>
                   <select
                     value={emailProductCode}
                     onChange={(e) => setEmailProductCode(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] cursor-pointer"
+                    disabled={reminderGateway === 'shopifySubscription'}
+                    className={`flex h-10 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c] ${reminderGateway === 'shopifySubscription' ? 'bg-zinc-50 text-zinc-500 cursor-not-allowed' : 'bg-white text-zinc-800 cursor-pointer'}`}
                   >
                     <optgroup label="QuickBooks Enterprise">
                       {editions.map((e) => (
@@ -2336,17 +2355,32 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-5 border-t pt-5 border-zinc-100">
                   <div>
-                    <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Amount Due ($) *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      required
-                      value={emailForm.amountDueUSD}
-                      onChange={(e) => updateEmailForm('amountDueUSD', e.target.value)}
-                      placeholder="22.05"
-                      className="flex h-10 w-full rounded-md border border-amber-500 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-semibold"
-                    />
+                    <label className="block mb-1.5 font-semibold text-xs text-zinc-900">
+                      {reminderGateway === 'shopifySubscription' ? 'Subscription Tier *' : 'Amount Due ($) *'}
+                    </label>
+                    {reminderGateway === 'shopifySubscription' ? (
+                      <select
+                        required
+                        value={emailSubscriptionTier}
+                        onChange={(e) => setEmailSubscriptionTier(e.target.value)}
+                        className="flex h-10 w-full rounded-md border border-amber-500 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-semibold cursor-pointer"
+                      >
+                        {EMAIL_SUBSCRIPTION_TIERS.map((tier) => (
+                          <option key={tier} value={tier}>${tier} / month</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        required
+                        value={emailForm.amountDueUSD}
+                        onChange={(e) => updateEmailForm('amountDueUSD', e.target.value)}
+                        placeholder="22.05"
+                        className="flex h-10 w-full rounded-md border border-amber-500 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 font-semibold"
+                      />
+                    )}
                   </div>
                   <div>
                     <label className="block mb-1.5 font-medium text-xs text-zinc-500">Billing Date *</label>
@@ -2371,40 +2405,42 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
                   <div className="md:col-span-3 bg-amber-50/60 rounded-lg p-4 border border-amber-200">
                     <label className="block mb-2 font-medium text-xs text-amber-700 uppercase tracking-wider">"Update now" button link</label>
-                    <div className="flex bg-white rounded-md border border-zinc-200 p-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-white rounded-md border border-zinc-200 p-1">
                       <button
                         type="button"
                         onClick={() => setReminderGateway('')}
-                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === '' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                        className={`text-xs font-semibold py-2 px-1.5 rounded transition-colors cursor-pointer ${reminderGateway === '' ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                       >
-                        Contact support (default)
+                        Contact support
                       </button>
                       <button
                         type="button"
                         onClick={() => setReminderGateway('authorize')}
-                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                        className={`text-xs font-semibold py-2 px-1.5 rounded transition-colors cursor-pointer ${reminderGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                       >
                         Authorize.net
                       </button>
                       <button
                         type="button"
-                        onClick={() => setReminderGateway('asiapay')}
-                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === 'asiapay' ? 'bg-[#F36E17] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                        onClick={() => setReminderGateway('shopify')}
+                        className={`text-xs font-semibold py-2 px-1.5 rounded transition-colors cursor-pointer ${reminderGateway === 'shopify' ? 'bg-[#95BF47] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                       >
-                        AsiaPay
+                        Shopify
                       </button>
                       <button
                         type="button"
-                        onClick={() => setReminderGateway('shopify')}
-                        className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${reminderGateway === 'shopify' ? 'bg-[#95BF47] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                        onClick={() => setReminderGateway('shopifySubscription')}
+                        className={`text-xs font-semibold py-2 px-1.5 rounded transition-colors cursor-pointer ${reminderGateway === 'shopifySubscription' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                       >
-                        Shopify
+                        Shopify Subscription
                       </button>
                     </div>
 
                     <p className="text-[10px] text-amber-700/80 mt-2 leading-relaxed">
-                      {reminderGateway
-                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : reminderGateway === 'shopify' ? 'Shopify' : 'AsiaPay'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
+                      {reminderGateway === 'shopifySubscription'
+                        ? `"Update now" will open a real Shopify recurring checkout for $${emailSubscriptionTier}/month — "QuickBooks Payroll (Monthly Subscription)" — the customer logs in and subscribes like any other invoice link.`
+                        : reminderGateway
+                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'Shopify'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
                         : 'No gateway selected — "Update now" will just open a support email instead of a live checkout.'}
                     </p>
                   </div>
