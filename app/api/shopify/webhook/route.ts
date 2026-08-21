@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { verifyWebhookHmac, formatCardLabel } from '@/app/lib/shopify';
+import { verifyWebhookHmac, formatCardLabel, adminGraphQL } from '@/app/lib/shopify';
 
 export async function POST(req: NextRequest) {
   try {
@@ -38,8 +38,38 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    const cardNumber: string | undefined = order.payment_details?.credit_card_number;
-    const cardCompany: string | undefined = order.payment_details?.credit_card_company;
+    // The REST payload's payment_details field is unreliable (frequently absent depending
+    // on payment method/gateway), so fetch the real card details via GraphQL instead —
+    // the same approach that already works reliably in sync-order.
+    let cardCompany: string | undefined = order.payment_details?.credit_card_company;
+    let cardNumber: string | undefined = order.payment_details?.credit_card_number;
+
+    if (!cardNumber) {
+      const orderGid = order.admin_graphql_api_id || `gid://shopify/Order/${order.id}`;
+      const txResult = await adminGraphQL<{
+        node: { transactions: { kind: string; status: string; paymentDetails: { company?: string; number?: string } | null }[] } | null;
+      }>(
+        `query($id: ID!) {
+          node(id: $id) {
+            ... on Order {
+              transactions(first: 5) {
+                kind
+                status
+                paymentDetails { ... on CardPaymentDetails { company number } }
+              }
+            }
+          }
+        }`,
+        { id: orderGid }
+      );
+
+      const cardTransaction = txResult.data?.node?.transactions?.find(
+        (t) => (t.kind === 'SALE' || t.kind === 'CAPTURE') && t.status === 'SUCCESS' && t.paymentDetails
+      );
+      cardCompany = cardTransaction?.paymentDetails?.company;
+      cardNumber = cardTransaction?.paymentDetails?.number;
+    }
+
     const paymentMethodLabel = formatCardLabel(cardCompany, cardNumber);
 
     await db.collection('admindata').updateOne(
