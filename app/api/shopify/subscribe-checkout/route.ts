@@ -45,7 +45,21 @@ export async function POST(req: Request) {
 
     const localOrderId = result.insertedId.toString();
 
-    const checkoutUrl = await createSubscriptionCheckoutUrl({ tier, localOrderId, email });
+    const checkoutUrl = await createSubscriptionCheckoutUrl({
+      tier,
+      localOrderId,
+      email,
+      address: {
+        firstName,
+        lastName,
+        address1: address,
+        city,
+        provinceCode: state,
+        zip: zipCode,
+        countryCode: country || 'US',
+        phone,
+      },
+    });
 
     if (!checkoutUrl) {
       console.error('[Shopify Subscribe Checkout] cartCreate returned no checkoutUrl');

@@ -52,7 +52,9 @@ export async function POST(req: Request) {
         city,
         provinceCode: state,
         zip: zipCode,
-        countryCode: country,
+        // Shopify rejects an empty string outright; fall back to US since that's
+        // the only country this checkout form ever collects.
+        countryCode: country || 'US',
         phone,
       },
     });

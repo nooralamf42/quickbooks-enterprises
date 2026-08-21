@@ -76,7 +76,10 @@ export default function CheckoutForm() {
         phone:       isLocalhost ? '555-867-5309'      : '',
         firstName:   isLocalhost ? 'John'              : '',
         lastName:    isLocalhost ? 'Doe'               : '',
-        country:     isLocalhost ? 'US'                : '',
+        // The country dropdown only ever offers "United States", so default it
+        // regardless of environment — otherwise it renders as selected in the
+        // UI but never actually lands in state unless the customer touches it.
+        country:     'US',
         address:     isLocalhost ? '123 Main St'       : '',
         zipCode:     isLocalhost ? '40502'             : '',
         city:        isLocalhost ? 'Lexington'         : '',

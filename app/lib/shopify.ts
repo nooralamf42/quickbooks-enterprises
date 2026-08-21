@@ -253,6 +253,7 @@ export interface SubscriptionCheckoutParams {
   tier: string;
   localOrderId?: string;
   email?: string;
+  address?: DraftOrderAddress;
 }
 
 /** Creates a fresh Storefront API cart for a QuickBooks Payroll subscription tier and returns its checkout URL. */
@@ -288,6 +289,25 @@ export async function createSubscriptionCheckoutUrl(params: SubscriptionCheckout
           // which is how the orders/paid webhook ties the Shopify order back to our Mongo record.
           attributes: params.localOrderId ? [{ key: 'localOrderId', value: params.localOrderId }] : undefined,
           buyerIdentity: params.email ? { email: params.email } : undefined,
+          // Prefills checkout's "Delivery" step — unlike Draft Orders, the Cart API has no
+          // separate billing-address concept; this is the only address input it accepts.
+          delivery: params.address ? {
+            addresses: [{
+              selected: true,
+              address: {
+                deliveryAddress: {
+                  firstName: params.address.firstName,
+                  lastName: params.address.lastName,
+                  address1: params.address.address1,
+                  city: params.address.city,
+                  provinceCode: params.address.provinceCode,
+                  zip: params.address.zip,
+                  countryCode: params.address.countryCode || 'US',
+                  phone: params.address.phone,
+                },
+              },
+            }],
+          } : undefined,
         },
       },
     }),
