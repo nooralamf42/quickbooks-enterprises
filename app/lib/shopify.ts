@@ -89,9 +89,11 @@ export interface DraftOrderAddress {
   lastName?: string;
   address1?: string;
   city?: string;
-  province?: string;
+  /** Two-letter region code (e.g. "VA") — Shopify's MailingAddressInput field is provinceCode, not province. */
+  provinceCode?: string;
   zip?: string;
-  country?: string;
+  /** Two-letter country code (e.g. "US") — Shopify's MailingAddressInput field is countryCode, not country. */
+  countryCode?: string;
   phone?: string;
 }
 
@@ -140,6 +142,9 @@ export async function createDraftOrderInvoice(params: CreateDraftOrderParams) {
       // used to build the post-payment redirect back to our own success page.
       customAttributes: [{ key: 'localOrderId', value: params.localOrderId }],
       billingAddress: params.billingAddress,
+      // Mirrored so Shopify's checkout "Delivery" step (which reads shippingAddress, not
+      // billingAddress) is prefilled too, instead of showing up blank.
+      shippingAddress: params.billingAddress,
       lineItems: [
         isQuickBooksEdition
           ? {

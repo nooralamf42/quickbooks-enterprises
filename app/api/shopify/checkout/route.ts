@@ -50,9 +50,9 @@ export async function POST(req: Request) {
         lastName,
         address1: address,
         city,
-        province: state,
+        provinceCode: state,
         zip: zipCode,
-        country,
+        countryCode: country,
         phone,
       },
     });
