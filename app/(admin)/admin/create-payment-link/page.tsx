@@ -2,11 +2,35 @@
 
 import { useAdmin } from '@/app/hooks/useAdmin'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
-import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search, Mail, MailWarning } from 'lucide-react'
+import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search, Mail, MailWarning, Users, Upload, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
+
+/** Delivery states reported by Resend. Anything red means the customer did not get the email. */
+const DELIVERY_STATUS_STYLE: Record<string, string> = {
+  delivered:  'bg-green-50 text-green-700 border-green-200',
+  sent:       'bg-blue-50 text-blue-700 border-blue-200',
+  accepted:   'bg-zinc-100 text-zinc-600 border-zinc-200',
+  delayed:    'bg-amber-50 text-amber-700 border-amber-200',
+  bounced:    'bg-red-50 text-red-700 border-red-200',
+  complained: 'bg-red-50 text-red-700 border-red-200',
+  rejected:   'bg-red-50 text-red-700 border-red-200',
+  failed:     'bg-red-50 text-red-700 border-red-200',
+}
+
+const DELIVERY_STATUS_HINT: Record<string, string> = {
+  accepted:   'Resend accepted the message. Delivery is not confirmed yet.',
+  sent:       'Handed off to the receiving mail server.',
+  delivered:  'The receiving server accepted it.',
+  delayed:    'Temporarily deferred — Resend is still retrying.',
+  bounced:    'Permanently rejected. The address is usually wrong.',
+  complained: 'Marked as spam by the recipient.',
+  rejected:   'Resend refused the send outright — it never left.',
+  failed:     'Delivery failed.',
+}
 
 export default function QuickBooksPaymentLinkCreator() {
   const [users, setUsers] = useState(1)
@@ -18,8 +42,28 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay' | 'antom' | 'shopify'>('authorize')
   
   // Navigation tabs state
-  const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email'>('create')
-  
+  const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email' | 'bulk'>('create')
+
+  // Bulk Email tab state
+  const [bulkRows, setBulkRows] = useState<any[]>([])
+  const [bulkFileName, setBulkFileName] = useState('')
+  const [bulkParseErrors, setBulkParseErrors] = useState<string[]>([])
+  const [bulkType, setBulkType] = useState<'failed' | 'success'>('failed')
+  const [bulkIsSending, setBulkIsSending] = useState(false)
+  const [bulkResult, setBulkResult] = useState<any>(null)
+  const [isReconciling, setIsReconciling] = useState(false)
+  const [bulkConfirming, setBulkConfirming] = useState(false)
+
+  /** Rows the API will actually send. Mirrors validate() in app/api/admin/bulk-email/route.ts
+   *  so the button never promises more sends than the server will make. */
+  const bulkValidCount = useMemo(() => bulkRows.filter((r) => {
+    if (!r.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(r.email).trim())) return false
+    const amt = Number(r.amountDueUSD)
+    if (r.amountDueUSD === undefined || r.amountDueUSD === '' || isNaN(amt) || amt < 0) return false
+    if (!r.billingDate || isNaN(new Date(r.billingDate).getTime())) return false
+    return Boolean(r.product && String(r.product).trim())
+  }).length, [bulkRows])
+
   // Consent Logs state
   const [logs, setLogs] = useState<any[]>([])
   const [isLoadingLogs, setIsLoadingLogs] = useState(false)
@@ -149,6 +193,45 @@ export default function QuickBooksPaymentLinkCreator() {
       paymentString = `${uStr}${shortEdition}${yStr}K0M${tStr}${gatewayFlag}`
     } else {
       paymentString = `S${emailProductCode}K0M${tStr}${gatewayFlag}`
+    }
+
+    const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+    const base = isLocalhost ? window.location.origin : (process.env.NEXT_PUBLIC_BASE_URL || window.location.origin)
+    return `${base}/invoice/${paymentString}`
+  }
+
+  /** Bulk rows carry their product as free text from the spreadsheet rather than a picked
+   *  code, so the edition/service has to be recovered from that text before the link can be
+   *  encoded. Longest match wins so "Silver Edition" isn't shadowed by a shorter service name. */
+  const productCodeFromText = (text: string): string | null => {
+    const t = (text || '').toLowerCase()
+    if (!t.trim()) return null
+    const edition = editions.find(e => t.includes(e.value))
+    if (edition) return edition.value
+    const matches = customProducts
+      .filter(p => t.includes(p.name.toLowerCase()))
+      .sort((a, b) => b.name.length - a.name.length)
+    return matches[0]?.value ?? null
+  }
+
+  /** The Send Email tab's buildUpdateLink, but driven by one spreadsheet row instead of the
+   *  form state — same encoding, same GSHS gateway, so "Update now" opens the identical
+   *  dynamic Shopify subscription checkout for that row's exact amount and product. */
+  const buildBulkUpdateLink = (amountUSD: number, product: string): string | null => {
+    const code = productCodeFromText(product)
+    if (!code) return null
+
+    const tStr = Math.round(amountUSD * 100).toString(36)
+    const isQbEdition = editions.some(e => e.value === code)
+
+    let paymentString: string
+    if (isQbEdition) {
+      const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F' }
+      // Bulk rows carry no user count or term — the spec dropped both columns — so the
+      // link encodes 1/1. Only the amount drives what the customer is charged.
+      paymentString = `1${editionMap[code]}1K0M${tStr}GSHS`
+    } else {
+      paymentString = `S${code}K0M${tStr}GSHS`
     }
 
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -492,6 +575,180 @@ export default function QuickBooksPaymentLinkCreator() {
     setCopiedLink(true)
     toast.success('Payment link copied!')
     setTimeout(() => setCopiedLink(false), 2000)
+  }
+
+  // --- Bulk Email: spreadsheet parsing -------------------------------------
+  // Header matching is loose (case/space/punctuation-insensitive) so a re-saved
+  // or lightly-renamed sheet still imports instead of silently dropping columns.
+  const BULK_COLUMN_ALIASES: Record<string, string[]> = {
+    companyName:   ['company name', 'company'],
+    firstName:     ['first name', 'firstname'],
+    lastName:      ['last name', 'lastname'],
+    email:         ['email', 'email address', 'e mail'],
+    amountDueUSD:  ['amount due usd', 'amount due', 'amount', 'price', 'amount usd'],
+    billingDate:   ['billing date', 'renewal date', 'renewal'],
+    product:       ['product', 'affected subscriptions', 'subscription', 'plan'],
+    paymentMethod: ['current payment method', 'payment method', 'card'],
+    licenseNumber: ['license number', 'licence number', 'license'],
+    can:           ['can', 'customer account number', 'account number'],
+  }
+
+  const normaliseHeader = (h: string) => String(h ?? '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+
+  const handleBulkFile = async (file: File) => {
+    setBulkResult(null)
+    setBulkParseErrors([])
+    setBulkRows([])
+    setBulkFileName(file.name)
+
+    try {
+      const buf = await file.arrayBuffer()
+      // Deliberately NOT using cellDates — letting SheetJS build Date objects makes the
+      // result depend on the browser's timezone, which shifts dates a day for users east
+      // of Greenwich. We read the raw Excel serial instead and convert it arithmetically.
+      const wb = XLSX.read(buf)
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      if (!sheet) throw new Error('The workbook has no sheets.')
+
+      // raw:true is essential — without it SheetJS returns its own formatted text for date
+      // cells, rendered in UTC, which lands a day early for anyone east of Greenwich.
+      // With raw:true (plus cellDates above) date cells arrive as Date objects instead.
+      const matrix: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '', raw: true })
+      if (matrix.length < 2) throw new Error('No data rows found — the sheet only has headers.')
+
+      const headers = (matrix[0] || []).map(normaliseHeader)
+      const colIndex: Record<string, number> = {}
+      for (const [field, aliases] of Object.entries(BULK_COLUMN_ALIASES)) {
+        const idx = headers.findIndex(h => aliases.includes(h))
+        if (idx !== -1) colIndex[field] = idx
+      }
+
+      const missing = ['email', 'amountDueUSD', 'billingDate', 'product'].filter(f => !(f in colIndex))
+      if (missing.length) {
+        const labels: Record<string, string> = {
+          email: 'Email', amountDueUSD: 'Amount Due (USD)', billingDate: 'Billing Date', product: 'Product',
+        }
+        throw new Error(`Required column(s) not found: ${missing.map(m => labels[m]).join(', ')}. Download the template below for the expected headers.`)
+      }
+
+      const ymd = (d: Date) =>
+        `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+
+      const toIsoDate = (v: any) => {
+        // Excel-native date cell: a serial counting days from 1899-12-30 (the offset already
+        // absorbs Excel's fictional 1900 leap day). Done in UTC so no timezone can shift it.
+        if (typeof v === 'number' && isFinite(v) && v > 0) {
+          return ymd(new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000))
+        }
+        if (v instanceof Date && !isNaN(v.getTime())) return ymd(v)
+        return String(v ?? '').trim()
+      }
+      const cell = (row: any[], field: string) =>
+        field in colIndex ? String(row[colIndex[field]] ?? '').trim() : ''
+
+      const parsed = matrix.slice(1)
+        .map((row, i) => ({
+          rowNumber: i + 2, // 1-indexed, +1 for the header row — matches what they see in Excel
+          companyName:   cell(row, 'companyName'),
+          firstName:     cell(row, 'firstName'),
+          lastName:      cell(row, 'lastName'),
+          email:         cell(row, 'email'),
+          amountDueUSD:  cell(row, 'amountDueUSD').replace(/[$,]/g, ''),
+          billingDate:   toIsoDate(row[colIndex.billingDate]),
+          product:       cell(row, 'product'),
+          paymentMethod: cell(row, 'paymentMethod'),
+          licenseNumber: cell(row, 'licenseNumber'),
+          can:           cell(row, 'can'),
+        }))
+        // drop fully-blank rows and the greyed-out example row shipped in the template
+        .filter(r => Object.entries(r).some(([k, v]) => k !== 'rowNumber' && v))
+
+      // The template ships with a greyed-out example row; skipping it silently would
+      // otherwise leave "no rows found" looking like a parse failure.
+      const withoutExample = parsed.filter(r => r.email.toLowerCase() !== 'jane@acme.com')
+
+      if (!withoutExample.length) {
+        throw new Error(parsed.length
+          ? 'This is the blank template — it only contains the example row. Replace that row with your recipients and upload it again.'
+          : 'No usable data rows found. Check that your recipients start on row 2, directly under the headers.')
+      }
+      setBulkRows(withoutExample)
+      toast.success(`Loaded ${withoutExample.length} row${withoutExample.length === 1 ? '' : 's'} from ${file.name}`)
+    } catch (err: any) {
+      setBulkParseErrors([err?.message || 'Could not read that file.'])
+      toast.error(err?.message || 'Could not read that file.')
+    }
+  }
+
+  /** Asks Resend for the real outcome of anything still sitting on an interim status.
+   *  Covers what the webhook cannot: local development, and suppressed addresses, which
+   *  emit no events at all and would otherwise stay "accepted" indefinitely. */
+  const reconcileDelivery = async () => {
+    setIsReconciling(true)
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+      const res = await fetch('/api/admin/reconcile-delivery', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Delivery check failed')
+
+      if (data.checked === 0) toast.success('Every message already has a final status.')
+      else if (data.updated === 0) toast.success(`Checked ${data.checked} — no change yet.`)
+      else {
+        const bounced = (data.changes || []).filter((c: any) => c.to === 'bounced').length
+        toast.success(`Updated ${data.updated} of ${data.checked}${bounced ? ` — ${bounced} bounced` : ''}`)
+      }
+      fetchEmailLogs()
+    } catch (err: any) {
+      toast.error(err?.message || 'Delivery check failed')
+    } finally {
+      setIsReconciling(false)
+    }
+  }
+
+  const runBulkSend = async (dryRun: boolean) => {
+    if (!bulkRows.length) return
+    setBulkIsSending(true)
+    setBulkResult(null)
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+
+      const res = await fetch('/api/admin/bulk-email', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
+        // The link has to be built here, not server-side: it needs the browser's origin,
+        // matching how the Payment Links and Send Email tabs already generate theirs.
+        body: JSON.stringify({
+          rows: bulkRows.map(r => ({
+            ...r,
+            updateUrl: buildBulkUpdateLink(Number(r.amountDueUSD), r.product) || undefined,
+          })),
+          type: bulkType,
+          dryRun,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Bulk send failed')
+
+      setBulkResult(data)
+      if (dryRun) {
+        toast.success(`Dry run: ${data.wouldSend} would send, ${data.skipped} skipped`)
+      } else {
+        toast.success(`${data.sent} of ${data.total} accepted — check Sent Emails for delivery`)
+        fetchEmailLogs()
+      }
+    } catch (err: any) {
+      // Also surface it on the page — a toast can be missed or scrolled past, and a
+      // silent failure here looks identical to the button doing nothing.
+      setBulkParseErrors([err?.message || 'Bulk send failed'])
+      toast.error(err?.message || 'Bulk send failed')
+    } finally {
+      setBulkIsSending(false)
+    }
   }
 
   // QuickBooks Payroll recurring subscription tiers (Shopify selling plan — fixed monthly prices).
@@ -1137,6 +1394,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             >
               <Mail size={14} className="text-[#2ca01c]" />
               Send Email
+            </button>
+            <button
+              onClick={() => setActiveTab('bulk')}
+              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'bulk' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+            >
+              <Users size={14} className="text-[#2ca01c]" />
+              Bulk Email
             </button>
           </div>
         </div>
@@ -2467,15 +2731,27 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </h2>
                 <p className="text-xs text-zinc-500 mt-0.5">Every receipt and reminder ever sent, automatic or manual, with the data used to build it.</p>
               </div>
-              <button
-                type="button"
-                onClick={fetchEmailLogs}
-                disabled={isLoadingEmailLogs}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer disabled:opacity-50"
-              >
-                <RefreshCw size={12} className={isLoadingEmailLogs ? 'animate-spin' : ''} />
-                Refresh
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={reconcileDelivery}
+                  disabled={isReconciling}
+                  title="Ask Resend for the current status of every message still awaiting a verdict."
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-blue-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-blue-50 text-blue-700 cursor-pointer disabled:opacity-50"
+                >
+                  <MailWarning size={12} className={isReconciling ? 'animate-pulse' : ''} />
+                  {isReconciling ? 'Checking…' : 'Check delivery'}
+                </button>
+                <button
+                  type="button"
+                  onClick={fetchEmailLogs}
+                  disabled={isLoadingEmailLogs}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw size={12} className={isLoadingEmailLogs ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+              </div>
             </div>
 
             {isLoadingEmailLogs ? (
@@ -2493,6 +2769,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       <th className="py-2.5 px-4 font-semibold">Plan</th>
                       <th className="py-2.5 px-4 font-semibold">Amount</th>
                       <th className="py-2.5 px-4 font-semibold">Trigger</th>
+                      <th className="py-2.5 px-4 font-semibold">Delivery</th>
                       <th className="py-2.5 px-4 font-semibold text-right">Data</th>
                     </tr>
                   </thead>
@@ -2518,6 +2795,19 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200">
                             {entry.trigger || 'unknown'}
                           </span>
+                        </td>
+                        <td className="py-3 px-4 align-top">
+                          <span
+                            title={entry.deliveryDetail || DELIVERY_STATUS_HINT[entry.deliveryStatus] || ''}
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${DELIVERY_STATUS_STYLE[entry.deliveryStatus] || 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}
+                          >
+                            {(entry.deliveryStatus || 'unknown').toUpperCase()}
+                          </span>
+                          {entry.deliveryDetail && (
+                            <div className="text-[10px] text-red-600 mt-0.5 max-w-[180px] truncate" title={entry.deliveryDetail}>
+                              {entry.deliveryDetail}
+                            </div>
+                          )}
                         </td>
                         <td className="py-3 px-4 align-top text-right">
                           <button
@@ -2610,6 +2900,233 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Tab 4: Bulk Email from spreadsheet */}
+        {activeTab === 'bulk' && (
+          <div className="space-y-6">
+            <div className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-zinc-900 flex items-center gap-2">
+                    <Users size={16} className="text-zinc-400" />
+                    Bulk Email from Spreadsheet
+                  </h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    Upload an .xlsx/.csv of recipients and send them all a receipt or renewal reminder.
+                  </p>
+                </div>
+                <a
+                  href="/templates/bulk-email-template.xlsx"
+                  download
+                  className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 border border-zinc-200 font-semibold rounded-lg text-xs text-zinc-700 hover:bg-zinc-50 cursor-pointer"
+                >
+                  <Download size={13} /> Download template
+                </a>
+              </div>
+
+              {/* Email type */}
+              <div className="bg-zinc-50 rounded-lg p-4 border border-zinc-200">
+                <label className="block mb-2 font-medium text-xs text-zinc-500 uppercase tracking-wider">Email Type</label>
+                <div className="flex bg-white rounded-md border border-zinc-200 p-1">
+                  <button
+                    type="button"
+                    onClick={() => { setBulkType('failed'); setBulkResult(null) }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${bulkType === 'failed' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Payment Reminder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setBulkType('success'); setBulkResult(null) }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${bulkType === 'success' ? 'bg-[#2ca01c] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Payment Receipt
+                  </button>
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-2 leading-relaxed">
+                  {bulkType === 'failed'
+                    ? 'Reminders show Plan: Monthly, the product under "Affected subscriptions", and a cancellation date one day after the billing date.'
+                    : 'Receipts use the billing date as the payment date and include the license number if present.'}
+                </p>
+              </div>
+
+              {/* File input */}
+              <div>
+                <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Recipient file (.xlsx or .csv)</label>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleBulkFile(f) }}
+                  className="block w-full text-xs text-zinc-600 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-zinc-900 file:text-white hover:file:bg-zinc-800 file:cursor-pointer cursor-pointer border border-zinc-200 rounded-md p-2"
+                />
+                {bulkFileName && !bulkParseErrors.length && (
+                  <p className="text-[11px] text-zinc-500 mt-1.5">
+                    <span className="font-semibold text-zinc-700">{bulkFileName}</span> — {bulkRows.length} row{bulkRows.length === 1 ? '' : 's'} loaded
+                  </p>
+                )}
+                {bulkParseErrors.map((e, i) => (
+                  <p key={i} className="text-[11px] text-red-600 mt-1.5 flex items-start gap-1.5">
+                    <AlertCircle size={13} className="shrink-0 mt-px" /> {e}
+                  </p>
+                ))}
+              </div>
+
+              {/* Preview */}
+              {bulkRows.length > 0 && (
+                <div className="border border-zinc-200 rounded-lg overflow-hidden">
+                  <div className="bg-zinc-50 px-3 py-2 border-b border-zinc-200 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-zinc-700 uppercase tracking-wider">Preview</span>
+                    <span className="text-[10px] text-zinc-500">showing {Math.min(bulkRows.length, 10)} of {bulkRows.length}</span>
+                  </div>
+                  <div className="overflow-x-auto max-h-72 overflow-y-auto">
+                    <table className="w-full text-[11px] whitespace-nowrap">
+                      <thead className="bg-white border-b border-zinc-100 sticky top-0">
+                        <tr className="text-left text-zinc-500">
+                          <th className="py-2 px-3 font-semibold">#</th>
+                          <th className="py-2 px-3 font-semibold">Email</th>
+                          <th className="py-2 px-3 font-semibold">Name</th>
+                          <th className="py-2 px-3 font-semibold">Company</th>
+                          <th className="py-2 px-3 font-semibold">Amount</th>
+                          <th className="py-2 px-3 font-semibold">Billing</th>
+                          <th className="py-2 px-3 font-semibold">Product</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {bulkRows.slice(0, 10).map((r) => (
+                          <tr key={r.rowNumber} className="border-b border-zinc-50 last:border-0">
+                            <td className="py-2 px-3 text-zinc-400">{r.rowNumber}</td>
+                            <td className="py-2 px-3 font-medium text-zinc-900">{r.email || <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">{`${r.firstName} ${r.lastName}`.trim() || '—'}</td>
+                            <td className="py-2 px-3 text-zinc-600">{r.companyName || '—'}</td>
+                            <td className="py-2 px-3 font-semibold text-[#2ca01c]">{r.amountDueUSD ? `$${r.amountDueUSD}` : <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">{r.billingDate || <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">{r.product || <span className="text-red-500">missing</span>}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions. Confirmation is rendered inline rather than via window.confirm(),
+                  which some embedded/sandboxed browser contexts suppress — there it returns
+                  false and the click silently does nothing. */}
+              {bulkRows.length > 0 && !bulkConfirming && (
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    disabled={bulkIsSending}
+                    onClick={() => runBulkSend(true)}
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 border border-zinc-200 font-bold rounded-lg text-xs text-zinc-700 hover:bg-zinc-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Eye size={14} /> {bulkIsSending ? 'Checking…' : 'Dry run (validate only)'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkIsSending || bulkValidCount === 0}
+                    onClick={() => setBulkConfirming(true)}
+                    className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    <Upload size={14} /> {bulkIsSending ? 'Sending…' : `Send ${bulkValidCount} email${bulkValidCount === 1 ? '' : 's'}`}
+                  </button>
+                </div>
+              )}
+
+              {bulkConfirming && (
+                <div className="border border-amber-300 bg-amber-50 rounded-lg p-4">
+                  <p className="text-xs font-bold text-amber-900">
+                    Send {bulkValidCount} real email{bulkValidCount === 1 ? '' : 's'} now?
+                  </p>
+                  <p className="text-[11px] text-amber-800 mt-1">
+                    {bulkRows.length - bulkValidCount > 0
+                      ? `${bulkRows.length - bulkValidCount} invalid row${bulkRows.length - bulkValidCount === 1 ? '' : 's'} will be skipped. `
+                      : ''}
+                    This cannot be undone.
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="button"
+                      disabled={bulkIsSending}
+                      onClick={() => { setBulkConfirming(false); runBulkSend(false) }}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      <Upload size={14} /> {bulkIsSending ? 'Sending…' : 'Yes, send them'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={bulkIsSending}
+                      onClick={() => setBulkConfirming(false)}
+                      className="px-4 py-2 border border-zinc-300 bg-white font-bold rounded-lg text-xs text-zinc-700 hover:bg-zinc-50 cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {bulkIsSending && (
+                <p className="text-[11px] text-zinc-500 text-center">
+                  Sending is throttled to stay within Resend's rate limits — roughly {Math.ceil(bulkValidCount * 0.35)}s for {bulkValidCount} rows. Keep this tab open.
+                </p>
+              )}
+            </div>
+
+            {/* Results */}
+            {bulkResult && (
+              <div className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6">
+                <h3 className="font-semibold text-sm text-zinc-900 mb-3">
+                  {bulkResult.dryRun ? 'Dry run results' : 'Send results'}
+                </h3>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-green-50 text-green-700 border border-green-200">
+                    {bulkResult.dryRun ? `${bulkResult.wouldSend} would send` : `${bulkResult.sent} accepted`}
+                  </span>
+                  {!bulkResult.dryRun && bulkResult.failed > 0 && (
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">{bulkResult.failed} failed</span>
+                  )}
+                  {bulkResult.skipped > 0 && (
+                    <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">{bulkResult.skipped} skipped</span>
+                  )}
+                </div>
+                <div className="overflow-x-auto max-h-80 overflow-y-auto border border-zinc-100 rounded-lg">
+                  <table className="w-full text-[11px]">
+                    <thead className="bg-zinc-50 sticky top-0">
+                      <tr className="text-left text-zinc-500">
+                        <th className="py-2 px-3 font-semibold">Row</th>
+                        <th className="py-2 px-3 font-semibold">Email</th>
+                        <th className="py-2 px-3 font-semibold">Status</th>
+                        <th className="py-2 px-3 font-semibold">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkResult.results?.map((r: any) => (
+                        <tr key={r.rowNumber} className="border-b border-zinc-50 last:border-0">
+                          <td className="py-2 px-3 text-zinc-400">{r.rowNumber}</td>
+                          <td className="py-2 px-3 text-zinc-800">{r.email || '—'}</td>
+                          <td className="py-2 px-3">
+                            <span
+                              title={r.status === 'accepted' && !bulkResult.dryRun
+                                ? 'Resend accepted it. Bounces show up in Sent Emails a few seconds later.' : ''}
+                              className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                              r.status === 'accepted' ? (bulkResult.dryRun
+                                ? 'bg-green-50 text-green-700 border border-green-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200')
+                              : r.status === 'failed' ? 'bg-red-50 text-red-700 border border-red-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'}`}>
+                              {bulkResult.dryRun && r.status === 'accepted' ? 'WILL SEND' : r.status.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="py-2 px-3 text-zinc-500">{r.reason || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

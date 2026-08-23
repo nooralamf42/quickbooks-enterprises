@@ -364,7 +364,10 @@ export interface PaymentFailedEmailData {
   paymentMethodLabel: string;
   billingDate: Date;
   cancellationDate: Date;
+  /** Product/subscription name, e.g. "QuickBooks Enterprise Silver Edition". Drives "Affected subscriptions:", and the "Plan:" row when billingCycle is not set. */
   planDetails?: string;
+  /** Billing cadence, e.g. "Monthly". When set it takes over the "Plan:" row so planDetails is left to describe the subscription itself. Used by bulk sends. */
+  billingCycle?: string;
   /** Only meaningful for QuickBooks Enterprise editions — omit/undefined for other services so the row is hidden. */
   numUsers?: number;
   /** Contract term in years. Only meaningful for QuickBooks Enterprise editions — omit/undefined for other services so the row is hidden. */
@@ -376,7 +379,7 @@ export interface PaymentFailedEmailData {
 export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): string {
   const {
     customerName, companyName, amountDueUSD, paymentMethodLabel,
-    billingDate, cancellationDate, planDetails, numUsers, contractYears, updateUrl,
+    billingDate, cancellationDate, planDetails, billingCycle, numUsers, contractYears, updateUrl,
   } = data;
 
   const name = escapeHtml(customerName || 'there');
@@ -419,7 +422,9 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
                       <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="text-align:center;width:100%;max-width:500px;margin:0 auto">
                         ${detailRow('Company name:', escapeHtml(companyName || customerName), true, 240)}
                         ${detailRow('Payment method:', escapeHtml(paymentMethodLabel), false, 240)}
-                        ${planDetails ? detailRow('Plan:', escapeHtml(planDetails), false, 240) : ''}
+                        ${billingCycle
+                          ? detailRow('Plan:', escapeHtml(billingCycle), false, 240)
+                          : planDetails ? detailRow('Plan:', escapeHtml(planDetails), false, 240) : ''}
                         ${numUsers ? detailRow('Number of users:', String(numUsers), false, 240) : ''}
                         ${contractYears ? detailRow('Contract term:', `${contractYears} Year${contractYears === 1 ? '' : 's'}`, false, 240) : ''}
                         ${detailRow('Amount due:', amountStr, false, 240)}
