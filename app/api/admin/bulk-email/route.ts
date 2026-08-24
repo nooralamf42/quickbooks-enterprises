@@ -167,6 +167,9 @@ export async function POST(req: NextRequest) {
           to: toEmail,
           subject,
           html,
+          // notifications@ has no mailbox and no receiving MX — without this, a customer
+          // reply either bounces or silently vanishes. billing@ is the one that's monitored.
+          replyTo: 'billing@quickbooks-enterprises.com',
         });
 
         const logBase = {

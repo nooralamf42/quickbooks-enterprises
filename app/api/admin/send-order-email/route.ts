@@ -43,6 +43,9 @@ export async function POST(req: NextRequest) {
     if (type === 'success') {
       const { data } = await resend.emails.send({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+        // notifications@ has no mailbox and no receiving MX — without this, a customer
+        // reply either bounces or silently vanishes. billing@ is the one that's monitored.
+        replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
         subject: 'We received your QuickBooks Enterprise payment!',
         html: renderPaymentReceiptEmailHtml({
@@ -77,6 +80,9 @@ export async function POST(req: NextRequest) {
 
       const { data } = await resend.emails.send({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+        // notifications@ has no mailbox and no receiving MX — without this, a customer
+        // reply either bounces or silently vanishes. billing@ is the one that's monitored.
+        replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
         html: renderPaymentFailedEmailHtml({
