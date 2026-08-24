@@ -61,6 +61,7 @@ export default function QuickBooksPaymentLinkCreator() {
     const amt = Number(r.amountDueUSD)
     if (r.amountDueUSD === undefined || r.amountDueUSD === '' || isNaN(amt) || amt < 0) return false
     if (!r.dueDate || isNaN(new Date(r.dueDate).getTime())) return false
+    if (!r.cancellationDate || isNaN(new Date(r.cancellationDate).getTime())) return false
     return Boolean(r.product && String(r.product).trim())
   }).length, [bulkRows])
 
@@ -614,6 +615,7 @@ export default function QuickBooksPaymentLinkCreator() {
     email:         ['email', 'email address', 'e mail'],
     amountDueUSD:  ['amount due usd', 'amount due', 'amount', 'price', 'amount usd'],
     dueDate:       ['due date', 'next due date', 'payment due date', 'billing date', 'renewal date', 'renewal'],
+    cancellationDate: ['cancellation date', 'cancel date', 'cancellation'],
     product:       ['product', 'affected subscriptions', 'subscription', 'plan'],
     paymentMethod: ['current payment method', 'payment method', 'card'],
     licenseNumber: ['license number', 'licence number', 'license'],
@@ -650,10 +652,10 @@ export default function QuickBooksPaymentLinkCreator() {
         if (idx !== -1) colIndex[field] = idx
       }
 
-      const missing = ['email', 'amountDueUSD', 'dueDate', 'product'].filter(f => !(f in colIndex))
+      const missing = ['email', 'amountDueUSD', 'dueDate', 'cancellationDate', 'product'].filter(f => !(f in colIndex))
       if (missing.length) {
         const labels: Record<string, string> = {
-          email: 'Email', amountDueUSD: 'Amount Due (USD)', dueDate: 'Due Date', product: 'Product',
+          email: 'Email', amountDueUSD: 'Amount Due (USD)', dueDate: 'Due Date', cancellationDate: 'Cancellation Date', product: 'Product',
         }
         throw new Error(`Required column(s) not found: ${missing.map(m => labels[m]).join(', ')}. Download the template below for the expected headers.`)
       }
@@ -682,6 +684,7 @@ export default function QuickBooksPaymentLinkCreator() {
           email:         cell(row, 'email'),
           amountDueUSD:  cell(row, 'amountDueUSD').replace(/[$,]/g, ''),
           dueDate:       toIsoDate(row[colIndex.dueDate]),
+          cancellationDate: toIsoDate(row[colIndex.cancellationDate]),
           product:       cell(row, 'product'),
           paymentMethod: cell(row, 'paymentMethod'),
           licenseNumber: cell(row, 'licenseNumber'),
@@ -3079,6 +3082,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <th className="py-2 px-3 font-semibold">Company</th>
                           <th className="py-2 px-3 font-semibold">Amount</th>
                           <th className="py-2 px-3 font-semibold">Due Date</th>
+                          <th className="py-2 px-3 font-semibold">Cancellation</th>
                           <th className="py-2 px-3 font-semibold">Product</th>
                         </tr>
                       </thead>
@@ -3091,6 +3095,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <td className="py-2 px-3 text-zinc-600">{r.companyName || '—'}</td>
                             <td className="py-2 px-3 font-semibold text-[#2ca01c]">{r.amountDueUSD ? `$${r.amountDueUSD}` : <span className="text-red-500">missing</span>}</td>
                             <td className="py-2 px-3 text-zinc-600">{r.dueDate || <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">{r.cancellationDate || <span className="text-red-500">missing</span>}</td>
                             <td className="py-2 px-3 text-zinc-600">{r.product || <span className="text-red-500">missing</span>}</td>
                           </tr>
                         ))}

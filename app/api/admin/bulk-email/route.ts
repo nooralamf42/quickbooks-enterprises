@@ -25,6 +25,7 @@ export interface BulkRow {
   email?: string;
   amountDueUSD?: string | number;
   dueDate?: string;
+  cancellationDate?: string;
   product?: string;
   paymentMethod?: string;
   licenseNumber?: string;
@@ -67,6 +68,7 @@ function validate(row: BulkRow): string | null {
   if (row.amountDueUSD === undefined || row.amountDueUSD === '' || isNaN(amt)) return 'Missing or invalid amount';
   if (amt < 0) return 'Amount cannot be negative';
   if (!parseDate(row.dueDate)) return 'Missing or invalid due date';
+  if (!parseDate(row.cancellationDate)) return 'Missing or invalid cancellation date';
   if (!row.product || !String(row.product).trim()) return 'Missing product';
   return null;
 }
@@ -106,8 +108,7 @@ export async function POST(req: NextRequest) {
         continue;
       }
       const dueDate = parseDate(row.dueDate)!;
-      // Cancellation is always the day after the due date.
-      const cancellation = new Date(dueDate.getTime() + 24 * 60 * 60 * 1000);
+      const cancellation = parseDate(row.cancellationDate)!;
       sendable.push({ row, amount: Number(row.amountDueUSD), cancellation, dueDate });
     }
 
