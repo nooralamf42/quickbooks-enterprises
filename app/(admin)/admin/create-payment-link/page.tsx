@@ -61,6 +61,7 @@ export default function QuickBooksPaymentLinkCreator() {
     const amt = Number(r.amountDueUSD)
     if (r.amountDueUSD === undefined || r.amountDueUSD === '' || isNaN(amt) || amt < 0) return false
     if (!r.billingDate || isNaN(new Date(r.billingDate).getTime())) return false
+    if (!r.dueDate || isNaN(new Date(r.dueDate).getTime())) return false
     return Boolean(r.product && String(r.product).trim())
   }).length, [bulkRows])
 
@@ -98,6 +99,8 @@ export default function QuickBooksPaymentLinkCreator() {
     amountDueUSD: '',
     billingDate: new Date().toISOString().slice(0, 10),
     cancellationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    // Default to a month out — the typical subscription cycle. Shown as "Next due date:".
+    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
   const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'shopify' | 'shopifySubscription'>('')
@@ -273,10 +276,12 @@ export default function QuickBooksPaymentLinkCreator() {
         payload.paidAt = emailForm.paidAt
         payload.licenseNumber = emailForm.licenseNumber
         payload.productNumber = emailForm.productNumber
+        payload.dueDate = emailForm.dueDate
       } else {
         payload.amountDueUSD = emailForm.amountDueUSD
         payload.billingDate = emailForm.billingDate
         payload.cancellationDate = emailForm.cancellationDate
+        payload.dueDate = emailForm.dueDate
         if (reminderGateway && emailForm.amountDueUSD) {
           payload.updateUrl = buildUpdateLink(Number(emailForm.amountDueUSD), reminderGateway)
         }
@@ -413,13 +418,11 @@ export default function QuickBooksPaymentLinkCreator() {
     if (activeTab !== 'sentEmails') return
     const t = setTimeout(() => fetchEmailLogs(1), 400)
     return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailLogsSearch])
 
   // Trigger filter needs no debounce — it's a select, not free text.
   useEffect(() => {
     if (activeTab === 'sentEmails') fetchEmailLogs(1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emailLogsTrigger])
 
   const handleSimulatePayment = async () => {
@@ -614,6 +617,7 @@ export default function QuickBooksPaymentLinkCreator() {
     email:         ['email', 'email address', 'e mail'],
     amountDueUSD:  ['amount due usd', 'amount due', 'amount', 'price', 'amount usd'],
     billingDate:   ['billing date', 'renewal date', 'renewal'],
+    dueDate:       ['due date', 'next due date', 'payment due date'],
     product:       ['product', 'affected subscriptions', 'subscription', 'plan'],
     paymentMethod: ['current payment method', 'payment method', 'card'],
     licenseNumber: ['license number', 'licence number', 'license'],
@@ -650,10 +654,10 @@ export default function QuickBooksPaymentLinkCreator() {
         if (idx !== -1) colIndex[field] = idx
       }
 
-      const missing = ['email', 'amountDueUSD', 'billingDate', 'product'].filter(f => !(f in colIndex))
+      const missing = ['email', 'amountDueUSD', 'billingDate', 'dueDate', 'product'].filter(f => !(f in colIndex))
       if (missing.length) {
         const labels: Record<string, string> = {
-          email: 'Email', amountDueUSD: 'Amount Due (USD)', billingDate: 'Billing Date', product: 'Product',
+          email: 'Email', amountDueUSD: 'Amount Due (USD)', billingDate: 'Billing Date', dueDate: 'Due Date', product: 'Product',
         }
         throw new Error(`Required column(s) not found: ${missing.map(m => labels[m]).join(', ')}. Download the template below for the expected headers.`)
       }
@@ -682,6 +686,7 @@ export default function QuickBooksPaymentLinkCreator() {
           email:         cell(row, 'email'),
           amountDueUSD:  cell(row, 'amountDueUSD').replace(/[$,]/g, ''),
           billingDate:   toIsoDate(row[colIndex.billingDate]),
+          dueDate:       toIsoDate(row[colIndex.dueDate]),
           product:       cell(row, 'product'),
           paymentMethod: cell(row, 'paymentMethod'),
           licenseNumber: cell(row, 'licenseNumber'),
@@ -2649,9 +2654,18 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                     />
                   </div>
+                  <div>
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Next Due Date <span className="text-zinc-300">(optional)</span></label>
+                    <input
+                      type="date"
+                      value={emailForm.dueDate}
+                      onChange={(e) => updateEmailForm('dueDate', e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                    />
+                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 border-t pt-5 border-zinc-100">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-5 border-t pt-5 border-zinc-100">
                   <div>
                     <label className="block mb-1.5 font-semibold text-xs text-zinc-900">
                       {reminderGateway === 'shopifySubscription' ? 'Subscription Tier *' : 'Amount Due ($) *'}
@@ -2700,8 +2714,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                     />
                   </div>
+                  <div>
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Next Due Date <span className="text-zinc-300">(optional)</span></label>
+                    <input
+                      type="date"
+                      value={emailForm.dueDate}
+                      onChange={(e) => updateEmailForm('dueDate', e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+                    />
+                  </div>
 
-                  <div className="md:col-span-3 bg-amber-50/60 rounded-lg p-4 border border-amber-200">
+                  <div className="md:col-span-4 bg-amber-50/60 rounded-lg p-4 border border-amber-200">
                     <label className="block mb-2 font-medium text-xs text-amber-700 uppercase tracking-wider">"Update now" button link</label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-white rounded-md border border-zinc-200 p-1">
                       <button
@@ -3070,6 +3093,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <th className="py-2 px-3 font-semibold">Company</th>
                           <th className="py-2 px-3 font-semibold">Amount</th>
                           <th className="py-2 px-3 font-semibold">Billing</th>
+                          <th className="py-2 px-3 font-semibold">Due Date</th>
                           <th className="py-2 px-3 font-semibold">Product</th>
                         </tr>
                       </thead>
@@ -3082,6 +3106,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <td className="py-2 px-3 text-zinc-600">{r.companyName || '—'}</td>
                             <td className="py-2 px-3 font-semibold text-[#2ca01c]">{r.amountDueUSD ? `$${r.amountDueUSD}` : <span className="text-red-500">missing</span>}</td>
                             <td className="py-2 px-3 text-zinc-600">{r.billingDate || <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">{r.dueDate || <span className="text-red-500">missing</span>}</td>
                             <td className="py-2 px-3 text-zinc-600">{r.product || <span className="text-red-500">missing</span>}</td>
                           </tr>
                         ))}

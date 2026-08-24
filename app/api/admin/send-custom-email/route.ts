@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const fallbackOrderId = orderId || `MANUAL-${Date.now().toString(36).toUpperCase()}`;
 
     if (type === 'success') {
-      const { amountUSD, paidAt } = body;
+      const { amountUSD, paidAt, dueDate } = body;
       if (amountUSD === undefined || amountUSD === null || isNaN(Number(amountUSD))) {
         return NextResponse.json({ error: 'amountUSD is required' }, { status: 400 });
       }
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
           productNumber: productNumber || undefined,
           numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
           contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
+          nextDueDate: dueDate ? new Date(dueDate) : undefined,
         }),
       });
 
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
         resendId: data?.id,
       });
     } else {
-      const { amountDueUSD, billingDate, cancellationDate, updateUrl } = body;
+      const { amountDueUSD, billingDate, cancellationDate, updateUrl, dueDate } = body;
       if (amountDueUSD === undefined || amountDueUSD === null || isNaN(Number(amountDueUSD))) {
         return NextResponse.json({ error: 'amountDueUSD is required' }, { status: 400 });
       }
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest) {
           numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
           contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
           updateUrl: updateUrl || undefined,
+          nextDueDate: dueDate ? new Date(dueDate) : undefined,
         }),
       });
 
