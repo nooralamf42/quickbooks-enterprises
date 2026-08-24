@@ -228,21 +228,21 @@ export interface PaymentReceiptEmailData {
   /** Contract term in years. Only meaningful for QuickBooks Enterprise editions — omit/undefined for other services so the row is hidden. */
   contractYears?: number;
   /** When this subscription will next be charged. Row is hidden when omitted — a one-time
-   *  purchase has no next due date. */
-  nextDueDate?: Date;
+   *  purchase has no due date. */
+  dueDate?: Date;
 }
 
 export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): string {
   const {
     customerName, companyName, orderId, paidAt, amountUSD, paymentMethodLabel, planDetails,
-    licenseNumber, productNumber, numUsers, contractYears, nextDueDate,
+    licenseNumber, productNumber, numUsers, contractYears, dueDate,
   } = data;
 
   const name = escapeHtml(customerName || 'there');
   const dateStr = paidAt.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const amountStr = `$${amountUSD.toFixed(2)}`;
-  const nextDueDateStr = nextDueDate
-    ? nextDueDate.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const dueDateStr = dueDate
+    ? dueDate.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : '';
 
   return wrapEmailDocument('Payment success', `
@@ -282,7 +282,7 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
                         ${detailRow('Total:', amountStr)}
                         ${detailRow('Payment method:', escapeHtml(paymentMethodLabel))}
                         ${planDetails ? detailRow('Plan:', escapeHtml(planDetails)) : ''}
-                        ${nextDueDateStr ? detailRow('Next due date:', nextDueDateStr) : ''}
+                        ${dueDateStr ? detailRow('Due date:', dueDateStr) : ''}
                         ${numUsers ? detailRow('Number of users:', String(numUsers)) : ''}
                         ${contractYears ? detailRow('Contract term:', `${contractYears} Year${contractYears === 1 ? '' : 's'}`) : ''}
                         ${licenseNumber ? detailRow('License number:', escapeHtml(licenseNumber)) : ''}
@@ -369,8 +369,10 @@ export interface PaymentFailedEmailData {
   orderId: string;
   amountDueUSD: number;
   paymentMethodLabel: string;
-  billingDate: Date;
   cancellationDate: Date;
+  /** When this subscription is next charged. Shown as "Due date:" — the only date besides
+   *  cancellation that a reminder needs; there is no separate "billing date" concept. */
+  dueDate: Date;
   /** Product/subscription name, e.g. "QuickBooks Enterprise Silver Edition". Drives "Affected subscriptions:", and the "Plan:" row when billingCycle is not set. */
   planDetails?: string;
   /** Billing cadence, e.g. "Monthly". When set it takes over the "Plan:" row so planDetails is left to describe the subscription itself. Used by bulk sends. */
@@ -381,24 +383,18 @@ export interface PaymentFailedEmailData {
   contractYears?: number;
   /** Where the "Update payment method" button should send them. Defaults to the support mailto since there's no self-service billing portal. */
   updateUrl?: string;
-  /** When this subscription will next be charged, once the payment method is fixed. Row is
-   *  hidden when omitted. */
-  nextDueDate?: Date;
 }
 
 export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): string {
   const {
     customerName, companyName, amountDueUSD, paymentMethodLabel,
-    billingDate, cancellationDate, planDetails, billingCycle, numUsers, contractYears, updateUrl, nextDueDate,
+    cancellationDate, dueDate, planDetails, billingCycle, numUsers, contractYears, updateUrl,
   } = data;
 
   const name = escapeHtml(customerName || 'there');
   const amountStr = `$${amountDueUSD.toFixed(2)}`;
-  const billingDateStr = billingDate.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const cancellationDateStr = cancellationDate.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const nextDueDateStr = nextDueDate
-    ? nextDueDate.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    : '';
+  const dueDateStr = dueDate.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const ctaUrl = updateUrl || SUPPORT_MAILTO;
 
   return wrapEmailDocument('Action needed on your payment', `
@@ -441,9 +437,8 @@ export function renderPaymentFailedEmailHtml(data: PaymentFailedEmailData): stri
                         ${numUsers ? detailRow('Number of users:', String(numUsers), false, 240) : ''}
                         ${contractYears ? detailRow('Contract term:', `${contractYears} Year${contractYears === 1 ? '' : 's'}`, false, 240) : ''}
                         ${detailRow('Amount due:', amountStr, false, 240)}
-                        ${detailRow('Billing date:', billingDateStr, false, 240)}
+                        ${detailRow('Due date:', dueDateStr, false, 240)}
                         ${detailRow('Cancellation date:', cancellationDateStr, false, 240)}
-                        ${nextDueDateStr ? detailRow('Next due date:', nextDueDateStr, false, 240) : ''}
                       </table>
                     </td>
                   </tr>

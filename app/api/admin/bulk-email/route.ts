@@ -24,7 +24,6 @@ export interface BulkRow {
   lastName?: string;
   email?: string;
   amountDueUSD?: string | number;
-  billingDate?: string;
   dueDate?: string;
   product?: string;
   paymentMethod?: string;
@@ -67,7 +66,6 @@ function validate(row: BulkRow): string | null {
   const amt = Number(row.amountDueUSD);
   if (row.amountDueUSD === undefined || row.amountDueUSD === '' || isNaN(amt)) return 'Missing or invalid amount';
   if (amt < 0) return 'Amount cannot be negative';
-  if (!parseDate(row.billingDate)) return 'Missing or invalid billing date';
   if (!parseDate(row.dueDate)) return 'Missing or invalid due date';
   if (!row.product || !String(row.product).trim()) return 'Missing product';
   return null;
@@ -99,7 +97,7 @@ export async function POST(req: NextRequest) {
 
     // Validate everything up front so a dry run can surface all problems at once.
     const results: RowResult[] = [];
-    const sendable: { row: BulkRow; amount: number; billing: Date; cancellation: Date; dueDate: Date }[] = [];
+    const sendable: { row: BulkRow; amount: number; cancellation: Date; dueDate: Date }[] = [];
 
     for (const row of rows) {
       const problem = validate(row);
@@ -107,11 +105,10 @@ export async function POST(req: NextRequest) {
         results.push({ rowNumber: row.rowNumber, email: String(row.email ?? ''), status: 'skipped', reason: problem });
         continue;
       }
-      const billing = parseDate(row.billingDate)!;
-      // Cancellation is always the day after the billing date.
-      const cancellation = new Date(billing.getTime() + 24 * 60 * 60 * 1000);
       const dueDate = parseDate(row.dueDate)!;
-      sendable.push({ row, amount: Number(row.amountDueUSD), billing, cancellation, dueDate });
+      // Cancellation is always the day after the due date.
+      const cancellation = new Date(dueDate.getTime() + 24 * 60 * 60 * 1000);
+      sendable.push({ row, amount: Number(row.amountDueUSD), cancellation, dueDate });
     }
 
     if (dryRun) {
@@ -132,7 +129,7 @@ export async function POST(req: NextRequest) {
       ? 'We received your QuickBooks Enterprise payment!'
       : 'Action needed: update your QuickBooks Enterprise payment method';
 
-    for (const { row, amount, billing, cancellation, dueDate } of sendable) {
+    for (const { row, amount, cancellation, dueDate } of sendable) {
       const toEmail = String(row.email).trim();
       const customerName = `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim() || 'there';
       const orderId = String(row.can ?? '').trim() || `BULK-${Date.now().toString(36).toUpperCase()}-${row.rowNumber}`;
@@ -141,19 +138,20 @@ export async function POST(req: NextRequest) {
         const html = type === 'success'
           ? renderPaymentReceiptEmailHtml({
               customerName, toEmail, companyName: row.companyName, orderId,
-              paidAt: billing, amountUSD: amount,
+              // A bulk receipt logs the send as the payment date — there's no separate
+              // billing date column any more.
+              paidAt: new Date(), amountUSD: amount,
               paymentMethodLabel: row.paymentMethod || 'Card on file',
               planDetails: row.product,
               licenseNumber: row.licenseNumber || undefined,
-              nextDueDate: dueDate,
+              dueDate,
             })
           : renderPaymentFailedEmailHtml({
               customerName, toEmail, companyName: row.companyName, orderId,
               amountDueUSD: amount,
               paymentMethodLabel: row.paymentMethod || 'the payment method on file',
-              billingDate: billing,
               cancellationDate: cancellation,
-              nextDueDate: dueDate,
+              dueDate,
               planDetails: row.product,
               updateUrl: row.updateUrl,
               // Bulk sends are monthly subscriptions — this drives the "Plan:" row,

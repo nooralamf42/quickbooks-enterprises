@@ -74,8 +74,8 @@ export async function POST(req: NextRequest) {
         resendId: data?.id,
       });
     } else {
-      const billingDate = record.paidAt ? new Date(record.paidAt) : new Date();
-      const cancellationDate = new Date(billingDate);
+      const dueDate = record.paidAt ? new Date(record.paidAt) : new Date();
+      const cancellationDate = new Date(dueDate);
       cancellationDate.setDate(cancellationDate.getDate() + 7);
 
       const { data } = await resend.emails.send({
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
           orderId: record._id.toString(),
           amountDueUSD: record.amountUSD || 0,
           paymentMethodLabel: record.paymentMethodLabel || 'the payment method on file',
-          billingDate,
+          dueDate,
           cancellationDate,
           planDetails: record.planDetails,
         }),

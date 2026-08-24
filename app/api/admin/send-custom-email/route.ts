@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
           productNumber: productNumber || undefined,
           numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
           contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
-          nextDueDate: dueDate ? new Date(dueDate) : undefined,
+          dueDate: dueDate ? new Date(dueDate) : undefined,
         }),
       });
 
@@ -72,12 +72,12 @@ export async function POST(req: NextRequest) {
         resendId: data?.id,
       });
     } else {
-      const { amountDueUSD, billingDate, cancellationDate, updateUrl, dueDate } = body;
+      const { amountDueUSD, cancellationDate, updateUrl, dueDate } = body;
       if (amountDueUSD === undefined || amountDueUSD === null || isNaN(Number(amountDueUSD))) {
         return NextResponse.json({ error: 'amountDueUSD is required' }, { status: 400 });
       }
-      if (!billingDate || !cancellationDate) {
-        return NextResponse.json({ error: 'billingDate and cancellationDate are required' }, { status: 400 });
+      if (!cancellationDate || !dueDate) {
+        return NextResponse.json({ error: 'cancellationDate and dueDate are required' }, { status: 400 });
       }
 
       const { data } = await resend.emails.send({
@@ -94,13 +94,12 @@ export async function POST(req: NextRequest) {
           orderId: fallbackOrderId,
           amountDueUSD: Number(amountDueUSD),
           paymentMethodLabel: paymentMethodLabel || 'the payment method on file',
-          billingDate: new Date(billingDate),
           cancellationDate: new Date(cancellationDate),
+          dueDate: new Date(dueDate),
           planDetails,
           numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
           contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
           updateUrl: updateUrl || undefined,
-          nextDueDate: dueDate ? new Date(dueDate) : undefined,
         }),
       });
 
