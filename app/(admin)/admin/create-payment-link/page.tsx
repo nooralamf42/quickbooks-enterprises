@@ -42,7 +42,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay' | 'antom' | 'shopify'>('authorize')
   
   // Navigation tabs state
-  const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email' | 'bulk'>('create')
+  const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email' | 'sentEmails' | 'bulk'>('create')
 
   // Bulk Email tab state
   const [bulkRows, setBulkRows] = useState<any[]>([])
@@ -105,12 +105,16 @@ export default function QuickBooksPaymentLinkCreator() {
   const EMAIL_SUBSCRIPTION_TIERS = ['49.87', '98.78', '149.10', '198.70', '298.00', '349.89']
   const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
 
-  // Sent Emails history (emailLogs collection)
+  // Sent Emails history (emailLogs collection). Paginated server-side — at a few hundred
+  // sends a day the table would otherwise only ever show the newest fraction of one day.
   const [emailLogsList, setEmailLogsList] = useState<any[]>([])
+  const [emailLogsTotal, setEmailLogsTotal] = useState(0)
   const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(false)
   const [selectedEmailLog, setSelectedEmailLog] = useState<any>(null)
   const [emailLogsPage, setEmailLogsPage] = useState(1)
-  const emailLogsPerPage = 10
+  const [emailLogsSearch, setEmailLogsSearch] = useState('')
+  const [emailLogsTrigger, setEmailLogsTrigger] = useState('') // '' = all triggers
+  const emailLogsPerPage = 20
 
   const editions = [
     { name: 'Silver', value: 'silver' },
@@ -355,7 +359,10 @@ export default function QuickBooksPaymentLinkCreator() {
     }
   }, [activeTab])
 
-  const fetchEmailLogs = async () => {
+  /** page: pass explicitly to jump straight to a page (e.g. resetting to 1 after a new
+   *  search) without waiting on the emailLogsPage state to catch up first. */
+  const fetchEmailLogs = async (page?: number) => {
+    const targetPage = page ?? emailLogsPage
     setIsLoadingEmailLogs(true)
     try {
       const stored = localStorage.getItem('adminAuth')
@@ -364,7 +371,11 @@ export default function QuickBooksPaymentLinkCreator() {
         passwordHash = JSON.parse(stored).passwordHash
       }
 
-      const response = await fetch('/api/admin/email-logs', {
+      const params = new URLSearchParams({ page: String(targetPage), limit: String(emailLogsPerPage) })
+      if (emailLogsSearch.trim()) params.set('q', emailLogsSearch.trim())
+      if (emailLogsTrigger) params.set('trigger', emailLogsTrigger)
+
+      const response = await fetch(`/api/admin/email-logs?${params}`, {
         headers: {
           'Authorization': `Bearer ${passwordHash}`,
           'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -380,7 +391,8 @@ export default function QuickBooksPaymentLinkCreator() {
 
       const data = await response.json()
       setEmailLogsList(data.logs || [])
-      setEmailLogsPage(1)
+      setEmailLogsTotal(data.total ?? 0)
+      setEmailLogsPage(targetPage)
     } catch (error: any) {
       console.error(error)
       toast.error(error.message || 'Failed to load sent emails')
@@ -390,10 +402,25 @@ export default function QuickBooksPaymentLinkCreator() {
   }
 
   useEffect(() => {
-    if (activeTab === 'email') {
-      fetchEmailLogs()
+    if (activeTab === 'sentEmails') {
+      fetchEmailLogs(1)
     }
   }, [activeTab])
+
+  // Debounced so every keystroke doesn't fire a request — 400ms is short enough to feel
+  // live without hammering the API while the admin is still typing an address.
+  useEffect(() => {
+    if (activeTab !== 'sentEmails') return
+    const t = setTimeout(() => fetchEmailLogs(1), 400)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailLogsSearch])
+
+  // Trigger filter needs no debounce — it's a select, not free text.
+  useEffect(() => {
+    if (activeTab === 'sentEmails') fetchEmailLogs(1)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailLogsTrigger])
 
   const handleSimulatePayment = async () => {
     setIsSimulating(true)
@@ -1394,6 +1421,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             >
               <Mail size={14} className="text-[#2ca01c]" />
               Send Email
+            </button>
+            <button
+              onClick={() => setActiveTab('sentEmails')}
+              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'sentEmails' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+            >
+              <MailWarning size={14} className="text-[#2ca01c]" />
+              Email Logs
             </button>
             <button
               onClick={() => setActiveTab('bulk')}
@@ -2720,7 +2754,12 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               </button>
             </form>
           </div>
+          </div>
+        )}
 
+        {/* Tab: Email Logs — every receipt/reminder ever sent, with delivery + engagement status */}
+        {activeTab === 'sentEmails' && (
+          <div className="space-y-8">
           {/* Sent Emails history */}
           <div className="bg-white border border-zinc-200 rounded-xl shadow-xs">
             <div className="p-6 md:p-8 pb-4 flex items-center justify-between gap-4 flex-wrap">
@@ -2732,6 +2771,29 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <p className="text-xs text-zinc-500 mt-0.5">Every receipt and reminder ever sent, automatic or manual, with the data used to build it.</p>
               </div>
               <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="text"
+                    value={emailLogsSearch}
+                    onChange={(e) => setEmailLogsSearch(e.target.value)}
+                    placeholder="Search by email…"
+                    className="pl-7 pr-3 py-1.5 border border-zinc-200 rounded-lg text-[11px] w-48 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                  />
+                </div>
+                <select
+                  value={emailLogsTrigger}
+                  onChange={(e) => setEmailLogsTrigger(e.target.value)}
+                  className="border border-zinc-200 rounded-lg text-[11px] px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
+                >
+                  <option value="">All sources</option>
+                  <option value="admin-bulk">Bulk email</option>
+                  <option value="admin-manual">Manual (Send Email tab)</option>
+                  <option value="admin-order">Payment link order</option>
+                  <option value="authorize-webhook">Authorize webhook</option>
+                  <option value="authorize-sync">Authorize sync</option>
+                  <option value="authorize-complete">Authorize complete</option>
+                </select>
                 <button
                   type="button"
                   onClick={reconcileDelivery}
@@ -2744,7 +2806,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </button>
                 <button
                   type="button"
-                  onClick={fetchEmailLogs}
+                  onClick={() => fetchEmailLogs(emailLogsPage)}
                   disabled={isLoadingEmailLogs}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer disabled:opacity-50"
                 >
@@ -2757,7 +2819,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             {isLoadingEmailLogs ? (
               <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">Loading sent emails...</p>
             ) : emailLogsList.length === 0 ? (
-              <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">No emails have been sent yet.</p>
+              <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">
+                {emailLogsSearch.trim() ? `No emails found for "${emailLogsSearch.trim()}".` : 'No emails have been sent yet.'}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
@@ -2770,11 +2834,12 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       <th className="py-2.5 px-4 font-semibold">Amount</th>
                       <th className="py-2.5 px-4 font-semibold">Trigger</th>
                       <th className="py-2.5 px-4 font-semibold">Delivery</th>
+                      <th className="py-2.5 px-4 font-semibold">Engagement</th>
                       <th className="py-2.5 px-4 font-semibold text-right">Data</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {emailLogsList.slice((emailLogsPage - 1) * emailLogsPerPage, emailLogsPage * emailLogsPerPage).map((entry) => (
+                    {emailLogsList.map((entry) => (
                       <tr key={entry._id} className="hover:bg-zinc-50/40 transition-colors">
                         <td className="py-3 px-4 align-top whitespace-nowrap text-zinc-500">
                           {entry.sentAt ? new Date(entry.sentAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}
@@ -2804,9 +2869,24 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             {(entry.deliveryStatus || 'unknown').toUpperCase()}
                           </span>
                           {entry.deliveryDetail && (
-                            <div className="text-[10px] text-red-600 mt-0.5 max-w-[180px] truncate" title={entry.deliveryDetail}>
+                            <div className="text-[10px] text-red-600 mt-0.5 max-w-[220px] whitespace-normal break-words" title={entry.deliveryDetail}>
                               {entry.deliveryDetail}
                             </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 align-top">
+                          {entry.clickedAt ? (
+                            <span title={`Clicked ${entry.clickCount || 1}×${entry.lastClickedUrl ? ' — ' + entry.lastClickedUrl : ''}`}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border bg-blue-50 text-blue-700 border-blue-200">
+                              CLICKED
+                            </span>
+                          ) : entry.openedAt ? (
+                            <span title={`Opened ${entry.openCount || 1}×`}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border bg-indigo-50 text-indigo-700 border-indigo-200">
+                              OPENED
+                            </span>
+                          ) : (
+                            <span className="text-zinc-300">—</span>
                           )}
                         </td>
                         <td className="py-3 px-4 align-top text-right">
@@ -2826,23 +2906,23 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               </div>
             )}
 
-            {!isLoadingEmailLogs && emailLogsList.length > emailLogsPerPage && (
+            {!isLoadingEmailLogs && emailLogsTotal > emailLogsPerPage && (
               <div className="flex items-center justify-between border-t border-zinc-100 px-6 md:px-8 py-4">
                 <button
                   type="button"
-                  onClick={() => setEmailLogsPage(prev => Math.max(prev - 1, 1))}
+                  onClick={() => fetchEmailLogs(Math.max(emailLogsPage - 1, 1))}
                   disabled={emailLogsPage === 1}
                   className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 disabled:opacity-50 text-zinc-700 shadow-xs transition-colors cursor-pointer"
                 >
                   <ChevronLeft size={14} /> Previous
                 </button>
                 <span className="text-xs text-zinc-500 font-semibold bg-zinc-50 px-3 py-1.5 rounded-md border border-zinc-200/50">
-                  Page {emailLogsPage} of {Math.ceil(emailLogsList.length / emailLogsPerPage)}
+                  Page {emailLogsPage} of {Math.ceil(emailLogsTotal / emailLogsPerPage)} — {emailLogsTotal} email{emailLogsTotal === 1 ? '' : 's'}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setEmailLogsPage(prev => Math.min(prev + 1, Math.ceil(emailLogsList.length / emailLogsPerPage)))}
-                  disabled={emailLogsPage === Math.ceil(emailLogsList.length / emailLogsPerPage)}
+                  onClick={() => fetchEmailLogs(Math.min(emailLogsPage + 1, Math.ceil(emailLogsTotal / emailLogsPerPage)))}
+                  disabled={emailLogsPage === Math.ceil(emailLogsTotal / emailLogsPerPage)}
                   className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold border border-zinc-200 rounded-lg bg-white hover:bg-zinc-50 disabled:opacity-50 text-zinc-700 shadow-xs transition-colors cursor-pointer"
                 >
                   Next <ChevronRight size={14} />

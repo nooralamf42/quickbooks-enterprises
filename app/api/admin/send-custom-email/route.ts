@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'amountUSD is required' }, { status: 400 });
       }
 
-      await resend.emails.send({
+      const { data } = await resend.emails.send({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         to: toEmail,
         subject: 'We received your QuickBooks Enterprise payment!',
@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
         amountUSD: Number(amountUSD),
         subject: 'We received your QuickBooks Enterprise payment!',
         trigger: 'admin-manual',
+        resendId: data?.id,
       });
     } else {
       const { amountDueUSD, billingDate, cancellationDate, updateUrl } = body;
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'billingDate and cancellationDate are required' }, { status: 400 });
       }
 
-      await resend.emails.send({
+      const { data } = await resend.emails.send({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         to: toEmail,
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
         amountUSD: Number(amountDueUSD),
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
         trigger: 'admin-manual',
+        resendId: data?.id,
       });
     }
 

@@ -75,3 +75,55 @@ export async function updateDeliveryStatus(
     return false;
   }
 }
+
+/** Records an open or click event. Kept separate from deliveryStatus — engagement doesn't
+ *  replace a terminal delivery state, it's additional information on top of it (a delivered
+ *  email can later be opened, then clicked). Only the FIRST occurrence's timestamp is kept;
+ *  every occurrence increments a count. Uses a pipeline update so "set only if absent" can be
+ *  expressed without a read-then-write race. */
+export async function recordEngagement(
+  resendId: string,
+  kind: 'opened' | 'clicked',
+  linkUrl?: string,
+): Promise<boolean> {
+  // Explicit map, not string interpolation — "opened" + "Count" naively gives "openedCount",
+  // but the admin table (and every other field name in this file) uses "openCount"/"clickCount".
+  const atField = kind === 'opened' ? 'openedAt' : 'clickedAt';
+  const countField = kind === 'opened' ? 'openCount' : 'clickCount';
+  try {
+    const { db } = await connectToDatabase();
+    const res = await db.collection('emailLogs').updateOne(
+      { resendId },
+      [
+        {
+          $set: {
+            [atField]: { $ifNull: [`$${atField}`, new Date()] },
+            [countField]: { $add: [{ $ifNull: [`$${countField}`, 0] }, 1] },
+            ...(linkUrl ? { lastClickedUrl: linkUrl } : {}),
+          },
+        },
+      ],
+    );
+    return res.matchedCount > 0;
+  } catch (err) {
+    console.error(`[EmailLog] Failed to record ${kind} event:`, err);
+    return false;
+  }
+}
+
+/** Creates the indexes the admin search/table rely on. Safe to call repeatedly — createIndex
+ *  is a no-op if the index already exists with the same spec. */
+export async function ensureEmailLogIndexes(): Promise<void> {
+  try {
+    const { db } = await connectToDatabase();
+    const col = db.collection('emailLogs');
+    await Promise.all([
+      col.createIndex({ toEmail: 1 }),
+      col.createIndex({ sentAt: -1 }),
+      col.createIndex({ resendId: 1 }, { sparse: true }),
+      col.createIndex({ trigger: 1, sentAt: -1 }),
+    ]);
+  } catch (err) {
+    console.error('[EmailLog] Failed to ensure indexes:', err);
+  }
+}

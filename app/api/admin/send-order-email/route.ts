@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     const customerName = `${record.firstName || ''} ${record.lastName || ''}`.trim() || 'there';
 
     if (type === 'success') {
-      await resend.emails.send({
+      const { data } = await resend.emails.send({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         to: record.email,
         subject: 'We received your QuickBooks Enterprise payment!',
@@ -68,13 +68,14 @@ export async function POST(req: NextRequest) {
         amountUSD: record.amountUSD || 0,
         subject: 'We received your QuickBooks Enterprise payment!',
         trigger: 'admin-order',
+        resendId: data?.id,
       });
     } else {
       const billingDate = record.paidAt ? new Date(record.paidAt) : new Date();
       const cancellationDate = new Date(billingDate);
       cancellationDate.setDate(cancellationDate.getDate() + 7);
 
-      await resend.emails.send({
+      const { data } = await resend.emails.send({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         to: record.email,
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
@@ -100,6 +101,7 @@ export async function POST(req: NextRequest) {
         amountUSD: record.amountUSD || 0,
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
         trigger: 'admin-order',
+        resendId: data?.id,
       });
     }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { updateDeliveryStatus, type DeliveryStatus } from '@/app/lib/emailLog';
+import { updateDeliveryStatus, recordEngagement, type DeliveryStatus } from '@/app/lib/emailLog';
 
 /** Resend delivery events, so the email log reflects what actually happened to a message
  *  rather than only that Resend accepted it. Configure at resend.com/webhooks pointing to
@@ -64,15 +64,28 @@ export async function POST(req: NextRequest) {
 
     const event = JSON.parse(raw) as {
       type?: string;
-      data?: { email_id?: string; to?: string[]; bounce?: { message?: string; subType?: string } };
+      data?: {
+        email_id?: string;
+        to?: string[];
+        bounce?: { message?: string; subType?: string };
+        click?: { link?: string };
+      };
     };
-
-    const status = EVENT_STATUS[event.type ?? ''];
-    // Opens and clicks arrive here too; they say nothing about deliverability, so ignore them.
-    if (!status) return NextResponse.json({ ok: true, ignored: event.type });
 
     const resendId = event.data?.email_id;
     if (!resendId) return NextResponse.json({ ok: true, ignored: 'no email_id' });
+
+    // Opens/clicks are engagement, not delivery — recorded separately so they never
+    // clobber a terminal deliveryStatus like 'delivered' or 'bounced'.
+    if (event.type === 'email.opened' || event.type === 'email.clicked') {
+      const kind = event.type === 'email.opened' ? 'opened' : 'clicked';
+      const matched = await recordEngagement(resendId, kind, event.data?.click?.link);
+      if (!matched) console.warn(`[Resend Webhook] No log row for ${resendId} (${event.type})`);
+      return NextResponse.json({ ok: true, matched, kind });
+    }
+
+    const status = EVENT_STATUS[event.type ?? ''];
+    if (!status) return NextResponse.json({ ok: true, ignored: event.type });
 
     const detail = event.data?.bounce?.message || event.data?.bounce?.subType;
     const matched = await updateDeliveryStatus(resendId, status, detail);
