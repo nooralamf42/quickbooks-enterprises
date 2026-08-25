@@ -192,6 +192,7 @@ export async function ensureEmailLogIndexes(): Promise<void> {
       col.createIndex({ providerMessageId: 1 }, { sparse: true }),
       col.createIndex({ provider: 1, deliveryStatus: 1 }, { sparse: true }),
       col.createIndex({ trigger: 1, sentAt: -1 }),
+      col.createIndex({ type: 1, toEmail: 1, sentAt: -1 }),
     ]);
   } catch (err) {
     console.error('[EmailLog] Failed to ensure indexes:', err);

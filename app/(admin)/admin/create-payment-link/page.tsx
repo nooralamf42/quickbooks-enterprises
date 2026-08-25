@@ -101,17 +101,25 @@ export default function QuickBooksPaymentLinkCreator() {
   const [isReconciling, setIsReconciling] = useState(false)
   const [isReconcilingSmtp2go, setIsReconcilingSmtp2go] = useState(false)
   const [bulkConfirming, setBulkConfirming] = useState(false)
+  /** Most recent prior send per recipient, for the current bulkType — keyed by lowercased
+   *  email. Lets the preview flag "this person was already sent a reminder 2 days ago"
+   *  before the send happens, instead of an admin only finding out from a customer reply. */
+  const [bulkSendHistory, setBulkSendHistory] = useState<Record<string, string>>({})
+  const [isCheckingBulkHistory, setIsCheckingBulkHistory] = useState(false)
+  const BULK_HISTORY_DANGER_MS = 7 * 24 * 60 * 60 * 1000
+  /** On by default — the whole point of the Prior Send check is to stop accidental
+   *  duplicates, so an admin has to actively opt out rather than opt in. */
+  const [skipRecentDuplicates, setSkipRecentDuplicates] = useState(true)
 
-  /** Rows the API will actually send. Mirrors validate() in app/api/admin/bulk-email/route.ts
-   *  so the button never promises more sends than the server will make. */
-  const bulkValidCount = useMemo(() => bulkRows.filter((r) => {
-    if (!r.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(r.email).trim())) return false
-    const amt = Number(r.amountDueUSD)
-    if (r.amountDueUSD === undefined || r.amountDueUSD === '' || isNaN(amt) || amt < 0) return false
-    if (!r.dueDate || isNaN(new Date(r.dueDate).getTime())) return false
-    if (!r.cancellationDate || isNaN(new Date(r.cancellationDate).getTime())) return false
-    return Boolean(r.product && String(r.product).trim())
-  }).length, [bulkRows])
+  const isRecentDuplicate = (email: string): boolean => {
+    const key = String(email || '').trim().toLowerCase()
+    const sentAt = bulkSendHistory[key]
+    if (!sentAt) return false
+    const sentDate = new Date(sentAt)
+    if (isNaN(sentDate.getTime())) return false
+    return Date.now() - sentDate.getTime() < BULK_HISTORY_DANGER_MS
+  }
+
 
   // Consent Logs state
   const [logs, setLogs] = useState<any[]>([])
@@ -154,6 +162,12 @@ export default function QuickBooksPaymentLinkCreator() {
   const [emailSubscriptionTier, setEmailSubscriptionTier] = useState('49.87')
   const EMAIL_SUBSCRIPTION_TIERS = ['49.87', '98.78', '149.10', '198.70', '298.00', '349.89']
   const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
+  /** Same prior-send check as the bulk tab, but for one recipient — caught before the send,
+   *  not just visible after in Sent Emails. Keyed off toEmail + emailType so it re-checks
+   *  when either changes. */
+  const [singleSendPrior, setSingleSendPrior] = useState<{ label: string; isRecent: boolean } | null>(null)
+  const [isCheckingSingleHistory, setIsCheckingSingleHistory] = useState(false)
+  const [singleDuplicateConfirming, setSingleDuplicateConfirming] = useState(false)
 
   // Sent Emails history (emailLogs collection). Paginated server-side — at a few hundred
   // sends a day the table would otherwise only ever show the newest fraction of one day.
@@ -254,18 +268,29 @@ export default function QuickBooksPaymentLinkCreator() {
     return `${base}/invoice/${paymentString}`
   }
 
+  const PRODUCT_MATCH_STOPWORDS = new Set(['and', 'the', 'for', 'with', 'app', 'apps'])
+
   /** Bulk rows carry their product as free text from the spreadsheet rather than a picked
    *  code, so the edition/service has to be recovered from that text before the link can be
-   *  encoded. Longest match wins so "Silver Edition" isn't shadowed by a shorter service name. */
+   *  encoded. Custom products are matched by their significant keywords ("Intuit Payroll"
+   *  must resolve to "QuickBooks Payroll (Monthly Subscription)"), not by requiring the
+   *  full catalog name to appear verbatim in a short spreadsheet cell — real-world product
+   *  text is almost never that literal. Most matched keywords wins; ties go to the longer
+   *  (more specific) catalog name. */
   const productCodeFromText = (text: string): string | null => {
     const t = (text || '').toLowerCase()
     if (!t.trim()) return null
     const edition = editions.find(e => t.includes(e.value))
     if (edition) return edition.value
     const matches = customProducts
-      .filter(p => t.includes(p.name.toLowerCase()))
-      .sort((a, b) => b.name.length - a.name.length)
-    return matches[0]?.value ?? null
+      .map((p) => {
+        const words = p.name.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !PRODUCT_MATCH_STOPWORDS.has(w))
+        const hits = words.filter((w) => t.includes(w)).length
+        return { p, hits }
+      })
+      .filter((m) => m.hits > 0)
+      .sort((a, b) => b.hits - a.hits || b.p.name.length - a.p.name.length)
+    return matches[0]?.p.value ?? null
   }
 
   /** The Send Email tab's buildUpdateLink, but driven by one spreadsheet row instead of the
@@ -293,8 +318,70 @@ export default function QuickBooksPaymentLinkCreator() {
     return `${base}/invoice/${paymentString}`
   }
 
+  /** Rows the API will actually send. Mirrors validate() in app/api/admin/bulk-email/route.ts
+   *  so the button never promises more sends than the server will make. For reminder ("failed")
+   *  sends, a row whose product text doesn't resolve to a checkout gateway is also excluded —
+   *  without a real updateUrl, emailTemplates.ts falls back to a bare mailto: CTA and the
+   *  "Update now" button just opens a reply instead of a real checkout. Rows with a same-type
+   *  send inside the last 7 days are excluded too, when skipRecentDuplicates is on. */
+  const bulkValidCount = useMemo(() => bulkRows.filter((r) => {
+    if (!r.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(r.email).trim())) return false
+    const amt = Number(r.amountDueUSD)
+    if (r.amountDueUSD === undefined || r.amountDueUSD === '' || isNaN(amt) || amt < 0) return false
+    if (!r.dueDate || isNaN(new Date(r.dueDate).getTime())) return false
+    if (!r.cancellationDate || isNaN(new Date(r.cancellationDate).getTime())) return false
+    if (!r.product || !String(r.product).trim()) return false
+    if (bulkType === 'failed' && !buildBulkUpdateLink(amt, r.product)) return false
+    if (skipRecentDuplicates && isRecentDuplicate(r.email)) return false
+    return true
+  }).length, [bulkRows, bulkType, skipRecentDuplicates, bulkSendHistory])
+
+  /** Debounced prior-send check for the single-recipient form — re-runs whenever the
+   *  recipient or email type changes, same 7-day danger window as the bulk tab. */
+  useEffect(() => {
+    setSingleDuplicateConfirming(false)
+    const email = emailForm.toEmail.trim()
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setSingleSendPrior(null)
+      return
+    }
+
+    const handle = setTimeout(async () => {
+      setIsCheckingSingleHistory(true)
+      try {
+        const stored = localStorage.getItem('adminAuth')
+        const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+        const res = await fetch('/api/admin/bulk-email-history', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emails: [email], type: emailType === 'success' ? 'receipt' : 'reminder' }),
+        })
+        const data = await res.json()
+        const sentAt = res.ok ? data.history?.[email.toLowerCase()] : undefined
+        if (!sentAt) { setSingleSendPrior(null); return }
+        const sentDate = new Date(sentAt)
+        if (isNaN(sentDate.getTime())) { setSingleSendPrior(null); return }
+        const isRecent = Date.now() - sentDate.getTime() < BULK_HISTORY_DANGER_MS
+        const label = sentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + sentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        setSingleSendPrior({ label, isRecent })
+      } catch {
+        setSingleSendPrior(null)
+      } finally {
+        setIsCheckingSingleHistory(false)
+      }
+    }, 500)
+
+    return () => clearTimeout(handle)
+  }, [emailForm.toEmail, emailType])
+
   const sendCustomEmail = async (e: React.FormEvent) => {
     e.preventDefault()
+    // A recent duplicate needs an explicit second click — the submit button is swapped
+    // for a "send it again anyway?" confirmation instead of sending straight through.
+    if (singleSendPrior?.isRecent && !singleDuplicateConfirming) {
+      setSingleDuplicateConfirming(true)
+      return
+    }
     setIsSendingCustomEmail(true)
     try {
       const stored = localStorage.getItem('adminAuth')
@@ -348,6 +435,7 @@ export default function QuickBooksPaymentLinkCreator() {
       }
 
       toast.success(emailType === 'success' ? 'Receipt email sent!' : 'Payment reminder sent!')
+      setSingleDuplicateConfirming(false)
       fetchEmailLogs()
     } catch (error: any) {
       console.error(error)
@@ -758,6 +846,59 @@ export default function QuickBooksPaymentLinkCreator() {
     }
   }
 
+  /** Checks which of the loaded rows already got this same type of email before, so the
+   *  preview can flag a likely duplicate before the send happens rather than after. */
+  const checkBulkSendHistory = async (rows: any[], type: 'failed' | 'success') => {
+    const emails = [...new Set(rows.map(r => String(r.email || '').trim()).filter(Boolean))]
+    if (!emails.length) { setBulkSendHistory({}); return }
+
+    setIsCheckingBulkHistory(true)
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+      const res = await fetch('/api/admin/bulk-email-history', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails, type: type === 'success' ? 'receipt' : 'reminder' }),
+      })
+      const data = await res.json()
+      if (res.ok) setBulkSendHistory(data.history || {})
+      // A failed lookup just means the warnings don't show this pass — not worth
+      // blocking the whole preview over, so it fails silently.
+    } catch {
+      // ignore — see comment above
+    } finally {
+      setIsCheckingBulkHistory(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!bulkRows.length) { setBulkSendHistory({}); return }
+    checkBulkSendHistory(bulkRows, bulkType)
+  }, [bulkRows, bulkType])
+
+  /** null when this recipient has no prior send of the current type on record. Otherwise
+   *  a formatted date plus whether it falls inside the "too soon" window, which the
+   *  preview renders as a danger badge instead of a plain date. */
+  const priorSendFor = (email: string): { label: string; isRecent: boolean } | null => {
+    const key = String(email || '').trim().toLowerCase()
+    const sentAt = bulkSendHistory[key]
+    if (!sentAt) return null
+    const sentDate = new Date(sentAt)
+    if (isNaN(sentDate.getTime())) return null
+    const isRecent = Date.now() - sentDate.getTime() < BULK_HISTORY_DANGER_MS
+    const label = sentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + sentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    return { label, isRecent }
+  }
+
+  /** How many rows about to be sent already got this same type of email within the last
+   *  week — surfaced in the confirmation step so a likely duplicate is caught right before
+   *  the send, not just visible if the admin happens to scroll the preview table. */
+  const bulkRecentDuplicateCount = useMemo(
+    () => bulkRows.filter(r => priorSendFor(r.email)?.isRecent).length,
+    [bulkRows, bulkSendHistory]
+  )
+
   /** Asks Resend for the real outcome of anything still sitting on an interim status.
    *  Covers what the webhook cannot: local development, and suppressed addresses, which
    *  emit no events at all and would otherwise stay "accepted" indefinitely. */
@@ -825,13 +966,46 @@ export default function QuickBooksPaymentLinkCreator() {
       const stored = localStorage.getItem('adminAuth')
       const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
 
+      // A reminder email's only CTA is "Update now" — if a row's product text can't be
+      // matched to a checkout gateway, emailTemplates.ts silently falls back to a mailto:
+      // link, so the button just opens a reply instead of a real checkout. Withhold those
+      // rows here rather than ever sending one, and report them as skipped like any other
+      // invalid row.
+      const linkless = bulkType === 'failed'
+        ? bulkRows.filter(r => r.product && String(r.product).trim() && !buildBulkUpdateLink(Number(r.amountDueUSD) || 0, r.product))
+        : []
+      const linklessIds = new Set(linkless.map(r => r.rowNumber))
+      const linklessResults = linkless.map(r => ({
+        rowNumber: r.rowNumber,
+        email: String(r.email ?? ''),
+        status: 'skipped' as const,
+        reason: `Product "${r.product}" doesn't match a known plan — no checkout link could be built`,
+      }))
+
+      // Recipients who already got this same email type within the danger window —
+      // withheld the same way when the toggle is on, so a spreadsheet re-run doesn't
+      // double-email anyone by accident.
+      const duplicates = skipRecentDuplicates
+        ? bulkRows.filter(r => !linklessIds.has(r.rowNumber) && isRecentDuplicate(r.email))
+        : []
+      const duplicateIds = new Set(duplicates.map(r => r.rowNumber))
+      const duplicateResults = duplicates.map(r => ({
+        rowNumber: r.rowNumber,
+        email: String(r.email ?? ''),
+        status: 'skipped' as const,
+        reason: `Already sent a ${bulkType === 'failed' ? 'reminder' : 'receipt'} within the last 7 days`,
+      }))
+
+      const withheldResults = [...linklessResults, ...duplicateResults]
+      const sendRows = bulkRows.filter(r => !linklessIds.has(r.rowNumber) && !duplicateIds.has(r.rowNumber))
+
       const res = await fetch('/api/admin/bulk-email', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
         // The link has to be built here, not server-side: it needs the browser's origin,
         // matching how the Payment Links and Send Email tabs already generate theirs.
         body: JSON.stringify({
-          rows: bulkRows.map(r => ({
+          rows: sendRows.map(r => ({
             ...r,
             updateUrl: buildBulkUpdateLink(Number(r.amountDueUSD), r.product) || undefined,
           })),
@@ -842,11 +1016,17 @@ export default function QuickBooksPaymentLinkCreator() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Bulk send failed')
 
-      setBulkResult(data)
+      const merged = {
+        ...data,
+        total: data.total + withheldResults.length,
+        skipped: data.skipped + withheldResults.length,
+        results: [...data.results, ...withheldResults].sort((a: any, b: any) => a.rowNumber - b.rowNumber),
+      }
+      setBulkResult(merged)
       if (dryRun) {
-        toast.success(`Dry run: ${data.wouldSend} would send, ${data.skipped} skipped`)
+        toast.success(`Dry run: ${data.wouldSend} would send, ${merged.skipped} skipped`)
       } else {
-        toast.success(`${data.sent} of ${data.total} accepted — check Sent Emails for delivery`)
+        toast.success(`Sent ${data.sent}, skipped ${merged.skipped}`)
         fetchEmailLogs()
       }
     } catch (err: any) {
@@ -2563,7 +2743,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               {/* Common fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t pt-5 border-zinc-100">
                 <div>
-                  <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Recipient Email *</label>
+                  <label className="block mb-1.5 font-semibold text-xs text-zinc-900">
+                    Recipient Email *
+                    {isCheckingSingleHistory && <span className="ml-2 text-[10px] font-normal text-zinc-400">checking prior sends…</span>}
+                  </label>
                   <input
                     type="email"
                     required
@@ -2860,13 +3043,50 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </div>
               )}
 
-              <button
-                type="submit"
-                disabled={isSendingCustomEmail}
-                className={`w-full py-2.5 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-semibold rounded-lg text-xs transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed border border-zinc-950/10 ${emailType === 'success' ? 'bg-[#2ca01c] hover:bg-[#248a18]' : 'bg-amber-500 hover:bg-amber-600'}`}
-              >
-                {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : 'Send Payment Reminder'}
-              </button>
+              {singleSendPrior && (
+                <div className={`rounded-lg p-3 border ${singleSendPrior.isRecent ? 'bg-red-50 border-red-200' : 'bg-zinc-50 border-zinc-200'}`}>
+                  <p className={`text-[11px] font-semibold flex items-center gap-1.5 ${singleSendPrior.isRecent ? 'text-red-700' : 'text-zinc-600'}`}>
+                    {singleSendPrior.isRecent && <AlertCircle size={13} className="shrink-0" />}
+                    {emailType === 'success' ? 'A receipt' : 'A reminder'} was already sent to this address on {singleSendPrior.label}
+                    {singleSendPrior.isRecent ? ' — less than a week ago.' : '.'}
+                  </p>
+                </div>
+              )}
+
+              {singleDuplicateConfirming && (
+                <div className="border border-red-300 bg-red-50 rounded-lg p-4">
+                  <p className="text-xs font-bold text-red-900">Send it again anyway?</p>
+                  <p className="text-[11px] text-red-800 mt-1">
+                    This recipient already got {emailType === 'success' ? 'a receipt' : 'a reminder'} on {singleSendPrior?.label}. This cannot be undone.
+                  </p>
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      type="submit"
+                      disabled={isSendingCustomEmail}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {isSendingCustomEmail ? 'Sending…' : 'Yes, send it again'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSingleDuplicateConfirming(false)}
+                      className="inline-flex items-center gap-2 px-4 py-2 border border-zinc-200 text-zinc-700 font-bold rounded-lg text-xs cursor-pointer hover:bg-zinc-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {!singleDuplicateConfirming && (
+                <button
+                  type="submit"
+                  disabled={isSendingCustomEmail}
+                  className={`w-full py-2.5 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-semibold rounded-lg text-xs transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed border border-zinc-950/10 ${emailType === 'success' ? 'bg-[#2ca01c] hover:bg-[#248a18]' : 'bg-amber-500 hover:bg-amber-600'}`}
+                >
+                  {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : 'Send Payment Reminder'}
+                </button>
+              )}
             </form>
           </div>
           </div>
@@ -3155,6 +3375,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     ? 'Reminders show Plan: Monthly, the product under "Affected subscriptions", and a cancellation date one day after the billing date.'
                     : 'Receipts use the billing date as the payment date and include the license number if present.'}
                 </p>
+                <label className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-200 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={skipRecentDuplicates}
+                    onChange={(e) => setSkipRecentDuplicates(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-zinc-300 text-amber-500 focus:ring-amber-400 cursor-pointer"
+                  />
+                  <span className="text-[11px] font-medium text-zinc-700">
+                    Skip recipients already sent this same email within the last 7 days
+                  </span>
+                </label>
               </div>
 
               {/* File input */}
@@ -3183,7 +3414,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <div className="border border-zinc-200 rounded-lg overflow-hidden">
                   <div className="bg-zinc-50 px-3 py-2 border-b border-zinc-200 flex items-center justify-between">
                     <span className="text-[11px] font-bold text-zinc-700 uppercase tracking-wider">Preview</span>
-                    <span className="text-[10px] text-zinc-500">showing {Math.min(bulkRows.length, 10)} of {bulkRows.length}</span>
+                    <span className="text-[10px] text-zinc-500">
+                      {isCheckingBulkHistory ? 'checking prior sends…' : `showing ${Math.min(bulkRows.length, 10)} of ${bulkRows.length}`}
+                    </span>
                   </div>
                   <div className="overflow-x-auto max-h-72 overflow-y-auto">
                     <table className="w-full text-[11px] whitespace-nowrap">
@@ -3197,10 +3430,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <th className="py-2 px-3 font-semibold">Due Date</th>
                           <th className="py-2 px-3 font-semibold">Cancellation</th>
                           <th className="py-2 px-3 font-semibold">Product</th>
+                          <th className="py-2 px-3 font-semibold">Prior Send</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {bulkRows.slice(0, 10).map((r) => (
+                        {bulkRows.slice(0, 10).map((r) => {
+                          const prior = priorSendFor(r.email)
+                          return (
                           <tr key={r.rowNumber} className="border-b border-zinc-50 last:border-0">
                             <td className="py-2 px-3 text-zinc-400">{r.rowNumber}</td>
                             <td className="py-2 px-3 font-medium text-zinc-900">{r.email || <span className="text-red-500">missing</span>}</td>
@@ -3209,9 +3445,32 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <td className="py-2 px-3 font-semibold text-[#2ca01c]">{r.amountDueUSD ? `$${r.amountDueUSD}` : <span className="text-red-500">missing</span>}</td>
                             <td className="py-2 px-3 text-zinc-600">{r.dueDate || <span className="text-red-500">missing</span>}</td>
                             <td className="py-2 px-3 text-zinc-600">{r.cancellationDate || <span className="text-red-500">missing</span>}</td>
-                            <td className="py-2 px-3 text-zinc-600">{r.product || <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">
+                              {r.product ? (
+                                <>
+                                  {r.product}
+                                  {bulkType === 'failed' && !buildBulkUpdateLink(Number(r.amountDueUSD) || 0, r.product) && (
+                                    <span className="block text-red-500 text-[10px] mt-0.5">no checkout link match — will be skipped</span>
+                                  )}
+                                </>
+                              ) : <span className="text-red-500">missing</span>}
+                            </td>
+                            <td className="py-2 px-3">
+                              {prior ? (
+                                <>
+                                  <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold ${prior.isRecent ? 'bg-red-100 text-red-700' : 'bg-zinc-100 text-zinc-600'}`}>
+                                    {prior.isRecent && <AlertCircle size={11} />}
+                                    {bulkType === 'failed' ? 'Reminder' : 'Receipt'} sent {prior.label}
+                                  </span>
+                                  {prior.isRecent && skipRecentDuplicates && (
+                                    <span className="block text-red-500 text-[10px] mt-0.5">will be skipped</span>
+                                  )}
+                                </>
+                              ) : <span className="text-zinc-300">—</span>}
+                            </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -3253,6 +3512,14 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       : ''}
                     This cannot be undone.
                   </p>
+                  {bulkRecentDuplicateCount > 0 && (
+                    <p className="text-[11px] text-red-700 font-semibold mt-1.5 flex items-start gap-1.5">
+                      <AlertCircle size={13} className="shrink-0 mt-px" />
+                      {skipRecentDuplicates
+                        ? `${bulkRecentDuplicateCount} recipient${bulkRecentDuplicateCount === 1 ? '' : 's'} already got this same email within the last 7 days — being skipped automatically.`
+                        : `${bulkRecentDuplicateCount} recipient${bulkRecentDuplicateCount === 1 ? '' : 's'} already got this same email within the last 7 days — the "skip" checkbox is off, so they'll be emailed again.`}
+                    </p>
+                  )}
                   <div className="flex gap-2 mt-3">
                     <button
                       type="button"
