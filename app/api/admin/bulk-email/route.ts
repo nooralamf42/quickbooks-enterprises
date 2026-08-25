@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Resend } from 'resend';
+// import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
+// under review (suspended 2026-08-25). Restore this import when reactivated.
+import { sendEmail } from '@/app/lib/emailSender';
 import { renderPaymentFailedEmailHtml, renderPaymentReceiptEmailHtml } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
@@ -80,9 +82,9 @@ export async function POST(req: NextRequest) {
     if (!authHeader || authHeader !== `Bearer ${expectedPass}`) {
       return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
     }
-    if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 });
-    }
+    // if (!process.env.RESEND_API_KEY) { // STOPGAP: no upfront token guard any more — with
+    //   return NextResponse.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 }); // two providers to switch between, a missing-token error now surfaces per-send from
+    // }                                                                                         // sendEmail() itself instead of a single hardcoded check here.
 
     const { rows, type = 'failed', dryRun = false } = (await req.json()) as {
       rows: BulkRow[]; type?: 'failed' | 'success'; dryRun?: boolean;
@@ -125,7 +127,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or SMTP2GO, switchable from the admin panel.
     const subject = type === 'success'
       ? 'We received your QuickBooks Enterprise payment!'
       : 'Action needed: update your QuickBooks Enterprise payment method';
@@ -161,13 +163,21 @@ export async function POST(req: NextRequest) {
               // numUsers / contractYears deliberately omitted so those rows stay hidden.
             });
 
-        const { data, error } = await resend.emails.send({
+        // STOPGAP: original Resend call, restore when the account is reactivated —
+        // const { data, error } = await resend.emails.send({
+        //   from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+        //   to: toEmail,
+        //   subject,
+        //   html,
+        //   // notifications@ has no mailbox and no receiving MX — without this, a customer
+        //   // reply either bounces or silently vanishes. billing@ is the one that's monitored.
+        //   replyTo: 'billing@quickbooks-enterprises.com',
+        // });
+        const { data, error, provider } = await sendEmail({
           from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
           to: toEmail,
           subject,
           html,
-          // notifications@ has no mailbox and no receiving MX — without this, a customer
-          // reply either bounces or silently vanishes. billing@ is the one that's monitored.
           replyTo: 'billing@quickbooks-enterprises.com',
         });
 
@@ -181,15 +191,15 @@ export async function POST(req: NextRequest) {
         };
 
         if (error) {
-          const reason = error.message || 'Resend rejected the send';
+          const reason = error.message || `${provider} rejected the send`;
           results.push({ rowNumber: row.rowNumber, email: toEmail, status: 'failed', reason });
           // Log rejections too — an email that never left is exactly what an admin needs to see.
-          await logEmailSent({ ...logBase, deliveryStatus: 'rejected', deliveryDetail: reason });
+          await logEmailSent({ ...logBase, provider, deliveryStatus: 'rejected', deliveryDetail: reason });
         } else {
-          // "accepted", not "sent": Resend has taken the message but bounces arrive later,
-          // via the webhook at /api/resend/webhook.
+          // "accepted", not "sent" — SMTP2GO rows get real status via the /reconcile-delivery-smtp2go
+          // poll (see emailLog.ts); Postmark rows have no reconcile path wired up yet.
           results.push({ rowNumber: row.rowNumber, email: toEmail, status: 'accepted', resendId: data?.id });
-          await logEmailSent({ ...logBase, resendId: data?.id, deliveryStatus: 'accepted' });
+          await logEmailSent({ ...logBase, providerMessageId: data?.id, provider, deliveryStatus: 'accepted' });
         }
       } catch (err: any) {
         results.push({ rowNumber: row.rowNumber, email: toEmail, status: 'failed', reason: err?.message || 'Unknown error' });

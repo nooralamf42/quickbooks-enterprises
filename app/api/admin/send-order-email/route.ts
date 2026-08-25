@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { Resend } from 'resend';
+// import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
+// under review (suspended 2026-08-25). Restore this import when reactivated.
+import { sendEmail } from '@/app/lib/emailSender';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
@@ -14,9 +16,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
     }
 
-    if (!process.env.RESEND_API_KEY) {
-      return NextResponse.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 });
-    }
+    // if (!process.env.RESEND_API_KEY) { // STOPGAP: no upfront token guard — a missing
+    //   return NextResponse.json({ error: 'RESEND_API_KEY not configured' }, { status: 500 }); // token now surfaces per-send from sendEmail() itself, whichever provider is active.
+    // }
 
     const { id, type } = await req.json();
 
@@ -37,14 +39,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Order has no email on file' }, { status: 400 });
     }
 
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or SMTP2GO, switchable from the admin panel.
     const customerName = `${record.firstName || ''} ${record.lastName || ''}`.trim() || 'there';
 
     if (type === 'success') {
-      const { data } = await resend.emails.send({
+      // STOPGAP: original Resend call, restore when the account is reactivated —
+      // const { data } = await resend.emails.send({
+      //   from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+      //   // notifications@ has no mailbox and no receiving MX — without this, a customer
+      //   // reply either bounces or silently vanishes. billing@ is the one that's monitored.
+      //   replyTo: 'billing@quickbooks-enterprises.com',
+      //   to: record.email,
+      //   subject: 'We received your QuickBooks Enterprise payment!',
+      //   html: renderPaymentReceiptEmailHtml({ ... }),
+      // });
+      const { data, error, provider } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
-        // notifications@ has no mailbox and no receiving MX — without this, a customer
-        // reply either bounces or silently vanishes. billing@ is the one that's monitored.
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
         subject: 'We received your QuickBooks Enterprise payment!',
@@ -62,6 +72,12 @@ export async function POST(req: NextRequest) {
         }),
       });
 
+      // Pre-existing gap, not new to this Postmark swap: this route never checked the
+      // provider's error before, so a rejected send still returned { success: true }.
+      if (error) {
+        return NextResponse.json({ error: error.message || 'Email provider rejected the send' }, { status: 502 });
+      }
+
       await logEmailSent({
         type: 'receipt',
         toEmail: record.email,
@@ -71,17 +87,26 @@ export async function POST(req: NextRequest) {
         amountUSD: record.amountUSD || 0,
         subject: 'We received your QuickBooks Enterprise payment!',
         trigger: 'admin-order',
-        resendId: data?.id,
+        providerMessageId: data?.id,
+        provider,
       });
     } else {
       const dueDate = record.paidAt ? new Date(record.paidAt) : new Date();
       const cancellationDate = new Date(dueDate);
       cancellationDate.setDate(cancellationDate.getDate() + 7);
 
-      const { data } = await resend.emails.send({
+      // STOPGAP: original Resend call, restore when the account is reactivated —
+      // const { data } = await resend.emails.send({
+      //   from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+      //   // notifications@ has no mailbox and no receiving MX — without this, a customer
+      //   // reply either bounces or silently vanishes. billing@ is the one that's monitored.
+      //   replyTo: 'billing@quickbooks-enterprises.com',
+      //   to: record.email,
+      //   subject: 'Action needed: update your QuickBooks Enterprise payment method',
+      //   html: renderPaymentFailedEmailHtml({ ... }),
+      // });
+      const { data, error, provider } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
-        // notifications@ has no mailbox and no receiving MX — without this, a customer
-        // reply either bounces or silently vanishes. billing@ is the one that's monitored.
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
@@ -98,6 +123,10 @@ export async function POST(req: NextRequest) {
         }),
       });
 
+      if (error) {
+        return NextResponse.json({ error: error.message || 'Email provider rejected the send' }, { status: 502 });
+      }
+
       await logEmailSent({
         type: 'reminder',
         toEmail: record.email,
@@ -107,7 +136,8 @@ export async function POST(req: NextRequest) {
         amountUSD: record.amountUSD || 0,
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
         trigger: 'admin-order',
-        resendId: data?.id,
+        providerMessageId: data?.id,
+        provider,
       });
     }
 
