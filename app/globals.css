@@ -5,6 +5,17 @@
     background-color: #F4F5F8;
 }
 
+/* Hides the scrollbar on an overflow-x-auto container while keeping it scrollable —
+   used for the admin dashboard's tab bar so it scrolls horizontally instead of
+   wrapping tab labels mid-word at in-between viewport widths. */
+.no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
 
 @keyframes loader_5191 {
     from {

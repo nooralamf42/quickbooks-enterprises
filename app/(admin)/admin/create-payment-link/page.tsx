@@ -1665,25 +1665,18 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               Admin Dashboard
             </h1>
             <p className="text-sm text-zinc-500 mt-1 font-normal">Generate invoice payment links and view electronic signature audits.</p>
-            <div className="mt-3 inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-              <MailWarning size={13} className="text-amber-600 shrink-0" />
-              <span className="text-[11px] font-semibold text-amber-800">Manual send (Send Email tab) via:</span>
+            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 whitespace-nowrap">
+                <MailWarning size={13} className="text-amber-600 shrink-0" />
+                Manual send (Send Email tab) via:
+              </span>
               <div className="inline-flex rounded-md border border-amber-300 bg-white p-0.5">
-                <button
-                  type="button"
-                  onClick={() => switchEmailProvider('postmark')}
-                  disabled={isSwitchingProvider || emailProvider === null}
-                  title="Requires manual approval for cross-domain sends; verified for quickbooks-enterprises.com"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'postmark' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
-                >
-                  Postmark
-                </button>
                 <button
                   type="button"
                   onClick={() => switchEmailProvider('mailersend')}
                   disabled={isSwitchingProvider || emailProvider === null}
                   title="14-day Professional trial — account approval declined 2026-08-26, may still be blocked"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailersend' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailersend' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
                 >
                   MailerSend
                 </button>
@@ -1692,53 +1685,57 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   onClick={() => switchEmailProvider('mailpace')}
                   disabled={isSwitchingProvider || emailProvider === null}
                   title="Confirmed working 2026-08-26 — no pre-send approval gate"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailpace' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailpace' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
                 >
                   MailPace
                 </button>
               </div>
-              {emailProvider === null && <span className="text-[10px] text-amber-600">Loading…</span>}
+              {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}
               <span className="text-[10px] text-amber-600">— Bulk and order emails always use Postmark</span>
             </div>
           </div>
           
-          {/* Shadcn Segmented Tab Controller */}
-          <div className="inline-flex h-10 items-center justify-center rounded-lg bg-zinc-100 p-1 text-zinc-500 border border-zinc-200/50 w-full md:w-auto self-start md:self-auto font-medium">
-            <button
-              onClick={() => setActiveTab('create')}
-              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'create' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-            >
-              <LinkIcon size={14} />
-              Payment Links
-            </button>
-            <button
-              onClick={() => setActiveTab('logs')}
-              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'logs' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-            >
-              <ShieldCheck size={14} className="text-[#2ca01c]" />
-              Consent Logs
-            </button>
-            <button
-              onClick={() => setActiveTab('email')}
-              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'email' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-            >
-              <Mail size={14} className="text-[#2ca01c]" />
-              Send Email
-            </button>
-            <button
-              onClick={() => setActiveTab('sentEmails')}
-              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'sentEmails' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-            >
-              <MailWarning size={14} className="text-[#2ca01c]" />
-              Email Logs
-            </button>
-            <button
-              onClick={() => setActiveTab('bulk')}
-              className={`inline-flex items-center justify-center gap-2 rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'bulk' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-            >
-              <Users size={14} className="text-[#2ca01c]" />
-              Bulk Email
-            </button>
+          {/* Shadcn Segmented Tab Controller — horizontally scrollable so 6 tabs never
+              wrap mid-label at in-between viewport widths; each button is flex-shrink-0
+              with whitespace-nowrap so a label can never break onto two lines. */}
+          <div className="w-full md:w-auto self-start md:self-auto overflow-x-auto no-scrollbar">
+            <div className="inline-flex h-10 items-center justify-center rounded-lg bg-zinc-100 p-1 text-zinc-500 border border-zinc-200/50 font-medium">
+              <button
+                onClick={() => setActiveTab('create')}
+                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'create' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+              >
+                <LinkIcon size={14} />
+                Payment Links
+              </button>
+              <button
+                onClick={() => setActiveTab('logs')}
+                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'logs' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+              >
+                <ShieldCheck size={14} className="text-[#2ca01c]" />
+                Consent Logs
+              </button>
+              <button
+                onClick={() => setActiveTab('email')}
+                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'email' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+              >
+                <Mail size={14} className="text-[#2ca01c]" />
+                Send Email
+              </button>
+              <button
+                onClick={() => setActiveTab('sentEmails')}
+                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'sentEmails' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+              >
+                <MailWarning size={14} className="text-[#2ca01c]" />
+                Email Logs
+              </button>
+              <button
+                onClick={() => setActiveTab('bulk')}
+                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'bulk' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+              >
+                <Users size={14} className="text-[#2ca01c]" />
+                Bulk Email
+              </button>
+            </div>
           </div>
         </div>
 
@@ -3122,15 +3119,15 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </h2>
                 <p className="text-xs text-zinc-500 mt-0.5">Every receipt and reminder ever sent, automatic or manual, with the data used to build it.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="relative">
+              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                <div className="relative flex-1 min-w-[160px] md:flex-none">
                   <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400" />
                   <input
                     type="text"
                     value={emailLogsSearch}
                     onChange={(e) => setEmailLogsSearch(e.target.value)}
                     placeholder="Search by email…"
-                    className="pl-7 pr-3 py-1.5 border border-zinc-200 rounded-lg text-[11px] w-48 focus:outline-none focus:ring-1 focus:ring-blue-300"
+                    className="pl-7 pr-3 py-1.5 border border-zinc-200 rounded-lg text-[11px] w-full md:w-48 focus:outline-none focus:ring-1 focus:ring-blue-300"
                   />
                 </div>
                 <select
@@ -3150,8 +3147,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   type="button"
                   onClick={reconcileDelivery}
                   disabled={isReconciling}
-                  title="Ask Resend for the current status of every message still awaiting a verdict."
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-blue-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-blue-50 text-blue-700 cursor-pointer disabled:opacity-50"
+                  title="Resend only — MailPace and MailerSend rows update automatically via webhook once one is configured, not through this button."
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-blue-200 font-semibold rounded-lg text-[11px] whitespace-nowrap transition-colors shadow-xs bg-white hover:bg-blue-50 text-blue-700 cursor-pointer disabled:opacity-50"
                 >
                   <MailWarning size={12} className={isReconciling ? 'animate-pulse' : ''} />
                   {isReconciling ? 'Checking…' : 'Check delivery (Resend)'}
@@ -3160,13 +3157,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   type="button"
                   onClick={() => fetchEmailLogs(emailLogsPage)}
                   disabled={isLoadingEmailLogs}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-zinc-200 font-semibold rounded-lg text-[11px] whitespace-nowrap transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer disabled:opacity-50"
                 >
                   <RefreshCw size={12} className={isLoadingEmailLogs ? 'animate-spin' : ''} />
                   Refresh
                 </button>
               </div>
             </div>
+            <p className="px-6 md:px-8 -mt-2 pb-2 text-[10px] text-zinc-400">
+              MailPace and MailerSend rows update automatically once their webhook is configured — "Check delivery" only re-checks Resend-tracked rows.
+            </p>
 
             {isLoadingEmailLogs ? (
               <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">Loading sent emails...</p>
