@@ -21,6 +21,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "QuickBooks Enterprise",
   description: "Accounting Software for small businesses",
+  icons: {
+    apple: "/apple-touch-icon.png",
+  },
   openGraph: {
     images: [
       {
