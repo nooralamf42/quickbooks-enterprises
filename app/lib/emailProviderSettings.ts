@@ -1,18 +1,22 @@
 import { connectToDatabase } from '@/app/lib/mongodb';
 
-export type EmailProvider = 'postmark' | 'smtp2go';
+export type EmailProvider = 'postmark' | 'mailersend' | 'mailpace';
 
+const VALID_PROVIDERS: EmailProvider[] = ['postmark', 'mailersend', 'mailpace'];
 const SETTINGS_ID = 'emailProvider';
 const DEFAULT_PROVIDER: EmailProvider = 'postmark';
 
-/** Which stopgap provider (Postmark or SMTP2GO) is actually used for sending right now.
- *  Stored in Mongo rather than an env var so it can be switched live from the admin panel
- *  without a redeploy — both routes and the UI read the same value. */
+/** Which provider handles the single/manual "Send Email" tab right now. Bulk and
+ *  order-triggered sends are Postmark-only and don't read this at all. Stored in Mongo
+ *  rather than an env var so it can be switched live from the admin panel without a
+ *  redeploy. Any stored value outside VALID_PROVIDERS (e.g. a leftover 'smtp2go' from
+ *  before that provider was removed) falls back to the Postmark default, rather than
+ *  needing a DB migration. */
 export async function getActiveEmailProvider(): Promise<EmailProvider> {
   try {
     const { db } = await connectToDatabase();
     const doc = await db.collection('appSettings').findOne({ _id: SETTINGS_ID as any });
-    return (doc?.value as EmailProvider) || DEFAULT_PROVIDER;
+    return VALID_PROVIDERS.includes(doc?.value) ? (doc!.value as EmailProvider) : DEFAULT_PROVIDER;
   } catch (err) {
     console.error('[EmailProviderSettings] Failed to read, defaulting to', DEFAULT_PROVIDER, err);
     return DEFAULT_PROVIDER;

@@ -3,7 +3,7 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 // import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
 // under review (suspended 2026-08-25). Restore this import when reactivated.
-import { sendEmail } from '@/app/lib/emailSender';
+import { sendViaPostmark } from '@/app/lib/postmark';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
@@ -39,7 +39,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Order has no email on file' }, { status: 400 });
     }
 
-    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or SMTP2GO, switchable from the admin panel.
+    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendViaPostmark() below.
+    // Order-triggered sends are Postmark-only — no provider switch here. SMTP2GO was
+    // permanently banned and removed; MailerSend is scoped to the manual Send Email tab only.
     const customerName = `${record.firstName || ''} ${record.lastName || ''}`.trim() || 'there';
 
     if (type === 'success') {
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
       //   subject: 'We received your QuickBooks Enterprise payment!',
       //   html: renderPaymentReceiptEmailHtml({ ... }),
       // });
-      const { data, error, provider } = await sendEmail({
+      const { data, error } = await sendViaPostmark({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
         subject: 'We received your QuickBooks Enterprise payment!',
         trigger: 'admin-order',
         providerMessageId: data?.id,
-        provider,
+        provider: 'postmark',
       });
     } else {
       const dueDate = record.paidAt ? new Date(record.paidAt) : new Date();
@@ -105,7 +107,7 @@ export async function POST(req: NextRequest) {
       //   subject: 'Action needed: update your QuickBooks Enterprise payment method',
       //   html: renderPaymentFailedEmailHtml({ ... }),
       // });
-      const { data, error, provider } = await sendEmail({
+      const { data, error } = await sendViaPostmark({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
@@ -137,7 +139,7 @@ export async function POST(req: NextRequest) {
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
         trigger: 'admin-order',
         providerMessageId: data?.id,
-        provider,
+        provider: 'postmark',
       });
     }
 

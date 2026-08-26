@@ -1,5 +1,6 @@
 import { sendViaPostmark } from '@/app/lib/postmark';
-import { sendViaSmtp2go } from '@/app/lib/smtp2go';
+import { sendViaMailerSend } from '@/app/lib/mailersend';
+import { sendViaMailPace } from '@/app/lib/mailpace';
 import { getActiveEmailProvider, type EmailProvider } from '@/app/lib/emailProviderSettings';
 
 export interface SendEmailParams {
@@ -14,17 +15,18 @@ export interface SendEmailResult {
   data?: { id: string };
   error?: { message: string };
   /** Which provider actually handled this send — the message id alone doesn't say, since
-   *  both providers' ids get stored in the same providerMessageId field. Callers need this
-   *  to know which status-lookup API a log row should later be reconciled against. */
+   *  both providers' ids get stored in the same providerMessageId field. */
   provider: EmailProvider;
 }
 
-/** Sends through whichever stopgap provider is currently active (set in the admin panel),
- *  so the three send routes don't each need their own provider-switch logic. Resend stays
- *  untouched and commented at each call site — this dispatcher only covers the Postmark /
- *  SMTP2GO choice, not a Resend revert. */
+/** Sends through whichever provider is active for manual sends (set in the admin panel) —
+ *  used by send-custom-email only. Bulk and order-triggered sends call sendViaPostmark()
+ *  directly instead, since they're Postmark-only and don't need this switch. */
 export async function sendEmail(params: SendEmailParams): Promise<SendEmailResult> {
   const provider = await getActiveEmailProvider();
-  const result = provider === 'smtp2go' ? await sendViaSmtp2go(params) : await sendViaPostmark(params);
+  const result =
+    provider === 'mailersend' ? await sendViaMailerSend(params)
+    : provider === 'mailpace' ? await sendViaMailPace(params)
+    : await sendViaPostmark(params);
   return { ...result, provider };
 }

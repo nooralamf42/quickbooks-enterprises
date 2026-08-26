@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'type must be "success" or "failed"' }, { status: 400 });
     }
 
-    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or SMTP2GO, switchable from the admin panel.
+    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or MailerSend, switchable from the admin panel.
     const name = (customerName || '').trim() || 'there';
     const fallbackOrderId = orderId || `MANUAL-${Date.now().toString(36).toUpperCase()}`;
 

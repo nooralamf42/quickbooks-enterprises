@@ -3,6 +3,7 @@
 import { useAdmin } from '@/app/hooks/useAdmin'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryState, parseAsStringLiteral } from 'nuqs'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
@@ -41,14 +42,28 @@ export default function QuickBooksPaymentLinkCreator() {
   const [paymentLink, setPaymentLink] = useState('')
   const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay' | 'antom' | 'shopify'>('authorize')
   
-  // Navigation tabs state
-  const [activeTab, setActiveTab] = useState<'create' | 'logs' | 'email' | 'sentEmails' | 'bulk'>('create')
+  // Navigation tabs state — kept in the URL (?tab=bulk) via nuqs so a reload, or sharing
+  // the link, lands back on the same tab instead of always resetting to Payment Links.
+  // history:'replace' so clicking between tabs doesn't spam the browser back button.
+  const [activeTab, setActiveTab] = useQueryState(
+    'tab',
+    parseAsStringLiteral(['create', 'logs', 'email', 'sentEmails', 'bulk'] as const)
+      .withDefault('create')
+      .withOptions({ history: 'replace', clearOnDefault: true })
+  )
 
-  // Which stopgap email provider (Postmark or SMTP2GO) is actually sending right now —
-  // stored server-side so the switch takes effect immediately for every admin, not just
-  // this browser tab. Global to the dashboard, not tied to any one tab.
-  const [emailProvider, setEmailProvider] = useState<'postmark' | 'smtp2go' | null>(null)
+  // Which provider handles the single/manual "Send Email" tab right now. Bulk and
+  // order-triggered sends are Postmark-only (no switch needed there; SMTP2GO was removed
+  // after its account was permanently banned) — this toggle only ever affects
+  // send-custom-email. Stored server-side so the switch takes effect immediately for every
+  // admin. Also mirrored into ?provider= via nuqs purely for visibility in the URL — the DB
+  // row is still what actually controls sending, this never writes back to it.
+  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | null>(null)
   const [isSwitchingProvider, setIsSwitchingProvider] = useState(false)
+  const [, setProviderParam] = useQueryState(
+    'provider',
+    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace'] as const).withOptions({ history: 'replace' })
+  )
 
   useEffect(() => {
     const fetchProvider = async () => {
@@ -61,6 +76,7 @@ export default function QuickBooksPaymentLinkCreator() {
         if (res.ok) {
           const data = await res.json()
           setEmailProvider(data.provider)
+          setProviderParam(data.provider)
         }
       } catch {
         // Non-critical — the toggle just won't show a selected state until this loads.
@@ -69,7 +85,7 @@ export default function QuickBooksPaymentLinkCreator() {
     fetchProvider()
   }, [])
 
-  const switchEmailProvider = async (provider: 'postmark' | 'smtp2go') => {
+  const switchEmailProvider = async (provider: 'postmark' | 'mailersend' | 'mailpace') => {
     if (provider === emailProvider || isSwitchingProvider) return
     setIsSwitchingProvider(true)
     try {
@@ -83,7 +99,9 @@ export default function QuickBooksPaymentLinkCreator() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to switch provider')
       setEmailProvider(provider)
-      toast.success(`Now sending via ${provider === 'smtp2go' ? 'SMTP2GO' : 'Postmark'}`)
+      setProviderParam(provider)
+      const label = provider === 'mailersend' ? 'MailerSend' : provider === 'mailpace' ? 'MailPace' : 'Postmark'
+      toast.success(`Manual sends now going via ${label}`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to switch provider')
     } finally {
@@ -99,7 +117,6 @@ export default function QuickBooksPaymentLinkCreator() {
   const [bulkIsSending, setBulkIsSending] = useState(false)
   const [bulkResult, setBulkResult] = useState<any>(null)
   const [isReconciling, setIsReconciling] = useState(false)
-  const [isReconcilingSmtp2go, setIsReconcilingSmtp2go] = useState(false)
   const [bulkConfirming, setBulkConfirming] = useState(false)
   /** Most recent prior send per recipient, for the current bulkType — keyed by lowercased
    *  email. Lets the preview flag "this person was already sent a reminder 2 days ago"
@@ -446,13 +463,33 @@ export default function QuickBooksPaymentLinkCreator() {
   }
 
   const router = useRouter()
-  const { admin } = useAdmin()
+  const { admin, setAdmin } = useAdmin()
 
+  // On a hard reload, the `admin` atom resets to false (it's in-memory, not persisted) —
+  // without this, every reload bounced through /admin, whose own login-check redirects
+  // back with a hardcoded '/admin/create-payment-link' with no query string at all. That
+  // silently wiped ?tab= (and ?provider=) on every reload regardless of nuqs, since the
+  // page never got to keep its URL — it was navigated away and back. Checking the same
+  // stored auth here instead means a valid session re-authenticates in place, so the URL
+  // (and the tab it points to) never changes.
   useEffect(() => {
-    if (!admin) {
-      router.push('/admin')
+    if (admin) return
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        const encoded = process.env.NEXT_PUBLIC_ENCODED_ADMIN_PASSWORD
+        if (parsed.expires > new Date().getTime() && parsed.passwordHash && encoded && atob(parsed.passwordHash) === atob(encoded)) {
+          setAdmin(true)
+          return
+        }
+        localStorage.removeItem('adminAuth')
+      }
+    } catch {
+      // Falls through to the redirect below.
     }
-  }, [router, admin])
+    router.push('/admin')
+  }, [router, admin, setAdmin])
 
   useEffect(() => {
     setPaymentLink('')
@@ -925,36 +962,6 @@ export default function QuickBooksPaymentLinkCreator() {
       toast.error(err?.message || 'Delivery check failed')
     } finally {
       setIsReconciling(false)
-    }
-  }
-
-  /** Same idea as reconcileDelivery, but against SMTP2GO's /email/search — a separate
-   *  endpoint and button since it's a different provider with its own message ids, and
-   *  mixing the two into one call would make a partial failure (e.g. a revoked key on one
-   *  provider) harder to diagnose. */
-  const reconcileDeliverySmtp2go = async () => {
-    setIsReconcilingSmtp2go(true)
-    try {
-      const stored = localStorage.getItem('adminAuth')
-      const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
-      const res = await fetch('/api/admin/reconcile-delivery-smtp2go', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Delivery check failed')
-
-      if (data.checked === 0) toast.success('Every message already has a final status.')
-      else if (data.updated === 0) toast.success(`Checked ${data.checked} — no change yet.`)
-      else {
-        const bounced = (data.changes || []).filter((c: any) => c.to === 'bounced').length
-        toast.success(`Updated ${data.updated} of ${data.checked}${bounced ? ` — ${bounced} bounced` : ''}`)
-      }
-      fetchEmailLogs()
-    } catch (err: any) {
-      toast.error(err?.message || 'Delivery check failed')
-    } finally {
-      setIsReconcilingSmtp2go(false)
     }
   }
 
@@ -1660,7 +1667,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             <p className="text-sm text-zinc-500 mt-1 font-normal">Generate invoice payment links and view electronic signature audits.</p>
             <div className="mt-3 inline-flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
               <MailWarning size={13} className="text-amber-600 shrink-0" />
-              <span className="text-[11px] font-semibold text-amber-800">Sending via:</span>
+              <span className="text-[11px] font-semibold text-amber-800">Manual send (Send Email tab) via:</span>
               <div className="inline-flex rounded-md border border-amber-300 bg-white p-0.5">
                 <button
                   type="button"
@@ -1673,15 +1680,25 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </button>
                 <button
                   type="button"
-                  onClick={() => switchEmailProvider('smtp2go')}
+                  onClick={() => switchEmailProvider('mailersend')}
                   disabled={isSwitchingProvider || emailProvider === null}
-                  title="No pre-send approval gate — sends to any recipient immediately"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'smtp2go' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
+                  title="14-day Professional trial — account approval declined 2026-08-26, may still be blocked"
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailersend' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
                 >
-                  SMTP2GO
+                  MailerSend
+                </button>
+                <button
+                  type="button"
+                  onClick={() => switchEmailProvider('mailpace')}
+                  disabled={isSwitchingProvider || emailProvider === null}
+                  title="Confirmed working 2026-08-26 — no pre-send approval gate"
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailpace' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
+                >
+                  MailPace
                 </button>
               </div>
               {emailProvider === null && <span className="text-[10px] text-amber-600">Loading…</span>}
+              <span className="text-[10px] text-amber-600">— Bulk and order emails always use Postmark</span>
             </div>
           </div>
           
@@ -3138,16 +3155,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 >
                   <MailWarning size={12} className={isReconciling ? 'animate-pulse' : ''} />
                   {isReconciling ? 'Checking…' : 'Check delivery (Resend)'}
-                </button>
-                <button
-                  type="button"
-                  onClick={reconcileDeliverySmtp2go}
-                  disabled={isReconcilingSmtp2go}
-                  title="Ask SMTP2GO for the current status (delivery, opens, clicks) of every message still awaiting a verdict."
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-orange-200 font-semibold rounded-lg text-[11px] transition-colors shadow-xs bg-white hover:bg-orange-50 text-orange-700 cursor-pointer disabled:opacity-50"
-                >
-                  <MailWarning size={12} className={isReconcilingSmtp2go ? 'animate-pulse' : ''} />
-                  {isReconcilingSmtp2go ? 'Checking…' : 'Check delivery (SMTP2GO)'}
                 </button>
                 <button
                   type="button"
