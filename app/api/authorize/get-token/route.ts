@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+/** Authorize.net's AnetApiSchema.xsd caps each billTo field at a fixed length — exceeding
+ *  it doesn't get rejected gracefully, it throws E00003 and the whole payment token request
+ *  fails. Truncating here is better than surfacing that as a customer-facing error for
+ *  something as harmless as a long company name. */
+const truncate = (value: string, maxLength: number) => value.slice(0, maxLength);
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -42,14 +48,14 @@ export async function POST(req: NextRequest) {
             email: customerInfo?.email || ""
           },
           billTo: {
-            firstName: customerInfo?.firstName || "",
-            lastName: customerInfo?.lastName || "",
-            company: customerInfo?.companyName || "",
-            address: customerInfo?.address || "",
-            city: customerInfo?.city || "",
-            state: customerInfo?.state || "",
-            zip: customerInfo?.zipCode || "",
-            country: customerInfo?.country || "US"
+            firstName: truncate(customerInfo?.firstName || "", 50),
+            lastName: truncate(customerInfo?.lastName || "", 50),
+            company: truncate(customerInfo?.companyName || "", 50),
+            address: truncate(customerInfo?.address || "", 60),
+            city: truncate(customerInfo?.city || "", 40),
+            state: truncate(customerInfo?.state || "", 40),
+            zip: truncate(customerInfo?.zipCode || "", 20),
+            country: truncate(customerInfo?.country || "US", 60)
           }
         },
         hostedPaymentSettings: {
