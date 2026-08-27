@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/app/lib/emailSender';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
+import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
 
 export async function POST(req: NextRequest) {
   try {
@@ -89,6 +90,19 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,
+      });
+
+      // Internal "confirmation" alert — same one every gateway's webhook sends on a real
+      // payment, so a manually-sent receipt notifies the business the same way.
+      await sendPaymentNotificationEmail({
+        gatewayLabel: 'Manual Send',
+        customerName: name,
+        email: toEmail,
+        companyName,
+        planDetails,
+        amountUSD: Number(amountUSD),
+        transactionId: fallbackOrderId,
+        transactionIdLabel: 'Order ID',
       });
     } else {
       const { amountDueUSD, cancellationDate, updateUrl, dueDate } = body;

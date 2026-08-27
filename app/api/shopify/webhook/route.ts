@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { verifyWebhookHmac, formatCardLabel, adminGraphQL } from '@/app/lib/shopify';
+import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
 
 export async function POST(req: NextRequest) {
   try {
@@ -92,6 +93,24 @@ export async function POST(req: NextRequest) {
     );
 
     console.log('[Shopify Webhook] Order marked Completed:', localOrderId);
+
+    await sendPaymentNotificationEmail({
+      gatewayLabel: 'Shopify',
+      customerName: `${record.firstName || ''} ${record.lastName || ''}`.trim() || 'Unknown',
+      email: record.email,
+      phone: record.phone,
+      companyName: record.companyName,
+      address: record.address,
+      city: record.city,
+      state: record.state,
+      zipCode: record.zipCode,
+      country: record.country,
+      planDetails: record.planDetails,
+      amountUSD: Number(order.total_price),
+      transactionId: order.name,
+      transactionIdLabel: 'Order',
+    });
+
     return NextResponse.json({ ok: true });
   } catch (error: any) {
     console.error('[Shopify Webhook Error]', error);

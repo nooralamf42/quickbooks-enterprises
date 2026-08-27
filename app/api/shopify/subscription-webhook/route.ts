@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { verifyWebhookHmac, formatCardLabel, adminGraphQL } from '@/app/lib/shopify';
+import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
 
 /**
  * These subscription topics deliver a "thin" payload (mainly `admin_graphql_api_id`),
@@ -141,6 +142,9 @@ async function handleBillingSuccess(db: any, payload: any) {
   const cardNumber = successfulTxn.paymentDetails?.number;
   const paymentMethodLabel = formatCardLabel(cardType, cardNumber);
 
+  const amountUSD = Number(successfulTxn.amountSet?.shopMoney?.amount || 0);
+  const customerName = `${originalRecord?.firstName || ''} ${originalRecord?.lastName || ''}`.trim() || 'Unknown';
+
   await db.collection('admindata').insertOne({
     firstName: originalRecord?.firstName,
     lastName: originalRecord?.lastName,
@@ -153,7 +157,7 @@ async function handleBillingSuccess(db: any, payload: any) {
     state: originalRecord?.state,
     zipCode: originalRecord?.zipCode,
     country: originalRecord?.country,
-    amountUSD: Number(successfulTxn.amountSet?.shopMoney?.amount || 0),
+    amountUSD,
     planDetails: originalRecord?.planDetails || 'QuickBooks Payroll (Monthly Subscription)',
     status: 'Completed',
     agreedToTerms: originalRecord?.agreedToTerms,
@@ -180,6 +184,23 @@ async function handleBillingSuccess(db: any, payload: any) {
   });
 
   console.log('[Shopify Subscription Webhook] Logged recurring charge for contract:', contract.id);
+
+  await sendPaymentNotificationEmail({
+    gatewayLabel: 'Shopify Subscription',
+    customerName,
+    email: originalRecord?.email || contract.customer?.email,
+    phone: originalRecord?.phone,
+    companyName: originalRecord?.companyName,
+    address: originalRecord?.address,
+    city: originalRecord?.city,
+    state: originalRecord?.state,
+    zipCode: originalRecord?.zipCode,
+    country: originalRecord?.country,
+    planDetails: originalRecord?.planDetails || 'QuickBooks Payroll (Monthly Subscription)',
+    amountUSD,
+    transactionId: successfulTxn.order?.name || contract.id,
+    transactionIdLabel: 'Order',
+  });
 }
 
 async function handleBillingFailure(db: any, payload: any) {

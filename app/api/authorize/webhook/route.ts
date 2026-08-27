@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
-import { Resend } from 'resend';
+import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
 import crypto from 'crypto';
 
 // Authorize.net pings this with GET to verify the endpoint is live before saving the webhook
@@ -143,39 +143,23 @@ export async function POST(req: NextRequest) {
 
     console.log('[Webhook] Order marked Completed:', localOrderId);
 
-    // Send success email
-    if (process.env.RESEND_API_KEY) {
-      try {
-        const resend = new Resend(process.env.RESEND_API_KEY);
-        const customerName = `${record.firstName} ${record.lastName}`.trim();
-
-        await resend.emails.send({
-          from: 'notifications@quickbooks-enterprises.com',
-          to: 'info@qualitybusinesstech.us',
-          subject: `New Successful Payment: $${amountUSD} from ${customerName}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; color: #333;">
-              <h2 style="color: #2ca01c;">New Successful Payment (Authorize.net)</h2>
-              <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Customer:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;">${customerName}</td></tr>
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Email:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;">${record.email}</td></tr>
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Phone:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;">${record.phone || 'N/A'}</td></tr>
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Company:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;">${record.companyName || 'N/A'}</td></tr>
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Address:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;">${record.address}, ${record.city}, ${record.state} ${record.zipCode}</td></tr>
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Plan:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;">${record.planDetails}</td></tr>
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Amount:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;color:#2ca01c;font-weight:bold;">$${amountUSD} USD</td></tr>
-                <tr><td style="padding:8px;border-bottom:1px solid #eee;"><strong>Transaction ID:</strong></td><td style="padding:8px;border-bottom:1px solid #eee;font-family:monospace;">${transactionId}</td></tr>
-              </table>
-            </div>
-          `
-        });
-        console.log('[Webhook] Email sent for order:', localOrderId);
-
-        // Customer receipt emails are sent manually from the admin dashboard, not automatically here.
-      } catch (emailErr) {
-        console.error('[Webhook] Email error:', emailErr);
-      }
-    }
+    // Internal notification, not the customer receipt (that's sent manually from the
+    // admin dashboard). Every gateway's webhook sends this same alert.
+    await sendPaymentNotificationEmail({
+      gatewayLabel: 'Authorize.net',
+      customerName: `${record.firstName} ${record.lastName}`.trim(),
+      email: record.email,
+      phone: record.phone,
+      companyName: record.companyName,
+      address: record.address,
+      city: record.city,
+      state: record.state,
+      zipCode: record.zipCode,
+      planDetails: record.planDetails,
+      amountUSD,
+      transactionId,
+    });
+    console.log('[Webhook] Notification email attempted for order:', localOrderId);
 
     return NextResponse.json({ received: true, status: 'synced', localOrderId });
 

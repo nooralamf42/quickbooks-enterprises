@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
@@ -33,8 +34,10 @@ export async function POST(req: NextRequest) {
 
       if (localOrderId) {
         console.log(`[Stripe Webhook] Completing order ${localOrderId}`);
-        
+
         const { db } = await connectToDatabase();
+        const record = await db.collection('admindata').findOne({ _id: new ObjectId(localOrderId) });
+
         const updateRes = await db.collection('admindata').updateOne(
           { _id: new ObjectId(localOrderId) },
           {
@@ -48,6 +51,25 @@ export async function POST(req: NextRequest) {
         );
 
         console.log(`[Stripe Webhook] MongoDB update results:`, updateRes.modifiedCount);
+
+        if (record && record.status !== 'Completed') {
+          await sendPaymentNotificationEmail({
+            gatewayLabel: 'Stripe',
+            customerName: `${record.firstName || ''} ${record.lastName || ''}`.trim() || 'Unknown',
+            email: record.email,
+            phone: record.phone,
+            companyName: record.companyName,
+            address: record.address,
+            city: record.city,
+            state: record.state,
+            zipCode: record.zipCode,
+            country: record.country,
+            planDetails: record.planDetails,
+            amountUSD: record.amountUSD ?? paymentIntent.amount / 100,
+            transactionId: paymentIntent.id,
+            transactionIdLabel: 'Payment Intent ID',
+          });
+        }
       }
     }
 
