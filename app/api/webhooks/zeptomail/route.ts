@@ -47,19 +47,18 @@ export async function GET() {
   return NextResponse.json({ ok: true });
 }
 
+// The Add Webhook form is explicit: "All API calls should return status code 200" — so
+// every response below is a 200 regardless of outcome, with success/failure conveyed in the
+// JSON body instead of the HTTP status. Returning anything else (401, 500) is what made
+// ZeptoMail's own setup flow report "URL cannot be reached" even though the endpoint was live.
 export async function POST(req: NextRequest) {
   try {
     const expectedSecret = process.env.ZEPTOMAIL_WEBHOOK_SECRET;
-    if (!expectedSecret) {
-      console.error('[ZeptoMail Webhook] ZEPTOMAIL_WEBHOOK_SECRET is not configured');
-      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
-    }
-
     const receivedSecret = req.headers.get('x-webhook-secret');
-    if (receivedSecret && !verifySecret(expectedSecret, receivedSecret)) {
-      return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
-    }
-    const authenticated = !!receivedSecret;
+    const authenticated = !!expectedSecret && !!receivedSecret && verifySecret(expectedSecret, receivedSecret);
+
+    if (!expectedSecret) console.error('[ZeptoMail Webhook] ZEPTOMAIL_WEBHOOK_SECRET is not configured');
+    else if (receivedSecret && !authenticated) console.warn('[ZeptoMail Webhook] Rejected request with a non-matching secret');
 
     const raw = await req.text();
     if (!raw.trim()) return NextResponse.json({ ok: true });
@@ -74,8 +73,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: 'non-JSON body' });
     }
 
-    // Never apply an unauthenticated payload's contents — only a verification-style
-    // no-header ping gets the free pass, and it has nothing to act on anyway.
+    // Never apply an unauthenticated (or wrongly-authenticated) payload's contents — only a
+    // verification-style no-header ping gets a plain pass-through, and it has nothing to act
+    // on anyway.
     if (!authenticated) return NextResponse.json({ ok: true, authenticated: false });
 
     const providerMessageId = body.request_id;
@@ -95,14 +95,11 @@ export async function POST(req: NextRequest) {
     if (!status) return NextResponse.json({ ok: true, ignored: eventObject });
 
     const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status);
-
-    // 200 even when unmatched — the id may belong to a send this app didn't log, and a
-    // non-2xx would make ZeptoMail retry an event that can never match.
     if (!matched) console.warn(`[ZeptoMail Webhook] No log row for ${providerMessageId} (${eventObject})`);
 
     return NextResponse.json({ ok: true, matched, status });
   } catch (err: any) {
     console.error('[ZeptoMail Webhook] Error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ ok: false, error: 'Internal server error' });
   }
 }
