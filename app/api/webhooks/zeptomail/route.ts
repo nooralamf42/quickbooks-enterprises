@@ -7,88 +7,98 @@ import {
 } from '@/app/lib/emailLog';
 
 /** ZeptoMail delivery/engagement events, so the email log reflects what actually happened
- *  rather than only that ZeptoMail accepted the send. Configure in the Agent's Webhooks tab:
- *  URL https://<your-domain>/api/webhooks/zeptomail, events: hard bounce, soft bounce, open,
- *  click, feedback loop (spam). Set an Authentication Key there and put it in
- *  ZEPTOMAIL_WEBHOOK_AUTH_KEY (not the same as ZEPTOMAIL_API_TOKEN).
+ *  rather than only that ZeptoMail accepted the send. Configured in the Agent's Webhooks tab
+ *  with URL https://<your-domain>/api/webhooks/zeptomail, events: Delivered, Hard bounces,
+ *  Soft bounces, Feedback loop (opens/clicks need "Enable tracking" turned on separately,
+ *  and aren't checkboxes here at all).
  *
- *  Note this endpoint can only receive events once deployed — ZeptoMail cannot reach
- *  localhost. Manual sends only (ZeptoMail is scoped to the Send Email tab, not bulk).
- *  ZeptoMail has no "delivered" event — only negative (bounce/spam) and engagement
- *  (open/click) events, so a row stays 'accepted' unless one of those fires. */
+ *  Auth is a simple custom header ("Authorization headers" in the Add Webhook form) — NOT
+ *  the HMAC producer-signature scheme ZeptoMail's own docs describe elsewhere. The actual
+ *  form only exposes a header name/value pair that gets echoed back verbatim on every call,
+ *  checked here with a constant-time comparison. Header name is fixed to X-Webhook-Secret;
+ *  change both here and in the dashboard together if that ever needs to differ.
+ *
+ *  Event type lives at event_data[0].object (e.g. "softbounce", "hardbounce", "delivered"),
+ *  confirmed from ZeptoMail's own live payload preview — not a top-level event_name field
+ *  the way the docs described. Manual sends only (ZeptoMail is scoped to the Send Email tab,
+ *  not bulk). Note this endpoint can only receive events once deployed — ZeptoMail cannot
+ *  reach localhost. */
 
 const EVENT_STATUS: Record<string, DeliveryStatus> = {
-  'hard bounce': 'bounced',
-  'soft bounce': 'delayed',
-  'feedback loop': 'complained',
+  delivered: 'delivered',
+  hardbounce: 'bounced',
+  softbounce: 'delayed',
+  feedbackloop: 'complained',
+  spamcomplaint: 'complained',
 };
 
-/** ZeptoMail signs requests with a `producer-signature` header formatted as
- *  "ts=<millis>;s=<url-encoded base64 HMAC-SHA256>;s-algorithm=HmacSHA256" — the MAC covers
- *  the raw request body alone (not body+timestamp), keyed by the Authentication Key set in
- *  the Agent's Webhooks tab. */
-function verifySignature(authKey: string, body: string, header: string): boolean {
-  const parts = Object.fromEntries(
-    header.split(';').map((p) => {
-      const idx = p.indexOf('=');
-      return [p.slice(0, idx), p.slice(idx + 1)];
-    }),
-  );
-  const signature = parts.s;
-  if (!signature) return false;
+function verifySecret(expected: string, received: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(received);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
-  const expected = crypto.createHmac('sha256', authKey).update(body, 'utf8').digest('base64');
-  const given = Buffer.from(decodeURIComponent(signature), 'base64');
-  const expectedBuf = Buffer.from(expected, 'base64');
-  return given.length === expectedBuf.length && crypto.timingSafeEqual(given, expectedBuf);
+// The Add Webhook form's own "API call should be unauthenticated" note, combined with the
+// "URL cannot be reached" error seen on a working, deployed URL, means ZeptoMail's own
+// "Verify" click doesn't send the configured header at all — likely a bare reachability
+// check. So a missing header returns a plain 200 (verification / anything we can't trust)
+// instead of 401; only a header that's PRESENT but WRONG is treated as tampering.
+export async function GET() {
+  return NextResponse.json({ ok: true });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const authKey = process.env.ZEPTOMAIL_WEBHOOK_AUTH_KEY;
-    if (!authKey) {
-      console.error('[ZeptoMail Webhook] ZEPTOMAIL_WEBHOOK_AUTH_KEY is not configured');
-      return NextResponse.json({ error: 'Webhook auth key not configured' }, { status: 500 });
+    const expectedSecret = process.env.ZEPTOMAIL_WEBHOOK_SECRET;
+    if (!expectedSecret) {
+      console.error('[ZeptoMail Webhook] ZEPTOMAIL_WEBHOOK_SECRET is not configured');
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
 
-    const signature = req.headers.get('producer-signature');
-    if (!signature) {
-      return NextResponse.json({ error: 'Missing signature header' }, { status: 401 });
+    const receivedSecret = req.headers.get('x-webhook-secret');
+    if (receivedSecret && !verifySecret(expectedSecret, receivedSecret)) {
+      return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
     }
+    const authenticated = !!receivedSecret;
 
-    // Must verify against the exact bytes received, so read the raw body before parsing.
     const raw = await req.text();
-    if (!verifySignature(authKey, raw, signature)) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    if (!raw.trim()) return NextResponse.json({ ok: true });
+
+    let body: {
+      request_id?: string; // matches the id stored as providerMessageId at send time
+      event_data?: { object?: string; details?: { url?: string }[] }[];
+    };
+    try {
+      body = JSON.parse(raw);
+    } catch {
+      return NextResponse.json({ ok: true, ignored: 'non-JSON body' });
     }
 
-    const event = JSON.parse(raw) as {
-      event_name?: string; // e.g. "hard bounce", "email opens", "email clicks"
-      request_id?: string; // matches the id stored as providerMessageId at send time
-      event_message?: { event_data?: { url?: string }[] };
-    };
+    // Never apply an unauthenticated payload's contents — only a verification-style
+    // no-header ping gets the free pass, and it has nothing to act on anyway.
+    if (!authenticated) return NextResponse.json({ ok: true, authenticated: false });
 
-    const providerMessageId = event.request_id;
+    const providerMessageId = body.request_id;
     if (!providerMessageId) return NextResponse.json({ ok: true, ignored: 'no request_id' });
 
-    const name = (event.event_name || '').toLowerCase();
+    const eventObject = (body.event_data?.[0]?.object || '').toLowerCase();
 
-    if (name.includes('open') || name.includes('click')) {
-      const kind = name.includes('click') ? 'clicked' : 'opened';
-      const linkUrl = event.event_message?.event_data?.[0]?.url;
+    if (eventObject.includes('open') || eventObject.includes('click')) {
+      const kind = eventObject.includes('click') ? 'clicked' : 'opened';
+      const linkUrl = body.event_data?.[0]?.details?.[0]?.url;
       const matched = await recordEngagementByProviderMessageId(providerMessageId, kind, linkUrl);
-      if (!matched) console.warn(`[ZeptoMail Webhook] No log row for ${providerMessageId} (${event.event_name})`);
+      if (!matched) console.warn(`[ZeptoMail Webhook] No log row for ${providerMessageId} (${eventObject})`);
       return NextResponse.json({ ok: true, matched, kind });
     }
 
-    const status = EVENT_STATUS[name];
-    if (!status) return NextResponse.json({ ok: true, ignored: event.event_name });
+    const status = EVENT_STATUS[eventObject];
+    if (!status) return NextResponse.json({ ok: true, ignored: eventObject });
 
     const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status);
 
     // 200 even when unmatched — the id may belong to a send this app didn't log, and a
     // non-2xx would make ZeptoMail retry an event that can never match.
-    if (!matched) console.warn(`[ZeptoMail Webhook] No log row for ${providerMessageId} (${event.event_name})`);
+    if (!matched) console.warn(`[ZeptoMail Webhook] No log row for ${providerMessageId} (${eventObject})`);
 
     return NextResponse.json({ ok: true, matched, status });
   } catch (err: any) {
