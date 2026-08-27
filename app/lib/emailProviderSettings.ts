@@ -1,10 +1,15 @@
 import { connectToDatabase } from '@/app/lib/mongodb';
 
-export type EmailProvider = 'postmark' | 'mailersend' | 'mailpace';
+// 'mailersend' and 'mailpace' stay valid here for historical emailLogs rows (provider field)
+// even though they're no longer selectable — see VALID_PROVIDERS below.
+export type EmailProvider = 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail';
 
-const VALID_PROVIDERS: EmailProvider[] = ['postmark', 'mailersend', 'mailpace'];
+// Only ZeptoMail is switchable right now — MailerSend and MailPace both had account-level
+// blocks today and were pulled from the switcher. Not deleted from the codebase (unlike
+// SMTP2GO, which was permanently banned) since either could be re-enabled if needed.
+export const VALID_PROVIDERS: EmailProvider[] = ['zeptomail'];
 const SETTINGS_ID = 'emailProvider';
-const DEFAULT_PROVIDER: EmailProvider = 'postmark';
+const DEFAULT_PROVIDER: EmailProvider = 'zeptomail';
 
 /** Which provider handles the single/manual "Send Email" tab right now. Bulk and
  *  order-triggered sends are Postmark-only and don't read this at all. Stored in Mongo

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getActiveEmailProvider, setActiveEmailProvider } from '@/app/lib/emailProviderSettings';
+import { getActiveEmailProvider, setActiveEmailProvider, VALID_PROVIDERS, type EmailProvider } from '@/app/lib/emailProviderSettings';
 
 function checkAuth(req: NextRequest): boolean {
   const authHeader = req.headers.get('Authorization');
@@ -20,9 +20,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized access' }, { status: 401 });
   }
   const { provider } = await req.json();
-  if (provider !== 'postmark' && provider !== 'mailersend' && provider !== 'mailpace') {
-    return NextResponse.json({ error: 'provider must be "postmark", "mailersend", or "mailpace"' }, { status: 400 });
+  if (!VALID_PROVIDERS.includes(provider)) {
+    return NextResponse.json({ error: `provider must be one of: ${VALID_PROVIDERS.join(', ')}` }, { status: 400 });
   }
-  await setActiveEmailProvider(provider);
+  await setActiveEmailProvider(provider as EmailProvider);
   return NextResponse.json({ success: true, provider });
 }

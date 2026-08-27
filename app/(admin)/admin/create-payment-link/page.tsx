@@ -53,16 +53,15 @@ export default function QuickBooksPaymentLinkCreator() {
   )
 
   // Which provider handles the single/manual "Send Email" tab right now. Bulk and
-  // order-triggered sends are Postmark-only (no switch needed there; SMTP2GO was removed
-  // after its account was permanently banned) — this toggle only ever affects
-  // send-custom-email. Stored server-side so the switch takes effect immediately for every
-  // admin. Also mirrored into ?provider= via nuqs purely for visibility in the URL — the DB
-  // row is still what actually controls sending, this never writes back to it.
-  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | null>(null)
-  const [isSwitchingProvider, setIsSwitchingProvider] = useState(false)
+  // order-triggered sends are Postmark-only and don't read this at all. No switcher UI
+  // anymore — MailerSend and MailPace were pulled after account-level blocks, leaving
+  // ZeptoMail as the only option, so there's nothing left to toggle between. Fetched (not
+  // hardcoded) so the label still reflects the DB in case another provider is re-enabled
+  // later. Also mirrored into ?provider= via nuqs purely for visibility in the URL.
+  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | null>(null)
   const [, setProviderParam] = useQueryState(
     'provider',
-    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace'] as const).withOptions({ history: 'replace' })
+    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace', 'zeptomail'] as const).withOptions({ history: 'replace' })
   )
 
   useEffect(() => {
@@ -79,35 +78,11 @@ export default function QuickBooksPaymentLinkCreator() {
           setProviderParam(data.provider)
         }
       } catch {
-        // Non-critical — the toggle just won't show a selected state until this loads.
+        // Non-critical — the badge just won't show a value until this loads.
       }
     }
     fetchProvider()
   }, [])
-
-  const switchEmailProvider = async (provider: 'postmark' | 'mailersend' | 'mailpace') => {
-    if (provider === emailProvider || isSwitchingProvider) return
-    setIsSwitchingProvider(true)
-    try {
-      const stored = localStorage.getItem('adminAuth')
-      const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
-      const res = await fetch('/api/admin/email-provider', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to switch provider')
-      setEmailProvider(provider)
-      setProviderParam(provider)
-      const label = provider === 'mailersend' ? 'MailerSend' : provider === 'mailpace' ? 'MailPace' : 'Postmark'
-      toast.success(`Manual sends now going via ${label}`)
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to switch provider')
-    } finally {
-      setIsSwitchingProvider(false)
-    }
-  }
 
   // Bulk Email tab state
   const [bulkRows, setBulkRows] = useState<any[]>([])
@@ -1670,26 +1645,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <MailWarning size={13} className="text-amber-600 shrink-0" />
                 Manual send (Send Email tab) via:
               </span>
-              <div className="inline-flex rounded-md border border-amber-300 bg-white p-0.5">
-                <button
-                  type="button"
-                  onClick={() => switchEmailProvider('mailersend')}
-                  disabled={isSwitchingProvider || emailProvider === null}
-                  title="14-day Professional trial — account approval declined 2026-08-26, may still be blocked"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailersend' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
-                >
-                  MailerSend
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchEmailProvider('mailpace')}
-                  disabled={isSwitchingProvider || emailProvider === null}
-                  title="Confirmed working 2026-08-26 — no pre-send approval gate"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'mailpace' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
-                >
-                  MailPace
-                </button>
-              </div>
+              {emailProvider && (
+                <span className="px-2.5 py-1 rounded bg-amber-500 text-white text-[11px] font-bold whitespace-nowrap">
+                  {emailProvider === 'mailersend' ? 'MailerSend' : emailProvider === 'mailpace' ? 'MailPace' : emailProvider === 'zeptomail' ? 'ZeptoMail' : 'Postmark'}
+                </span>
+              )}
               {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}
               <span className="text-[10px] text-amber-600">— Bulk and order emails always use Postmark</span>
             </div>

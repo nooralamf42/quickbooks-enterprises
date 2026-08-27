@@ -1,6 +1,7 @@
 import { sendViaPostmark } from '@/app/lib/postmark';
 import { sendViaMailerSend } from '@/app/lib/mailersend';
 import { sendViaMailPace } from '@/app/lib/mailpace';
+import { sendViaZeptoMail } from '@/app/lib/zeptomail';
 import { getActiveEmailProvider, type EmailProvider } from '@/app/lib/emailProviderSettings';
 
 export interface SendEmailParams {
@@ -27,6 +28,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
   const result =
     provider === 'mailersend' ? await sendViaMailerSend(params)
     : provider === 'mailpace' ? await sendViaMailPace(params)
+    : provider === 'zeptomail' ? await sendViaZeptoMail(params)
     : await sendViaPostmark(params);
   return { ...result, provider };
 }
