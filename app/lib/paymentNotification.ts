@@ -1,10 +1,15 @@
-import { sendEmail } from '@/app/lib/emailSender';
+import { sendViaZeptoMail } from '@/app/lib/zeptomail';
 
 /** The internal "New Successful Payment" alert sent to the business's own inbox on every
  *  completed payment — distinct from the customer-facing receipt, which is sent manually
  *  from the admin dashboard. Originally only wired up for Authorize.net; this is the shared
  *  version every gateway's webhook calls, so a gateway can't go live without also alerting
- *  the business the way Authorize.net already did. */
+ *  the business the way Authorize.net already did.
+ *
+ *  Deliberately hardcoded to ZeptoMail rather than the switchable sendEmail() dispatcher —
+ *  ZeptoMail is confirmed working for this specific internal alert, and this notification
+ *  shouldn't silently move to whatever a manual-send provider toggle picks (e.g. Postwing)
+ *  for the Send Email tab. The two are intentionally decoupled. */
 
 export interface PaymentNotificationParams {
   /** Shown in the email heading, e.g. "New Successful Payment (Stripe)". */
@@ -58,7 +63,7 @@ export async function sendPaymentNotificationEmail(params: PaymentNotificationPa
   `;
 
   try {
-    const { error } = await sendEmail({
+    const { error } = await sendViaZeptoMail({
       from: 'notifications@quickbooks-enterprises.com',
       to: 'info@qualitybusinesstech.us',
       subject: `New Successful Payment: $${amountUSD} from ${customerName}`,
