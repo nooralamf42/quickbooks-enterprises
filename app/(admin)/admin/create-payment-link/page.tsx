@@ -23,13 +23,13 @@ const DELIVERY_STATUS_STYLE: Record<string, string> = {
 }
 
 const DELIVERY_STATUS_HINT: Record<string, string> = {
-  accepted:   'Resend accepted the message. Delivery is not confirmed yet.',
+  accepted:   'The provider accepted the message — this does NOT confirm delivery. A send can still fail after this point (rejected, bounced, or silently blocked) without ever changing this status, depending on the provider and whether its webhook is configured.',
   sent:       'Handed off to the receiving mail server.',
   delivered:  'The receiving server accepted it.',
-  delayed:    'Temporarily deferred — Resend is still retrying.',
+  delayed:    'Temporarily deferred — the provider is still retrying.',
   bounced:    'Permanently rejected. The address is usually wrong.',
   complained: 'Marked as spam by the recipient.',
-  rejected:   'Resend refused the send outright — it never left.',
+  rejected:   'The provider refused the send outright — it never left.',
   failed:     'Delivery failed.',
 }
 
@@ -55,14 +55,14 @@ export default function QuickBooksPaymentLinkCreator() {
   // Which provider handles the single/manual "Send Email" tab right now. Bulk and
   // order-triggered sends are Postmark-only and don't read this at all. MailerSend and
   // MailPace were pulled after account-level blocks (code stays, not deleted). ZeptoMail and
-  // Postwing are both switchable — Postwing added 2026-08-28 since its anti-abuse detection
-  // is spam-pattern based rather than the brand/logo content scanning that's tripped every
+  // Maileroo are both switchable — Maileroo added 2026-08-30 to replace Postwing, which got
+  // its domain banned outright for the same branded-content pattern that's tripped every
   // other provider. Also mirrored into ?provider= via nuqs purely for visibility in the URL.
-  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'postwing' | null>(null)
+  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | null>(null)
   const [isSwitchingProvider, setIsSwitchingProvider] = useState(false)
   const [, setProviderParam] = useQueryState(
     'provider',
-    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace', 'zeptomail', 'postwing'] as const).withOptions({ history: 'replace' })
+    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace', 'zeptomail', 'maileroo'] as const).withOptions({ history: 'replace' })
   )
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function QuickBooksPaymentLinkCreator() {
     fetchProvider()
   }, [])
 
-  const switchEmailProvider = async (provider: 'zeptomail' | 'postwing') => {
+  const switchEmailProvider = async (provider: 'zeptomail' | 'maileroo') => {
     if (provider === emailProvider || isSwitchingProvider) return
     setIsSwitchingProvider(true)
     try {
@@ -100,7 +100,7 @@ export default function QuickBooksPaymentLinkCreator() {
       if (!res.ok) throw new Error(data.error || 'Failed to switch provider')
       setEmailProvider(provider)
       setProviderParam(provider)
-      toast.success(`Manual sends now going via ${provider === 'postwing' ? 'Postwing' : 'ZeptoMail'}`)
+      toast.success(`Manual sends now going via ${provider === 'maileroo' ? 'Maileroo' : 'ZeptoMail'}`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to switch provider')
     } finally {
@@ -1672,21 +1672,23 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               <div className="inline-flex rounded-md border border-amber-300 bg-white p-0.5">
                 <button
                   type="button"
+                  disabled={isSwitchingProvider}
                   onClick={() => switchEmailProvider('zeptomail')}
-                  disabled={isSwitchingProvider || emailProvider === null}
-                  title="Content-policy rejections resurfaced 2026-08-28 (SM_136) — under investigation with their support"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'zeptomail' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${
+                    emailProvider === 'zeptomail' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-50'
+                  }`}
                 >
                   ZeptoMail
                 </button>
                 <button
                   type="button"
-                  onClick={() => switchEmailProvider('postwing')}
-                  disabled={isSwitchingProvider || emailProvider === null}
-                  title="Added 2026-08-28 — spam-pattern based anti-abuse, not brand/logo content scanning"
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer disabled:cursor-not-allowed ${emailProvider === 'postwing' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-500 hover:bg-zinc-50'}`}
+                  disabled={isSwitchingProvider}
+                  onClick={() => switchEmailProvider('maileroo')}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${
+                    emailProvider === 'maileroo' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-50'
+                  }`}
                 >
-                  Postwing
+                  Maileroo
                 </button>
               </div>
               {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}

@@ -36,9 +36,9 @@ export interface EmailLogEntry {
   /** Which provider providerMessageId belongs to — needed to know which status-lookup API
    *  a row should be reconciled against, since multiple stopgap providers write to the same
    *  providerMessageId field. Absent on Resend-tied rows (they use resendId instead).
-   *  'smtp2go' stays a valid value here only for historical rows — that provider was
-   *  permanently banned and removed; no new rows will have it. */
-  provider?: 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'postwing' | 'smtp2go';
+   *  'smtp2go' and 'postwing' stay valid values here only for historical rows — both
+   *  providers were removed after being banned; no new rows will have either. */
+  provider?: 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'postwing' | 'smtp2go';
   /** Set when the send was rejected outright, so the row records the failure rather than
    *  being silently absent from the log. */
   deliveryStatus?: DeliveryStatus;

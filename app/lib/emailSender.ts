@@ -2,7 +2,7 @@ import { sendViaPostmark } from '@/app/lib/postmark';
 import { sendViaMailerSend } from '@/app/lib/mailersend';
 import { sendViaMailPace } from '@/app/lib/mailpace';
 import { sendViaZeptoMail } from '@/app/lib/zeptomail';
-import { sendViaPostwing } from '@/app/lib/postwing';
+import { sendViaMaileroo } from '@/app/lib/maileroo';
 import { getActiveEmailProvider, type EmailProvider } from '@/app/lib/emailProviderSettings';
 
 export interface SendEmailParams {
@@ -30,7 +30,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     provider === 'mailersend' ? await sendViaMailerSend(params)
     : provider === 'mailpace' ? await sendViaMailPace(params)
     : provider === 'zeptomail' ? await sendViaZeptoMail(params)
-    : provider === 'postwing' ? await sendViaPostwing(params)
+    : provider === 'maileroo' ? await sendViaMaileroo(params)
     : await sendViaPostmark(params);
   return { ...result, provider };
 }

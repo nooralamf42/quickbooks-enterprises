@@ -8,7 +8,7 @@ import { sendViaZeptoMail } from '@/app/lib/zeptomail';
  *
  *  Deliberately hardcoded to ZeptoMail rather than the switchable sendEmail() dispatcher —
  *  ZeptoMail is confirmed working for this specific internal alert, and this notification
- *  shouldn't silently move to whatever a manual-send provider toggle picks (e.g. Postwing)
+ *  shouldn't silently move to whatever a manual-send provider toggle picks (e.g. Maileroo)
  *  for the Send Email tab. The two are intentionally decoupled. */
 
 export interface PaymentNotificationParams {

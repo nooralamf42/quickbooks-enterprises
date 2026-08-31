@@ -6,7 +6,6 @@ import { ObjectId } from 'mongodb';
 import { sendViaPostmark } from '@/app/lib/postmark';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
-import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
 
 export async function POST(req: NextRequest) {
   try {
@@ -93,25 +92,9 @@ export async function POST(req: NextRequest) {
         providerMessageId: data?.id,
         provider: 'postmark',
       });
-
-      // Internal "confirmation" alert — same one every gateway's webhook sends on a real
-      // payment, so a manually re-sent receipt notifies the business the same way.
-      await sendPaymentNotificationEmail({
-        gatewayLabel: 'Admin Order Resend',
-        customerName,
-        email: record.email,
-        phone: record.phone,
-        companyName: record.companyName,
-        address: record.address,
-        city: record.city,
-        state: record.state,
-        zipCode: record.zipCode,
-        country: record.country,
-        planDetails: record.planDetails,
-        amountUSD: record.amountUSD || 0,
-        transactionId: record._id.toString(),
-        transactionIdLabel: 'Order ID',
-      });
+      // No internal payment-notification alert here on purpose — this order was already
+      // paid (that's why it exists), so resending its receipt isn't a new payment event
+      // and shouldn't re-notify the business as if one just happened.
     } else {
       const dueDate = record.paidAt ? new Date(record.paidAt) : new Date();
       const cancellationDate = new Date(dueDate);

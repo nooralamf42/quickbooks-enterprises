@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/app/lib/emailSender';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
-import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
 
 export async function POST(req: NextRequest) {
   try {
@@ -91,19 +90,9 @@ export async function POST(req: NextRequest) {
         providerMessageId: data?.id,
         provider,
       });
-
-      // Internal "confirmation" alert — same one every gateway's webhook sends on a real
-      // payment, so a manually-sent receipt notifies the business the same way.
-      await sendPaymentNotificationEmail({
-        gatewayLabel: 'Manual Send',
-        customerName: name,
-        email: toEmail,
-        companyName,
-        planDetails,
-        amountUSD: Number(amountUSD),
-        transactionId: fallbackOrderId,
-        transactionIdLabel: 'Order ID',
-      });
+      // No internal payment-notification alert here on purpose — that's reserved for real
+      // payment events (the gateway webhooks). A manual/admin-triggered receipt send isn't
+      // a new payment, so it shouldn't re-notify the business as if one just happened.
     } else {
       const { amountDueUSD, cancellationDate, updateUrl, dueDate } = body;
       if (amountDueUSD === undefined || amountDueUSD === null || isNaN(Number(amountDueUSD))) {
