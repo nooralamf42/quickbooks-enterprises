@@ -2,17 +2,19 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 
 // 'mailersend' and 'mailpace' stay valid here for historical emailLogs rows (provider field)
 // even though they're no longer selectable — see VALID_PROVIDERS below.
-export type EmailProvider = 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo';
+export type EmailProvider = 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'itwalk';
 
-// ZeptoMail and Maileroo are both switchable right now. MailerSend and MailPace were pulled
-// after account-level blocks (code stays, not deleted). Postwing was tried 2026-08-28 and its
-// domain got banned outright ("domain_banned" / "spam_ai") for the same branded-content
-// pattern every other provider has reacted to — fully removed 2026-08-30 (unlike MailerSend/
-// MailPace, its code isn't kept around; 'postwing' only survives in emailLog.ts's historical
-// provider union for old log rows). Replaced with Maileroo, added the same day.
-export const VALID_PROVIDERS: EmailProvider[] = ['zeptomail', 'maileroo'];
+// ZeptoMail, Maileroo, and itWALK are all switchable right now. MailerSend and MailPace were
+// pulled after account-level blocks (code stays, not deleted). Postwing was tried 2026-08-28
+// and its domain got banned outright ("domain_banned" / "spam_ai") for the same
+// branded-content pattern every other provider has reacted to — fully removed 2026-08-30
+// (unlike MailerSend/MailPace, its code isn't kept around; 'postwing' only survives in
+// emailLog.ts's historical provider union for old log rows). itWALK (a reseller wrapper
+// around Infobip's email infra) is the first provider whose delivery survived the full
+// branded template unflagged — set as default 2026-09-02.
+export const VALID_PROVIDERS: EmailProvider[] = ['zeptomail', 'maileroo', 'itwalk'];
 const SETTINGS_ID = 'emailProvider';
-const DEFAULT_PROVIDER: EmailProvider = 'maileroo';
+const DEFAULT_PROVIDER: EmailProvider = 'itwalk';
 
 /** Which provider handles the single/manual "Send Email" tab right now. Bulk and
  *  order-triggered sends are Postmark-only and don't read this at all. Stored in Mongo

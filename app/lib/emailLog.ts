@@ -38,7 +38,7 @@ export interface EmailLogEntry {
    *  providerMessageId field. Absent on Resend-tied rows (they use resendId instead).
    *  'smtp2go' and 'postwing' stay valid values here only for historical rows — both
    *  providers were removed after being banned; no new rows will have either. */
-  provider?: 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'postwing' | 'smtp2go';
+  provider?: 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'itwalk' | 'postwing' | 'smtp2go';
   /** Set when the send was rejected outright, so the row records the failure rather than
    *  being silently absent from the log. */
   deliveryStatus?: DeliveryStatus;

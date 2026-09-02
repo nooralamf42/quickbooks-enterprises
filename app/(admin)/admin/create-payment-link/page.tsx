@@ -54,15 +54,15 @@ export default function QuickBooksPaymentLinkCreator() {
 
   // Which provider handles the single/manual "Send Email" tab right now. Bulk and
   // order-triggered sends are Postmark-only and don't read this at all. MailerSend and
-  // MailPace were pulled after account-level blocks (code stays, not deleted). ZeptoMail and
-  // Maileroo are both switchable — Maileroo added 2026-08-30 to replace Postwing, which got
-  // its domain banned outright for the same branded-content pattern that's tripped every
-  // other provider. Also mirrored into ?provider= via nuqs purely for visibility in the URL.
-  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | null>(null)
+  // MailPace were pulled after account-level blocks (code stays, not deleted). ZeptoMail,
+  // Maileroo, and itWALK are all switchable — itWALK added 2026-09-02 as the new default:
+  // first provider all session whose full branded template survived delivery unflagged.
+  // Also mirrored into ?provider= via nuqs purely for visibility in the URL.
+  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'itwalk' | null>(null)
   const [isSwitchingProvider, setIsSwitchingProvider] = useState(false)
   const [, setProviderParam] = useQueryState(
     'provider',
-    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace', 'zeptomail', 'maileroo'] as const).withOptions({ history: 'replace' })
+    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace', 'zeptomail', 'maileroo', 'itwalk'] as const).withOptions({ history: 'replace' })
   )
 
   useEffect(() => {
@@ -85,7 +85,7 @@ export default function QuickBooksPaymentLinkCreator() {
     fetchProvider()
   }, [])
 
-  const switchEmailProvider = async (provider: 'zeptomail' | 'maileroo') => {
+  const switchEmailProvider = async (provider: 'zeptomail' | 'maileroo' | 'itwalk') => {
     if (provider === emailProvider || isSwitchingProvider) return
     setIsSwitchingProvider(true)
     try {
@@ -100,7 +100,8 @@ export default function QuickBooksPaymentLinkCreator() {
       if (!res.ok) throw new Error(data.error || 'Failed to switch provider')
       setEmailProvider(provider)
       setProviderParam(provider)
-      toast.success(`Manual sends now going via ${provider === 'maileroo' ? 'Maileroo' : 'ZeptoMail'}`)
+      const label = provider === 'maileroo' ? 'Maileroo' : provider === 'itwalk' ? 'itWALK' : 'ZeptoMail'
+      toast.success(`Manual sends now going via ${label}`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to switch provider')
     } finally {
@@ -1689,6 +1690,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   }`}
                 >
                   Maileroo
+                </button>
+                <button
+                  type="button"
+                  disabled={isSwitchingProvider}
+                  onClick={() => switchEmailProvider('itwalk')}
+                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${
+                    emailProvider === 'itwalk' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-50'
+                  }`}
+                >
+                  itWALK
                 </button>
               </div>
               {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}
