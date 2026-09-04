@@ -13,9 +13,9 @@ export default function TermsAndConditions() {
              <p className="text-zinc-500 mt-2 font-medium">Last Updated: May 27, 2026</p>
            </div>
            <div className="text-sm text-zinc-500 text-left md:text-right">
-             <div className="flex flex-col gap-1 text-sm text-[#393a3d]">
-              <div>28 CHURCH ST, STE 14 #5838, WINCHESTER, MA, 01890</div>
-              <div>info@Qualitybusinesstech.us</div>
+             <div className="font-semibold text-zinc-900">QB Enterprise</div>
+             <div>28 CHURCH ST, STE 14 #5838, WINCHESTER, MA, 01890</div>
+             <div>info@Qualitybusinesstech.us</div>
            </div>
         </div>
 
