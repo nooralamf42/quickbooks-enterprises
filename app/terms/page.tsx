@@ -14,8 +14,8 @@ export default function TermsAndConditions() {
            </div>
            <div className="text-sm text-zinc-500 text-left md:text-right">
              <div className="font-semibold text-zinc-900">QB Enterprise</div>
-             <div>28 CHURCH ST, STE 14 #5838, WINCHESTER, MA, 01890</div>
-             <div>info@Qualitybusinesstech.us</div>
+             <div>4216 Petunia Way, Prosper, TX, 75078</div>
+             <div>contact@qbenterprise.us</div>
            </div>
         </div>
 
@@ -183,9 +183,9 @@ export default function TermsAndConditions() {
              <address className="not-italic mt-4 bg-zinc-50 p-5 rounded-xl border border-zinc-100 shadow-xs">
                <strong className="block text-zinc-900 text-lg mb-2">QB Enterprise</strong>
                <div className="flex flex-col gap-1 text-zinc-700">
-                 <div>Email: <a href="mailto:info@Qualitybusinesstech.us" className="text-[#2ca01c] font-medium hover:underline">info@Qualitybusinesstech.us</a></div>
+                 <div>Email: <a href="mailto:contact@qbenterprise.us" className="text-[#2ca01c] font-medium hover:underline">contact@qbenterprise.us</a></div>
                  <div>Phone: <a href="tel:+18888298848" className="text-zinc-700 hover:text-zinc-900">(888) 829 8848</a></div>
-                 <div>Address: 28 CHURCH ST, STE 14 #5838, WINCHESTER, MA, 01890</div>
+                 <div>Address: 4216 Petunia Way, Prosper, TX, 75078</div>
                </div>
              </address>
            </section>

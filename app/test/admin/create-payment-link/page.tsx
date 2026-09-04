@@ -372,9 +372,9 @@ These Terms, together with any SOW or invoice, constitute the entire agreement b
 13. Contact Information
 For questions about these Terms or to report a violation, contact:
 QB Enterprise
-Email: info@Qualitybusinesstech.us
+Email: contact@qbenterprise.us
 Phone: (888) 829 8848
-Address: 28 CHURCH ST, STE 14 #5838, WINCHESTER, MA, 01890
+Address: 4216 Petunia Way, Prosper, TX, 75078
 
 By making a payment to QB Enterprise, you acknowledge that you have read, understood, and agree to be bound by these Terms, including the no-refund and no-chargeback provisions and the liability for legal fees arising from a chargeback.`;
 

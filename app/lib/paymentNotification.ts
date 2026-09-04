@@ -65,7 +65,7 @@ export async function sendPaymentNotificationEmail(params: PaymentNotificationPa
   try {
     const { error } = await sendViaZeptoMail({
       from: 'notifications@quickbooks-enterprises.com',
-      to: 'info@qualitybusinesstech.us',
+      to: 'contact@qbenterprise.us',
       subject: `New Successful Payment: $${amountUSD} from ${customerName}`,
       html,
     });
