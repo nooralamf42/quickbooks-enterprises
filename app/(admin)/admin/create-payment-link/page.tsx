@@ -40,7 +40,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'asiapay' | 'antom' | 'shopify'>('authorize')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'antom' | 'shopify'>('authorize')
   
   // Navigation tabs state — kept in the URL (?tab=bulk) via nuqs so a reload, or sharing
   // the link, lands back on the same tab instead of always resetting to Payment Links.
@@ -742,7 +742,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'asiapay' ? 'GAP' : selectedGateway === 'antom' ? 'GAN' : selectedGateway === 'shopify' ? 'GSH' : 'GT'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'antom' ? 'GAN' : selectedGateway === 'shopify' ? 'GSH' : 'GT'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l','m'].includes(selectedEdition)) {
@@ -1608,8 +1608,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       if (log.paymentGateway !== 'Whop' && log.gateway !== 'Whop' && !log.whopSessionId) return false;
     } else if (advGateway === 'Authorize.net') {
       if (log.paymentGateway !== 'Authorize.net' && log.gateway !== 'Authorize.net' && !log.fsOrderReference) return false;
-    } else if (advGateway === 'AsiaPay') {
-      if (log.paymentGateway !== 'AsiaPay' && log.gateway !== 'AsiaPay') return false;
     } else if (advGateway === 'Online Payment') {
       if (log.paymentGateway !== 'Online Payment') return false;
     } else if (advGateway === 'Stripe') {
@@ -1670,38 +1668,12 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <MailWarning size={13} className="text-amber-600 shrink-0" />
                 Manual send (Send Email tab) via:
               </span>
-              <div className="inline-flex rounded-md border border-amber-300 bg-white p-0.5">
-                <button
-                  type="button"
-                  disabled={isSwitchingProvider}
-                  onClick={() => switchEmailProvider('zeptomail')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${
-                    emailProvider === 'zeptomail' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-50'
-                  }`}
-                >
-                  ZeptoMail
-                </button>
-                <button
-                  type="button"
-                  disabled={isSwitchingProvider}
-                  onClick={() => switchEmailProvider('maileroo')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${
-                    emailProvider === 'maileroo' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-50'
-                  }`}
-                >
-                  Maileroo
-                </button>
-                <button
-                  type="button"
-                  disabled={isSwitchingProvider}
-                  onClick={() => switchEmailProvider('itwalk')}
-                  className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-50 ${
-                    emailProvider === 'itwalk' ? 'bg-amber-500 text-white' : 'text-amber-700 hover:bg-amber-50'
-                  }`}
-                >
-                  itWALK
-                </button>
-              </div>
+              <span
+                className="px-2.5 py-1 rounded bg-amber-500 text-white text-[11px] font-bold whitespace-nowrap"
+                title="ZeptoMail and Maileroo were pulled from the toggle 2026-09-04 in favor of itWALK, the first provider whose delivery survived the full branded template unflagged."
+              >
+                itWALK
+              </span>
               {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}
               <span className="text-[10px] text-amber-600">— Bulk and order emails always use Postmark</span>
             </div>
@@ -1793,16 +1765,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     Stripe
                   </button>
                   */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedGateway('asiapay')
-                      setPaymentLink('')
-                    }}
-                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'asiapay' ? 'bg-[#F36E17] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
-                  >
-                    AsiaPay
-                  </button>
                   {/* ANTOM CURRENTLY DISABLED — merchant account not yet cleared for card processing
                   <button
                     type="button"
@@ -2114,7 +2076,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="All">All Gateways</option>
                 <option value="Whop">Whop Only</option>
                 <option value="Authorize.net">Authorize.net Only</option>
-                <option value="AsiaPay">AsiaPay Only</option>
                 <option value="Online Payment">Online Payment Only</option>
                 <option value="Stripe">Stripe Only</option>
                 <option value="Shopify">Shopify Only</option>
@@ -2197,11 +2158,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 {log.paymentGateway === 'Stripe' && (
                                   <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 mt-1">
                                     STRIPE
-                                  </span>
-                                )}
-                                {log.paymentGateway === 'AsiaPay' && (
-                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-50 text-rose-700 border border-rose-200 mt-1">
-                                    ASIAPAY
                                   </span>
                                 )}
                                 {log.paymentGateway === 'Online Payment' && (
@@ -2342,13 +2298,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               </div>
                             )}
 
-                            {log.paymentGateway === 'AsiaPay' && (
-                              <div className="mt-1">
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                                  ASIAPAY
-                                </span>
-                              </div>
-                            )}
 
                             {log.paymentGateway === 'Online Payment' && (
                               <div className="mt-1">
@@ -3653,11 +3602,6 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
             {log.paymentGateway === 'Stripe' && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                 STRIPE
-              </span>
-            )}
-            {log.paymentGateway === 'AsiaPay' && (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                ASIAPAY
               </span>
             )}
             {log.paymentGateway === 'Online Payment' && (

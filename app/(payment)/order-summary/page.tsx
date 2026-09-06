@@ -6,7 +6,6 @@ import ContactInfo from './components/contactInfo';
 import OrderSummary from './components/orderSummary';
 import BusinessAddress from './components/businessAddress';
 import StripePaymentForm from './components/StripePaymentForm';
-import AsiaPayForm from './components/AsiaPayForm';
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
@@ -21,12 +20,10 @@ export default function CheckoutForm() {
     const { setUserDetails } = useUserDetails();
     const [agreedToTerms, setAgreedToTerms] = useState(false);
     const [isSubmittingStripe, setIsSubmittingStripe] = useState(false);
-    const [isSubmittingAsiaPay, setIsSubmittingAsiaPay] = useState(false);
     const [isSubmittingAntom, setIsSubmittingAntom] = useState(false);
     const [isSubmittingShopify, setIsSubmittingShopify] = useState(false);
     const [stripeClientSecret, setStripeClientSecret] = useState<string>('');
     const [stripeLocalOrderId, setStripeLocalOrderId] = useState<string>('');
-    const [asiaPayParams, setAsiaPayParams] = useState<any>(null);
     const [clientSignatureBase64, setClientSignatureBase64] = useState<string>('');
     const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw');
     const [typedSignature, setTypedSignature] = useState('');
@@ -286,53 +283,6 @@ export default function CheckoutForm() {
                 } else {
                     throw new Error('No checkout secret returned from Stripe');
                 }
-            } else if (paymentObj?.gateway === 'AsiaPay') {
-                setIsSubmittingAsiaPay(true);
-                const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
-                const planDetails = paymentObj?.isService
-                    ? paymentObj.serviceName
-                    : paymentObj?.edition
-                    ? paymentObj.edition.toLowerCase() === 'fsp'
-                        ? 'QuickBooks Enterprise FSP Edition'
-                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
-                    : undefined;
-
-                const res = await fetch('/api/asiapay/checkout', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        amountUSD,
-                        email: formData.email,
-                        firstName: formData.firstName,
-                        lastName: formData.lastName,
-                        phone: formData.phone,
-                        planDetails,
-                        address: formData.address,
-                        city: formData.city,
-                        state: formData.state,
-                        zipCode: formData.zipCode,
-                        country: formData.country,
-                        companyName: formData.companyName,
-                        ein: formData.ein,
-                        clientSignatureBase64,
-                        agreedToTerms: agreedToTerms ? 'true' : 'false'
-                    })
-                });
-
-                if (!res.ok) {
-                    const errData = await res.json();
-                    throw new Error(errData.error || 'Failed to initiate AsiaPay checkout');
-                }
-
-                const data = await res.json();
-                setIsSubmittingAsiaPay(false);
-                
-                if (data.secureHash) {
-                    setAsiaPayParams(data);
-                    setStep(3);
-                } else {
-                    throw new Error('Invalid response from AsiaPay checkout');
-                }
             } else if (paymentObj?.gateway === 'Antom') {
                 setIsSubmittingAntom(true);
                 const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
@@ -469,7 +419,6 @@ export default function CheckoutForm() {
         } catch (err: any) {
             setIsSubmittingOnline(false);
             setIsSubmittingStripe(false);
-            setIsSubmittingAsiaPay(false);
             setIsSubmittingAntom(false);
             setIsSubmittingShopify(false);
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
@@ -735,23 +684,14 @@ export default function CheckoutForm() {
                                 </div>
                             ) : (
                                 <button
-                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAsiaPay || isSubmittingAntom || isSubmittingShopify || !clientSignatureBase64}
+                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || !clientSignatureBase64}
                                     type="submit"
                                     className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {authIsPending || isSubmittingStripe || isSubmittingAsiaPay || isSubmittingAntom || isSubmittingShopify ? 'Connecting...' : 'Proceed to Payment'}
+                                    {authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify ? 'Connecting...' : 'Proceed to Payment'}
                                 </button>
                             )}
                             </>
-                            ) : paymentObj?.gateway === 'AsiaPay' ? (
-                                <div className="w-full flex flex-col items-center justify-center p-8 bg-white rounded-lg shadow-sm text-center">
-                                    <svg className="animate-spin h-8 w-8 text-[#F36E17] mb-4" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                    </svg>
-                                    <h3 className="text-xl font-bold text-gray-900 mb-2">Redirecting to Secure Checkout...</h3>
-                                    <p className="text-sm text-gray-500">Please wait while we transfer you to our secure payment gateway.</p>
-                                </div>
                             ) : (
                                 <StripePaymentForm 
                                     clientSecret={stripeClientSecret}
@@ -760,10 +700,6 @@ export default function CheckoutForm() {
                             )}
                         </div>
                     </form>
-
-                    {paymentObj?.gateway === 'AsiaPay' && step === 3 && (
-                        <AsiaPayForm params={asiaPayParams} />
-                    )}
 
                     <div className="lg:col-span-1">
                         <OrderSummary />

@@ -1,4 +1,4 @@
-import { sendViaZeptoMail } from '@/app/lib/zeptomail';
+import { sendViaItwalk } from '@/app/lib/itwalk';
 
 /** The internal "New Successful Payment" alert sent to the business's own inbox on every
  *  completed payment — distinct from the customer-facing receipt, which is sent manually
@@ -6,10 +6,12 @@ import { sendViaZeptoMail } from '@/app/lib/zeptomail';
  *  version every gateway's webhook calls, so a gateway can't go live without also alerting
  *  the business the way Authorize.net already did.
  *
- *  Deliberately hardcoded to ZeptoMail rather than the switchable sendEmail() dispatcher —
- *  ZeptoMail is confirmed working for this specific internal alert, and this notification
- *  shouldn't silently move to whatever a manual-send provider toggle picks (e.g. Maileroo)
- *  for the Send Email tab. The two are intentionally decoupled. */
+ *  Deliberately hardcoded to a specific provider rather than the switchable sendEmail()
+ *  dispatcher, so this notification never silently moves to whatever a manual-send
+ *  provider toggle picks for the Send Email tab. Was ZeptoMail; switched to itWALK
+ *  2026-09-04 after ZeptoMail's account got fully blocked ("Account Blocked", not just a
+ *  per-message failure) — itWALK is the provider confirmed working end-to-end this session,
+ *  including surviving the full branded template unflagged. */
 
 export interface PaymentNotificationParams {
   /** Shown in the email heading, e.g. "New Successful Payment (Stripe)". */
@@ -63,7 +65,7 @@ export async function sendPaymentNotificationEmail(params: PaymentNotificationPa
   `;
 
   try {
-    const { error } = await sendViaZeptoMail({
+    const { error } = await sendViaItwalk({
       from: 'notifications@quickbooks-enterprises.com',
       to: 'info@qualitybusinesstech.us',
       subject: `New Successful Payment: $${amountUSD} from ${customerName}`,

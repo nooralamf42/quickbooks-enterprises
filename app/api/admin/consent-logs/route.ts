@@ -58,8 +58,7 @@ export async function GET(req: NextRequest) {
         if (event.amount) session.amount = event.amount;
         
         if (event.paymentId) {
-          if (event.paymentId.endsWith('GAP')) session.paymentGateway = 'AsiaPay';
-          else if (event.paymentId.endsWith('GT')) session.paymentGateway = 'Stripe';
+          if (event.paymentId.endsWith('GT')) session.paymentGateway = 'Stripe';
           else if (event.paymentId.endsWith('GA')) session.paymentGateway = 'Authorize.net';
           else if (event.paymentId.endsWith('GO')) session.paymentGateway = 'Online Payment';
         }
