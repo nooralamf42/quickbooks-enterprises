@@ -8,6 +8,18 @@ import { jsPDF } from 'jspdf'
 import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X } from 'lucide-react'
 import { SERVICES } from '@/app/hooks/useParamPaymentDetails'
 
+/** Same as the main admin dashboard's formatDateMMDDYYYY — kept in sync there manually since
+ *  this is a separate test page, not a shared component. Always zero-padded MM/DD/YYYY. */
+function formatDateMMDDYYYY(input: Date | string | number, timeZone?: string): string {
+  const isBareIsoDate = typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input);
+  const date = input instanceof Date ? input : new Date(isBareIsoDate ? `${input}T12:00:00` : input);
+  if (isNaN(date.getTime())) return String(input);
+  return date.toLocaleDateString('en-US', {
+    month: '2-digit', day: '2-digit', year: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
 export default function TestPaymentLinkCreator() {
   const [users, setUsers] = useState(1)
   const [totalPrice, setTotalPrice] = useState('')
@@ -929,7 +941,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <tr key={log._id} className="hover:bg-blue-50/50 transition-colors bg-blue-50/20">
                               <td className="py-4 px-4 align-top whitespace-nowrap">
                                 <span className="font-bold text-zinc-900 block">
-                                  {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                                  {formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York')}
                                 </span>
                                 <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
                                   {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -983,7 +995,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         <tr key={log._id} className="hover:bg-zinc-50/40 transition-colors">
                           <td className="py-4 px-4 align-top whitespace-nowrap">
                             <span className="font-bold text-zinc-900 block">
-                              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                              {formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York')}
                             </span>
                             <span className="text-[10px] text-zinc-400 font-medium block mt-0.5">
                               {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })}
@@ -1093,7 +1105,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                         </div>
                                         <div className="text-right">
                                           <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })}</span>
-                                          <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</span>
+                                          <span className="block text-[10px] text-zinc-400">{formatDateMMDDYYYY(evt.timestamp, 'America/New_York')}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -1173,7 +1185,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 space-y-2 text-xs">
                                   <div className="flex justify-between">
                                     <span className="text-zinc-500">Date:</span>
-                                    <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
+                                    <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? formatDateMMDDYYYY(selectedLog.agreedTimestamp, 'America/New_York') : 'N/A'}</span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span className="text-zinc-500">Time:</span>
