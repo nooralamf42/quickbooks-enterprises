@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendEmail } from '@/app/lib/emailSender';
-import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
+import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
 export async function POST(req: NextRequest) {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
       //   html: renderPaymentReceiptEmailHtml({ ... }),
       // });
       const { data, error, provider } = await sendEmail({
-        from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+        from: 'Intuit QuickBooks <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
         subject: 'We received your QuickBooks Enterprise payment!',
@@ -112,11 +112,14 @@ export async function POST(req: NextRequest) {
       //   subject: 'Action needed: update your QuickBooks Enterprise payment method',
       //   html: renderPaymentFailedEmailHtml({ ... }),
       // });
+      // Payroll reminders get a different subject/sender (Intuit-run subscription framing)
+      // than every other reminder — see getReminderEmailBranding(). Receipts are unaffected.
+      const branding = getReminderEmailBranding(planDetails);
       const { data, error, provider } = await sendEmail({
-        from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+        from: branding.from,
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
-        subject: 'Action needed: update your QuickBooks Enterprise payment method',
+        subject: branding.subject,
         html: renderPaymentFailedEmailHtml({
           customerName: name,
           toEmail,
@@ -144,7 +147,7 @@ export async function POST(req: NextRequest) {
         orderId: fallbackOrderId,
         planDetails,
         amountUSD: Number(amountDueUSD),
-        subject: 'Action needed: update your QuickBooks Enterprise payment method',
+        subject: branding.subject,
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,

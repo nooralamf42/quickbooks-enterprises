@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendViaItwalk } from '@/app/lib/itwalk';
-import { renderPaymentFailedEmailHtml, renderPaymentReceiptEmailHtml } from '@/app/lib/emailTemplates';
+import { renderPaymentFailedEmailHtml, renderPaymentReceiptEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
 export const maxDuration = 300;
@@ -132,14 +132,16 @@ export async function POST(req: NextRequest) {
     // Postmark-only scoping). Switched from Postmark to itWALK 2026-09-07 at explicit
     // request; itWALK had at that point only handled individual test sends, never real
     // bulk volume — worth watching delivery/reputation closely on the first real batches.
-    const subject = type === 'success'
-      ? 'We received your QuickBooks Enterprise payment!'
-      : 'Action needed: update your QuickBooks Enterprise payment method';
-
     for (const { row, amount, cancellation, dueDate } of sendable) {
       const toEmail = String(row.email).trim();
       const customerName = `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim() || 'there';
       const orderId = String(row.can ?? '').trim() || `BULK-${Date.now().toString(36).toUpperCase()}-${row.rowNumber}`;
+      // Payroll reminders get a different subject/sender (Intuit-run subscription framing)
+      // than every other reminder — see getReminderEmailBranding(). Receipts are unaffected.
+      const branding = getReminderEmailBranding(row.product);
+      const subject = type === 'success'
+        ? 'We received your QuickBooks Enterprise payment!'
+        : branding.subject;
 
       try {
         const html = type === 'success'
@@ -178,7 +180,7 @@ export async function POST(req: NextRequest) {
         //   replyTo: 'billing@quickbooks-enterprises.com',
         // });
         const { data, error } = await sendViaItwalk({
-          from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+          from: type === 'success' ? 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>' : branding.from,
           to: toEmail,
           subject,
           html,

@@ -10,6 +10,25 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
 import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search, Mail, MailWarning, Users, Upload, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
+/** Single source of truth for date display across this dashboard — always zero-padded
+ *  MM/DD/YYYY, matching what the actual emails render (see emailTemplates.ts). Accepts a
+ *  Date, an ISO string like "2026-09-14" from a parsed spreadsheet cell, or a timestamp.
+ *  Pass timeZone for anything tied to a specific business-hours display (consent logs use
+ *  America/New_York); omit it for pure calendar dates like due/cancellation dates, where
+ *  the value shouldn't shift based on viewer timezone. */
+function formatDateMMDDYYYY(input: Date | string | number, timeZone?: string): string {
+  // A bare "YYYY-MM-DD" (no time) parses as UTC midnight — in a viewer west of UTC that can
+  // display as the previous day. Anchoring to UTC noon avoids that without affecting inputs
+  // that already carry a real time component (full ISO timestamps, Date objects, etc.).
+  const isBareIsoDate = typeof input === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(input);
+  const date = input instanceof Date ? input : new Date(isBareIsoDate ? `${input}T12:00:00` : input);
+  if (isNaN(date.getTime())) return String(input);
+  return date.toLocaleDateString('en-US', {
+    month: '2-digit', day: '2-digit', year: 'numeric',
+    ...(timeZone ? { timeZone } : {}),
+  });
+}
+
 /** Delivery states reported by Resend. Anything red means the customer did not get the email. */
 const DELIVERY_STATUS_STYLE: Record<string, string> = {
   delivered:  'bg-green-50 text-green-700 border-green-200',
@@ -379,7 +398,7 @@ export default function QuickBooksPaymentLinkCreator() {
         const sentDate = new Date(sentAt)
         if (isNaN(sentDate.getTime())) { setSingleSendPrior(null); return }
         const isRecent = Date.now() - sentDate.getTime() < BULK_HISTORY_DANGER_MS
-        const label = sentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + sentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+        const label = formatDateMMDDYYYY(sentDate) + ', ' + sentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
         setSingleSendPrior({ label, isRecent })
       } catch {
         setSingleSendPrior(null)
@@ -924,7 +943,7 @@ export default function QuickBooksPaymentLinkCreator() {
     const sentDate = new Date(sentAt)
     if (isNaN(sentDate.getTime())) return null
     const isRecent = Date.now() - sentDate.getTime() < BULK_HISTORY_DANGER_MS
-    const label = sentDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' + sentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    const label = formatDateMMDDYYYY(sentDate) + ', ' + sentDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     return { label, isRecent }
   }
 
@@ -1380,7 +1399,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         doc.setFont('Times', 'normal')
         doc.setFontSize(14)
         doc.setTextColor(0, 0, 0)
-        const dateStr = new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) + ' EST'
+        const dateStr = formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York') + ' EST'
         doc.text(`Date:  ${dateStr}`, 150, sigY + 13)
       }
 
@@ -1636,7 +1655,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         ${log.email || ''} 
         ${log.planDetails || ''} 
         ${log.ipAddress || ''}
-        ${log.agreedTimestamp ? new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : ''}
+        ${log.agreedTimestamp ? formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York') : ''}
       `.toLowerCase();
       
       const queryParts = query.split(/\s+/).filter(Boolean);
@@ -2136,7 +2155,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <tr key={log._id} className="hover:bg-blue-50/50 transition-colors bg-blue-50/20">
                               <td className="py-4 px-4 align-top whitespace-nowrap">
                                 <span className="font-bold text-zinc-900 block">
-                                  {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                                  {formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York')}
                                 </span>
                                 <span className="text-zinc-500 block text-[10px] mt-0.5">
                                   {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })} EST
@@ -2218,7 +2237,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           {/* Timestamp */}
                           <td className="py-4 px-4 align-top whitespace-nowrap">
                             <span className="font-bold text-zinc-900 block">
-                              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                              {formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York')}
                             </span>
                             <span className="text-zinc-500 block text-[10px] mt-0.5">
                               {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', second: '2-digit' })} EST
@@ -2450,7 +2469,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                         </div>
                                         <div className="text-right">
                                           <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</span>
-                                          <span className="block text-[10px] text-zinc-400">{new Date(evt.timestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}</span>
+                                          <span className="block text-[10px] text-zinc-400">{formatDateMMDDYYYY(evt.timestamp, 'America/New_York')}</span>
                                         </div>
                                       </div>
                                     </div>
@@ -2537,7 +2556,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <div className="bg-zinc-50 rounded-lg p-3 border border-zinc-100 space-y-2 text-xs">
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">Date:</span>
-                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? new Date(selectedLog.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}</span>
+                                <span className="font-semibold text-zinc-900">{selectedLog.agreedTimestamp ? formatDateMMDDYYYY(selectedLog.agreedTimestamp, 'America/New_York') : 'N/A'}</span>
                               </div>
                               <div className="flex justify-between items-center pb-2 border-b border-zinc-100">
                                 <span className="text-zinc-500 text-sm">Time</span>
@@ -2611,7 +2630,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                               <div key={charge._id || i} className="flex justify-between items-center bg-zinc-50 border border-zinc-100 p-3 rounded-lg">
                                 <div>
                                   <div className="text-xs font-semibold text-zinc-900">
-                                    {new Date(charge.paidAt || charge.createdAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                                    {formatDateMMDDYYYY(charge.paidAt || charge.createdAt, 'America/New_York')}
                                   </div>
                                   {charge.fsOrderReference && (
                                     <div className="text-[9px] font-mono text-zinc-400 mt-0.5">Ref: {charge.fsOrderReference}</div>
@@ -3155,7 +3174,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     {emailLogsList.map((entry) => (
                       <tr key={entry._id} className="hover:bg-zinc-50/40 transition-colors">
                         <td className="py-3 px-4 align-top whitespace-nowrap text-zinc-500">
-                          {entry.sentAt ? new Date(entry.sentAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' }) : 'N/A'}
+                          {entry.sentAt ? formatDateMMDDYYYY(entry.sentAt, 'America/New_York') : 'N/A'}
                           <div className="text-[10px] text-zinc-400">{entry.sentAt ? new Date(entry.sentAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' EST' : ''}</div>
                         </td>
                         <td className="py-3 px-4 align-top">
@@ -3411,8 +3430,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <td className="py-2 px-3 text-zinc-600">{`${r.firstName} ${r.lastName}`.trim() || '—'}</td>
                             <td className="py-2 px-3 text-zinc-600">{r.companyName || '—'}</td>
                             <td className="py-2 px-3 font-semibold text-[#2ca01c]">{r.amountDueUSD ? `$${r.amountDueUSD}` : <span className="text-red-500">missing</span>}</td>
-                            <td className="py-2 px-3 text-zinc-600">{r.dueDate || <span className="text-red-500">missing</span>}</td>
-                            <td className="py-2 px-3 text-zinc-600">{r.cancellationDate || <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">{r.dueDate ? formatDateMMDDYYYY(r.dueDate) : <span className="text-red-500">missing</span>}</td>
+                            <td className="py-2 px-3 text-zinc-600">{r.cancellationDate ? formatDateMMDDYYYY(r.cancellationDate) : <span className="text-red-500">missing</span>}</td>
                             <td className="py-2 px-3 text-zinc-600">
                               {r.product ? (
                                 <>
@@ -3585,7 +3604,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
         <div className="flex justify-between items-start cursor-pointer group" onClick={() => setExpanded(!expanded)}>
           <div>
             <span className="text-[9px] uppercase font-bold text-blue-400 block tracking-wider">
-              {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
+              {formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York')} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
             </span>
             <h4 className="font-semibold text-blue-900 text-base mt-0.5">Activity Session</h4>
             <p className="text-xs text-zinc-500 font-medium">{log.email || log.ipAddress}</p>
@@ -3652,7 +3671,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
         <div>
           <div className="font-semibold text-emerald-800 flex items-center gap-2 mt-0.5">
             <CheckCircle size={14} className="text-emerald-600" />
-            {new Date(log.agreedTimestamp).toLocaleDateString('en-US', { timeZone: 'America/New_York' })} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
+            {formatDateMMDDYYYY(log.agreedTimestamp, 'America/New_York')} at {new Date(log.agreedTimestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' })} EST
           </div>
           <h4 className="font-semibold text-zinc-900 text-base mt-0.5 group-hover:text-[#2ca01c] transition-colors">{log.firstName} {log.lastName}</h4>
           <p className="text-xs text-zinc-500 font-medium">{log.email}</p>
@@ -3722,7 +3741,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
                 {log.charges.map((charge: any, i: number) => (
                   <div key={charge._id || i} className="flex justify-between items-center text-[11px] bg-white px-2 py-1.5 rounded-md border border-zinc-100">
                     <span className="text-zinc-500 font-medium">
-                      {new Date(charge.paidAt || charge.createdAt).toLocaleDateString('en-US', { timeZone: 'America/New_York' })}
+                      {formatDateMMDDYYYY(charge.paidAt || charge.createdAt, 'America/New_York')}
                     </span>
                     <span className="font-bold text-[#2ca01c]">
                       ${Number(charge.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -15,6 +15,22 @@ const ALERT_ICON_URL = `${BASE_URL}/email-alert.svg`;
 const SUPPORT_MAILTO = 'mailto:billing@quickbooks-enterprises.com';
 const SUPPORT_TEL = 'tel:+18888298848';
 
+/** Every reminder sends as "Intuit QuickBooks", not "QuickBooks Enterprise" — that part is
+ *  unconditional. Only the subject changes for payroll: payroll is positioned as an Intuit-run
+ *  subscription, not a QuickBooks Enterprise licensing renewal, so its framing needs to match
+ *  that. Detected from the free-text product/plan string (bulk spreadsheet cell or the manual
+ *  Send Email tab's picked product), not a dedicated field — case-insensitive "payroll"
+ *  substring match. */
+export function getReminderEmailBranding(product?: string): { subject: string; from: string } {
+  const isPayroll = /payroll/i.test(product || '');
+  return {
+    subject: isPayroll
+      ? 'Take action to stop your payroll subscription from being cancelled'
+      : 'Action needed: update your QuickBooks Enterprise payment method',
+    from: 'Intuit QuickBooks <notifications@quickbooks-enterprises.com>',
+  };
+}
+
 // Wraps a body fragment as a full HTML document. The color-scheme meta tags
 // cover Apple Mail/Outlook.com, but Gmail's mobile apps ignore them and use
 // their own heuristic instead: when Gmail auto-dark-modes a message it
