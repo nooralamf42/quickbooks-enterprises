@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 // import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
 // under review (suspended 2026-08-25). Restore this import when reactivated.
-import { sendViaPostmark } from '@/app/lib/postmark';
+import { sendViaItwalk } from '@/app/lib/itwalk';
 import { renderPaymentFailedEmailHtml, renderPaymentReceiptEmailHtml } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
@@ -127,9 +127,11 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendViaPostmark() below.
-    // Bulk sends are Postmark-only — no provider switch here. SMTP2GO was permanently
-    // banned and removed; MailerSend is scoped to the manual Send Email tab only.
+    // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendViaItwalk() below.
+    // Bulk sends go through itWALK directly — no provider switch here (same as the old
+    // Postmark-only scoping). Switched from Postmark to itWALK 2026-09-07 at explicit
+    // request; itWALK had at that point only handled individual test sends, never real
+    // bulk volume — worth watching delivery/reputation closely on the first real batches.
     const subject = type === 'success'
       ? 'We received your QuickBooks Enterprise payment!'
       : 'Action needed: update your QuickBooks Enterprise payment method';
@@ -175,7 +177,7 @@ export async function POST(req: NextRequest) {
         //   // reply either bounces or silently vanishes. billing@ is the one that's monitored.
         //   replyTo: 'billing@quickbooks-enterprises.com',
         // });
-        const { data, error } = await sendViaPostmark({
+        const { data, error } = await sendViaItwalk({
           from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
           to: toEmail,
           subject,
@@ -193,14 +195,14 @@ export async function POST(req: NextRequest) {
         };
 
         if (error) {
-          const reason = error.message || 'Postmark rejected the send';
+          const reason = error.message || 'itWALK rejected the send';
           results.push({ rowNumber: row.rowNumber, email: toEmail, status: 'failed', reason });
           // Log rejections too — an email that never left is exactly what an admin needs to see.
-          await logEmailSent({ ...logBase, provider: 'postmark', deliveryStatus: 'rejected', deliveryDetail: reason });
+          await logEmailSent({ ...logBase, provider: 'itwalk', deliveryStatus: 'rejected', deliveryDetail: reason });
         } else {
-          // "accepted", not "sent" — Postmark rows have no reconcile path wired up yet.
+          // "accepted", not "sent" — itWALK's delivery report arrives later via its webhook.
           results.push({ rowNumber: row.rowNumber, email: toEmail, status: 'accepted', resendId: data?.id });
-          await logEmailSent({ ...logBase, providerMessageId: data?.id, provider: 'postmark', deliveryStatus: 'accepted' });
+          await logEmailSent({ ...logBase, providerMessageId: data?.id, provider: 'itwalk', deliveryStatus: 'accepted' });
         }
       } catch (err: any) {
         results.push({ rowNumber: row.rowNumber, email: toEmail, status: 'failed', reason: err?.message || 'Unknown error' });
