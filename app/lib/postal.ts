@@ -13,6 +13,24 @@
 
 const POSTAL_API = process.env.POSTAL_API_URL || 'https://postal-dashboard.quickbooks-enterprises.com/api/v1/send/message';
 
+// The only domain verified/DKIM-signed on our Postal server — every other provider wired
+// in here sends from the bare quickbooks-enterprises.com, but Postal rejects that outright
+// ("The From address is not authorised to send mail from this server"). Rewriting the
+// domain here means callers (send-custom-email, etc.) don't need a Postal-specific from
+// address; they keep using the same literal they pass to every other provider.
+const VERIFIED_SEND_DOMAIN = 'mail.quickbooks-enterprises.com';
+
+function toVerifiedDomain(from: string): string {
+  const match = from.match(/^(.*)<(.+)@(.+)>$/);
+  if (match) {
+    const [, namePart, local] = match;
+    return `${namePart}<${local}@${VERIFIED_SEND_DOMAIN}>`;
+  }
+  const bare = from.match(/^(.+)@(.+)$/);
+  if (bare) return `${bare[1]}@${VERIFIED_SEND_DOMAIN}`;
+  return from;
+}
+
 export interface PostalSendParams {
   /** "Name <email>" or a bare email address. */
   from: string;
@@ -42,7 +60,7 @@ export async function sendViaPostal(params: PostalSendParams): Promise<PostalSen
       },
       body: JSON.stringify({
         to: [params.to],
-        from: params.from,
+        from: toVerifiedDomain(params.from),
         subject: params.subject,
         html_body: params.html,
         ...(params.replyTo ? { reply_to: params.replyTo } : {}),
