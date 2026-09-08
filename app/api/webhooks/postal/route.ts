@@ -12,16 +12,23 @@ import {
  *  verification, only trust events whose payload.message.id matches a real logged
  *  providerMessageId (set from the per-recipient id in app/lib/postal.ts's send response).
  *
- *  Payload shape: { event: "MessageSentEvent" | ..., timestamp, payload: { message: { id,
- *  token, ... }, status?, details?, url? (for click events) } }. */
+ *  Payload shape: { event: "MessageSent" | ..., timestamp, payload: { message: { id, token,
+ *  ... }, status?, details?, url? (for click events) } }. Event names match the checkbox
+ *  values on the webhook's event-picker form (MessageSent, MessageBounced, etc, no "Event"
+ *  suffix) — normalized here in case Postal's actual serialized payload does carry one, since
+ *  that wasn't confirmed either way before this shipped. */
 
 const EVENT_STATUS: Record<string, DeliveryStatus> = {
-  MessageSentEvent: 'sent',
-  MessageDelayedEvent: 'delayed',
-  MessageDeliveryFailedEvent: 'failed',
-  MessageBouncedEvent: 'bounced',
-  MessageHeldEvent: 'rejected',
+  MessageSent: 'sent',
+  MessageDelayed: 'delayed',
+  MessageDeliveryFailed: 'failed',
+  MessageBounced: 'bounced',
+  MessageHeld: 'rejected',
 };
+
+function normalizeEvent(event: string): string {
+  return event.endsWith('Event') ? event.slice(0, -'Event'.length) : event;
+}
 
 interface PostalWebhookPayload {
   event?: string;
@@ -36,17 +43,19 @@ interface PostalWebhookPayload {
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json().catch(() => ({}))) as PostalWebhookPayload;
-    const event = body.event;
+    const rawEvent = body.event;
     const messageId = body.payload?.message?.id;
 
-    if (!event || messageId === undefined) {
+    if (!rawEvent || messageId === undefined) {
+      console.warn('[Postal Webhook] No event or message id in payload:', JSON.stringify(body));
       return NextResponse.json({ ok: true, ignored: 'no event or message id' });
     }
 
+    const event = normalizeEvent(rawEvent);
     const providerMessageId = String(messageId);
 
-    if (event === 'MessageLoadedEvent' || event === 'MessageLinkClickedEvent') {
-      const kind = event === 'MessageLinkClickedEvent' ? 'clicked' : 'opened';
+    if (event === 'MessageLoaded' || event === 'MessageLinkClicked') {
+      const kind = event === 'MessageLinkClicked' ? 'clicked' : 'opened';
       const matched = await recordEngagementByProviderMessageId(providerMessageId, kind, body.payload?.url);
       if (!matched) console.warn(`[Postal Webhook] No log row for ${providerMessageId} (${event})`);
       return NextResponse.json({ ok: true, matched, kind });
@@ -54,7 +63,8 @@ export async function POST(req: NextRequest) {
 
     const status = EVENT_STATUS[event];
     if (!status) {
-      return NextResponse.json({ ok: true, ignored: `unrecognized event ${event}` });
+      console.warn(`[Postal Webhook] Unrecognized event ${rawEvent}:`, JSON.stringify(body));
+      return NextResponse.json({ ok: true, ignored: `unrecognized event ${rawEvent}` });
     }
 
     const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status, body.payload?.details);
