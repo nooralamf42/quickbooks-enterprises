@@ -4,6 +4,7 @@ import { sendViaMailPace } from '@/app/lib/mailpace';
 import { sendViaZeptoMail } from '@/app/lib/zeptomail';
 import { sendViaMaileroo } from '@/app/lib/maileroo';
 import { sendViaItwalk } from '@/app/lib/itwalk';
+import { sendViaPostal } from '@/app/lib/postal';
 import { getActiveEmailProvider, type EmailProvider } from '@/app/lib/emailProviderSettings';
 
 export interface SendEmailParams {
@@ -33,6 +34,7 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     : provider === 'zeptomail' ? await sendViaZeptoMail(params)
     : provider === 'maileroo' ? await sendViaMaileroo(params)
     : provider === 'itwalk' ? await sendViaItwalk(params)
+    : provider === 'postal' ? await sendViaPostal(params)
     : await sendViaPostmark(params);
   return { ...result, provider };
 }

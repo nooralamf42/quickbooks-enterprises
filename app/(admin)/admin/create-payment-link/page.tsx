@@ -77,11 +77,11 @@ export default function QuickBooksPaymentLinkCreator() {
   // Maileroo, and itWALK are all switchable — itWALK added 2026-09-02 as the new default:
   // first provider all session whose full branded template survived delivery unflagged.
   // Also mirrored into ?provider= via nuqs purely for visibility in the URL.
-  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'itwalk' | null>(null)
+  const [emailProvider, setEmailProvider] = useState<'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'itwalk' | 'postal' | null>(null)
   const [isSwitchingProvider, setIsSwitchingProvider] = useState(false)
   const [, setProviderParam] = useQueryState(
     'provider',
-    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace', 'zeptomail', 'maileroo', 'itwalk'] as const).withOptions({ history: 'replace' })
+    parseAsStringLiteral(['postmark', 'mailersend', 'mailpace', 'zeptomail', 'maileroo', 'itwalk', 'postal'] as const).withOptions({ history: 'replace' })
   )
 
   useEffect(() => {
@@ -104,7 +104,7 @@ export default function QuickBooksPaymentLinkCreator() {
     fetchProvider()
   }, [])
 
-  const switchEmailProvider = async (provider: 'zeptomail' | 'maileroo' | 'itwalk') => {
+  const switchEmailProvider = async (provider: 'itwalk' | 'postal') => {
     if (provider === emailProvider || isSwitchingProvider) return
     setIsSwitchingProvider(true)
     try {
@@ -119,7 +119,7 @@ export default function QuickBooksPaymentLinkCreator() {
       if (!res.ok) throw new Error(data.error || 'Failed to switch provider')
       setEmailProvider(provider)
       setProviderParam(provider)
-      const label = provider === 'maileroo' ? 'Maileroo' : provider === 'itwalk' ? 'itWALK' : 'ZeptoMail'
+      const label = provider === 'postal' ? 'Postal' : 'itWALK'
       toast.success(`Manual sends now going via ${label}`)
     } catch (err: any) {
       toast.error(err?.message || 'Failed to switch provider')
@@ -1687,12 +1687,22 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <MailWarning size={13} className="text-amber-600 shrink-0" />
                 Manual send (Send Email tab) via:
               </span>
-              <span
-                className="px-2.5 py-1 rounded bg-amber-500 text-white text-[11px] font-bold whitespace-nowrap"
-                title="ZeptoMail and Maileroo were pulled from the toggle 2026-09-04 in favor of itWALK, the first provider whose delivery survived the full branded template unflagged."
+              <button
+                onClick={() => switchEmailProvider('itwalk')}
+                disabled={isSwitchingProvider || emailProvider === null}
+                title="First provider all session whose full branded template survived delivery (inbox, not spam) unflagged."
+                className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${emailProvider === 'itwalk' ? 'bg-amber-500 text-white' : 'bg-white text-amber-700 border border-amber-300 hover:bg-amber-100 cursor-pointer'}`}
               >
                 itWALK
-              </span>
+              </button>
+              <button
+                onClick={() => switchEmailProvider('postal')}
+                disabled={isSwitchingProvider || emailProvider === null}
+                title="Our own self-hosted mail server. Added 2026-09-08 — switch here once its deliverability is confirmed."
+                className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${emailProvider === 'postal' ? 'bg-amber-500 text-white' : 'bg-white text-amber-700 border border-amber-300 hover:bg-amber-100 cursor-pointer'}`}
+              >
+                Postal
+              </button>
               {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}
               <span className="text-[10px] text-amber-600">— Bulk and order emails always use Postmark</span>
             </div>

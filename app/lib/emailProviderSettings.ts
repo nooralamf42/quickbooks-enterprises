@@ -2,18 +2,20 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 
 // 'mailersend' and 'mailpace' stay valid here for historical emailLogs rows (provider field)
 // even though they're no longer selectable — see VALID_PROVIDERS below.
-export type EmailProvider = 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'itwalk';
+export type EmailProvider = 'postmark' | 'mailersend' | 'mailpace' | 'zeptomail' | 'maileroo' | 'itwalk' | 'postal';
 
-// Only itWALK is switchable right now. MailerSend and MailPace were pulled after
-// account-level blocks (code stays, not deleted). Postwing was tried 2026-08-28 and its
-// domain got banned outright ("domain_banned" / "spam_ai") for the same branded-content
-// pattern every other provider has reacted to — fully removed 2026-08-30 (unlike
-// MailerSend/MailPace, its code isn't kept around; 'postwing' only survives in
-// emailLog.ts's historical provider union for old log rows). ZeptoMail and Maileroo were
-// pulled from the toggle 2026-09-04 in favor of itWALK (a reseller wrapper around Infobip's
-// email infra, the first provider whose delivery survived the full branded template
-// unflagged) — code stays, not deleted, same as MailerSend/MailPace.
-export const VALID_PROVIDERS: EmailProvider[] = ['itwalk'];
+// itWALK and Postal (our own self-hosted server) are switchable right now. MailerSend and
+// MailPace were pulled after account-level blocks (code stays, not deleted). Postwing was
+// tried 2026-08-28 and its domain got banned outright ("domain_banned" / "spam_ai") for the
+// same branded-content pattern every other provider has reacted to — fully removed
+// 2026-08-30 (unlike MailerSend/MailPace, its code isn't kept around; 'postwing' only
+// survives in emailLog.ts's historical provider union for old log rows). ZeptoMail and
+// Maileroo were pulled from the toggle 2026-09-04 in favor of itWALK (a reseller wrapper
+// around Infobip's email infra, the first provider whose delivery survived the full branded
+// template unflagged) — code stays, not deleted, same as MailerSend/MailPace. Postal added
+// 2026-09-08, kept default on itWALK since it's the one with a proven inbox (not spam) track
+// record — switch to 'postal' from the admin panel once its own deliverability is confirmed.
+export const VALID_PROVIDERS: EmailProvider[] = ['itwalk', 'postal'];
 const SETTINGS_ID = 'emailProvider';
 const DEFAULT_PROVIDER: EmailProvider = 'itwalk';
 
