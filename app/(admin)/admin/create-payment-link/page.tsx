@@ -41,6 +41,18 @@ const DELIVERY_STATUS_STYLE: Record<string, string> = {
   failed:     'bg-red-50 text-red-700 border-red-200',
 }
 
+const FAILURE_DELIVERY_STATUSES = new Set(['bounced', 'complained', 'rejected', 'failed'])
+
+const PROVIDER_STYLE: Record<string, string> = {
+  postal:     'bg-purple-50 text-purple-700 border-purple-200',
+  itwalk:     'bg-cyan-50 text-cyan-700 border-cyan-200',
+  postmark:   'bg-orange-50 text-orange-700 border-orange-200',
+  zeptomail:  'bg-teal-50 text-teal-700 border-teal-200',
+  maileroo:   'bg-pink-50 text-pink-700 border-pink-200',
+  mailersend: 'bg-lime-50 text-lime-700 border-lime-200',
+  mailpace:   'bg-sky-50 text-sky-700 border-sky-200',
+}
+
 const DELIVERY_STATUS_HINT: Record<string, string> = {
   accepted:   'The provider accepted the message — this does NOT confirm delivery. A send can still fail after this point (rejected, bounced, or silently blocked) without ever changing this status, depending on the provider and whether its webhook is configured.',
   sent:       'Handed off to the receiving mail server.',
@@ -3175,6 +3187,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       <th className="py-2.5 px-4 font-semibold">Plan</th>
                       <th className="py-2.5 px-4 font-semibold">Amount</th>
                       <th className="py-2.5 px-4 font-semibold">Trigger</th>
+                      <th className="py-2.5 px-4 font-semibold">Provider</th>
                       <th className="py-2.5 px-4 font-semibold">Delivery</th>
                       <th className="py-2.5 px-4 font-semibold">Engagement</th>
                       <th className="py-2.5 px-4 font-semibold text-right">Data</th>
@@ -3204,6 +3217,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           </span>
                         </td>
                         <td className="py-3 px-4 align-top">
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${PROVIDER_STYLE[entry.provider] || 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}>
+                            {(entry.provider || 'unknown').toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 align-top">
                           <span
                             title={entry.deliveryDetail || DELIVERY_STATUS_HINT[entry.deliveryStatus] || ''}
                             className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${DELIVERY_STATUS_STYLE[entry.deliveryStatus] || 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}
@@ -3211,7 +3229,10 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             {(entry.deliveryStatus || 'unknown').toUpperCase()}
                           </span>
                           {entry.deliveryDetail && (
-                            <div className="text-[10px] text-red-600 mt-0.5 max-w-[220px] whitespace-normal break-words" title={entry.deliveryDetail}>
+                            <div
+                              className={`text-[10px] mt-0.5 max-w-[220px] whitespace-normal break-words ${FAILURE_DELIVERY_STATUSES.has(entry.deliveryStatus) ? 'text-red-600' : 'text-zinc-500'}`}
+                              title={entry.deliveryDetail}
+                            >
                               {entry.deliveryDetail}
                             </div>
                           )}
