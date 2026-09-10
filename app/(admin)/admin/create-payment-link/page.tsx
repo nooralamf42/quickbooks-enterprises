@@ -43,6 +43,15 @@ const DELIVERY_STATUS_STYLE: Record<string, string> = {
 
 const FAILURE_DELIVERY_STATUSES = new Set(['bounced', 'complained', 'rejected', 'failed'])
 
+/** Postal appends "Recipient removed from suppression list" to nearly every successful send's
+ *  detail text unconditionally (confirmed against its own worker logs — it fires even seconds
+ *  apart with no bounce in between), not just when a row was genuinely removed. Stripped here
+ *  since it reads as an alarming event but is really just Postal's own internal bookkeeping. */
+function cleanDeliveryDetail(detail?: string): string {
+  if (!detail) return ''
+  return detail.replace(/\.?\s*Recipient (removed from|added to) suppression list[^.]*\.?/gi, '').trim()
+}
+
 const PROVIDER_STYLE: Record<string, string> = {
   postal:     'bg-purple-50 text-purple-700 border-purple-200',
   itwalk:     'bg-cyan-50 text-cyan-700 border-cyan-200',
@@ -3223,17 +3232,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         </td>
                         <td className="py-3 px-4 align-top">
                           <span
-                            title={entry.deliveryDetail || DELIVERY_STATUS_HINT[entry.deliveryStatus] || ''}
+                            title={cleanDeliveryDetail(entry.deliveryDetail) || DELIVERY_STATUS_HINT[entry.deliveryStatus] || ''}
                             className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${DELIVERY_STATUS_STYLE[entry.deliveryStatus] || 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}
                           >
                             {(entry.deliveryStatus || 'unknown').toUpperCase()}
                           </span>
-                          {entry.deliveryDetail && (
+                          {cleanDeliveryDetail(entry.deliveryDetail) && (
                             <div
                               className={`text-[10px] mt-0.5 max-w-[220px] whitespace-normal break-words ${FAILURE_DELIVERY_STATUSES.has(entry.deliveryStatus) ? 'text-red-600' : 'text-zinc-500'}`}
-                              title={entry.deliveryDetail}
+                              title={cleanDeliveryDetail(entry.deliveryDetail)}
                             >
-                              {entry.deliveryDetail}
+                              {cleanDeliveryDetail(entry.deliveryDetail)}
                             </div>
                           )}
                         </td>
