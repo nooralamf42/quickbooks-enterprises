@@ -3237,9 +3237,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           >
                             {(entry.deliveryStatus || 'unknown').toUpperCase()}
                           </span>
-                          {cleanDeliveryDetail(entry.deliveryDetail) && (
+                          {FAILURE_DELIVERY_STATUSES.has(entry.deliveryStatus) && cleanDeliveryDetail(entry.deliveryDetail) && (
                             <div
-                              className={`text-[10px] mt-0.5 max-w-[220px] whitespace-normal break-words ${FAILURE_DELIVERY_STATUSES.has(entry.deliveryStatus) ? 'text-red-600' : 'text-zinc-500'}`}
+                              className="text-[10px] mt-0.5 max-w-[220px] whitespace-normal break-words text-red-600"
                               title={cleanDeliveryDetail(entry.deliveryDetail)}
                             >
                               {cleanDeliveryDetail(entry.deliveryDetail)}
