@@ -1706,7 +1706,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 whitespace-nowrap">
                 <MailWarning size={13} className="text-amber-600 shrink-0" />
-                Manual send (Send Email tab) via:
+                All sends (manual, bulk, order) via:
               </span>
               <button
                 onClick={() => switchEmailProvider('itwalk')}
@@ -1725,7 +1725,6 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 Postal
               </button>
               {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}
-              <span className="text-[10px] text-amber-600">— Bulk and order emails always use Postmark</span>
             </div>
           </div>
           
