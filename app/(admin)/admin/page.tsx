@@ -95,9 +95,7 @@ const AdminLogin = () => {
     };
 
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        // Remove any dollar signs and sanitize input
-        const sanitizedValue = e.target.value.replace(/[$]/g, '');
-        setPassword(sanitizedValue);
+        setPassword(e.target.value);
     };
 
     return (
