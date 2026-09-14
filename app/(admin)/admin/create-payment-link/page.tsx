@@ -1803,17 +1803,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     Online Payment
                   </button>
-                  {/* STRIPE CURRENTLY DISABLED
                   <button
-                    onClick={(e) => {
-                      e.preventDefault()
+                    type="button"
+                    onClick={() => {
                       setSelectedGateway('stripe')
+                      setPaymentLink('')
                     }}
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stripe' ? 'bg-[#635bff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Stripe
                   </button>
-                  */}
                   {/* ANTOM CURRENTLY DISABLED — merchant account not yet cleared for card processing
                   <button
                     type="button"
