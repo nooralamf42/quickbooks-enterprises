@@ -46,7 +46,10 @@ export async function POST(req: NextRequest) {
               stripePaymentIntentId: paymentIntent.id,
               paidAt: new Date(),
               updatedAt: new Date()
-            }
+            },
+            // Clears any earlier failed-attempt trail on this order now that it's succeeded —
+            // a customer who fails once then retries and pays shouldn't still show a failure.
+            $unset: { failureReason: '', failedAt: '' }
           }
         );
 
@@ -69,6 +72,42 @@ export async function POST(req: NextRequest) {
             transactionId: paymentIntent.id,
             transactionIdLabel: 'Payment Intent ID',
           });
+        }
+      }
+    } else if (event.type === 'payment_intent.payment_failed' || event.type === 'payment_intent.canceled') {
+      // A declined card, an abandoned 3DS challenge, or an explicit cancel — every one of
+      // these previously left the order silently stuck as "Pending" forever with no record
+      // of what happened. last_payment_error carries the decline reason for failed events;
+      // canceled events don't have one, so cancellation_reason (or a generic fallback) is
+      // used instead.
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      const localOrderId = paymentIntent.metadata?.localOrderId;
+
+      if (localOrderId) {
+        const reason = event.type === 'payment_intent.payment_failed'
+          ? paymentIntent.last_payment_error?.message || 'Card declined'
+          : `Payment canceled${paymentIntent.cancellation_reason ? ` (${paymentIntent.cancellation_reason})` : ''}`;
+
+        console.log(`[Stripe Webhook] Marking order ${localOrderId} Failed: ${reason}`);
+
+        const { db } = await connectToDatabase();
+        const record = await db.collection('admindata').findOne({ _id: new ObjectId(localOrderId) });
+
+        // Never downgrade an order that's already Completed — a late/duplicate failure
+        // event for a payment intent that ultimately succeeded shouldn't undo that.
+        if (record && record.status !== 'Completed') {
+          await db.collection('admindata').updateOne(
+            { _id: new ObjectId(localOrderId) },
+            {
+              $set: {
+                status: 'Failed',
+                stripePaymentIntentId: paymentIntent.id,
+                failureReason: reason,
+                failedAt: new Date(),
+                updatedAt: new Date()
+              }
+            }
+          );
         }
       }
     }

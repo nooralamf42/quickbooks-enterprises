@@ -2139,6 +2139,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="All">All Statuses</option>
                 <option value="Completed">Completed Only</option>
                 <option value="Pending">Pending Only</option>
+                <option value="Failed">Failed Only</option>
               </select>
               
               <select 
@@ -2312,13 +2313,24 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                 <span className="w-1 h-1 rounded-full bg-green-600"></span>
                                 Completed
                               </span>
+                            ) : log.status === 'Failed' ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-700 border border-red-200">
+                                <span className="w-1 h-1 rounded-full bg-red-600"></span>
+                                Failed
+                              </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
                                 <span className="w-1 h-1 rounded-full bg-amber-500"></span>
                                 Pending
                               </span>
                             )}
-                            
+
+                            {log.status === 'Failed' && log.failureReason && (
+                              <div className="text-[9px] text-red-600 mt-1 max-w-[200px] whitespace-normal break-words" title={log.failureReason}>
+                                {log.failureReason}
+                              </div>
+                            )}
+
                             {log.fsOrderReference && (
                               <div className="text-[9px] font-semibold text-zinc-500 mt-2 font-mono bg-zinc-50 p-1 border border-zinc-100 rounded inline-block">
                                 Ref: {log.fsOrderReference}
@@ -3719,6 +3731,10 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
           {log.status === 'Completed' ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-green-50 text-green-700 border border-green-200">
               Completed
+            </span>
+          ) : log.status === 'Failed' ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200">
+              Failed
             </span>
           ) : (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
