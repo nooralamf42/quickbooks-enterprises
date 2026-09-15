@@ -154,6 +154,10 @@ export default function QuickBooksPaymentLinkCreator() {
   const [bulkFileName, setBulkFileName] = useState('')
   const [bulkParseErrors, setBulkParseErrors] = useState<string[]>([])
   const [bulkType, setBulkType] = useState<'failed' | 'success'>('failed')
+  /** Which checkout the "Update now" link opens for every row in a reminder batch —
+   *  Shopify Subscription was the only option bulk sends ever had; Stripe is offered
+   *  alongside it, not in place of it, so existing workflows keep behaving the same. */
+  const [bulkGateway, setBulkGateway] = useState<'shopifySubscription' | 'stripe'>('shopifySubscription')
   const [bulkIsSending, setBulkIsSending] = useState(false)
   const [bulkResult, setBulkResult] = useState<any>(null)
   const [isReconciling, setIsReconciling] = useState(false)
@@ -215,7 +219,7 @@ export default function QuickBooksPaymentLinkCreator() {
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
-  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'shopify' | 'shopifySubscription'>('')
+  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription'>('')
   const [emailSubscriptionTier, setEmailSubscriptionTier] = useState('49.87')
   const EMAIL_SUBSCRIPTION_TIERS = ['49.87', '98.78', '149.10', '198.70', '298.00', '349.89']
   const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
@@ -305,8 +309,8 @@ export default function QuickBooksPaymentLinkCreator() {
   // edition format (needs users/years) or the plain service-code format —
   // so "Update now" opens a real, working checkout for this exact amount,
   // product, and gateway.
-  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'shopify' | 'shopifySubscription') => {
-    const gatewayFlag = gateway === 'authorize' ? 'GA' : gateway === 'shopifySubscription' ? 'GSHS' : 'GSH'
+  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription') => {
+    const gatewayFlag = gateway === 'authorize' ? 'GA' : gateway === 'stripe' ? 'GT' : gateway === 'shopifySubscription' ? 'GSHS' : 'GSH'
     const tStr = Math.round(amountUSD * 100).toString(36)
 
     let paymentString: string
@@ -351,12 +355,13 @@ export default function QuickBooksPaymentLinkCreator() {
   }
 
   /** The Send Email tab's buildUpdateLink, but driven by one spreadsheet row instead of the
-   *  form state — same encoding, same GSHS gateway, so "Update now" opens the identical
-   *  dynamic Shopify subscription checkout for that row's exact amount and product. */
+   *  form state — same encoding, so "Update now" opens the identical dynamic checkout for
+   *  that row's exact amount and product, on whichever gateway the batch is set to. */
   const buildBulkUpdateLink = (amountUSD: number, product: string): string | null => {
     const code = productCodeFromText(product)
     if (!code) return null
 
+    const gatewayFlag = bulkGateway === 'stripe' ? 'GT' : 'GSHS'
     const tStr = Math.round(amountUSD * 100).toString(36)
     const isQbEdition = editions.some(e => e.value === code)
 
@@ -365,9 +370,9 @@ export default function QuickBooksPaymentLinkCreator() {
       const editionMap: Record<string, string> = { silver: 'S', gold: 'G', platinum: 'P', diamond: 'D', fsp: 'F' }
       // Bulk rows carry no user count or term — the spec dropped both columns — so the
       // link encodes 1/1. Only the amount drives what the customer is charged.
-      paymentString = `1${editionMap[code]}1K0M${tStr}GSHS`
+      paymentString = `1${editionMap[code]}1K0M${tStr}${gatewayFlag}`
     } else {
-      paymentString = `S${code}K0M${tStr}GSHS`
+      paymentString = `S${code}K0M${tStr}${gatewayFlag}`
     }
 
     const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
@@ -391,7 +396,7 @@ export default function QuickBooksPaymentLinkCreator() {
     if (bulkType === 'failed' && !buildBulkUpdateLink(amt, r.product)) return false
     if (skipRecentDuplicates && isRecentDuplicate(r.email)) return false
     return true
-  }).length, [bulkRows, bulkType, skipRecentDuplicates, bulkSendHistory])
+  }).length, [bulkRows, bulkType, bulkGateway, skipRecentDuplicates, bulkSendHistory])
 
   /** Debounced prior-send check for the single-recipient form — re-runs whenever the
    *  recipient or email type changes, same 7-day danger window as the bulk tab. */
@@ -3036,7 +3041,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
                   <div className="md:col-span-3 bg-amber-50/60 rounded-lg p-4 border border-amber-200">
                     <label className="block mb-2 font-medium text-xs text-amber-700 uppercase tracking-wider">"Update now" button link</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-white rounded-md border border-zinc-200 p-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 bg-white rounded-md border border-zinc-200 p-1">
                       <button
                         type="button"
                         onClick={() => setReminderGateway('')}
@@ -3050,6 +3055,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         className={`text-xs font-semibold py-2 px-1.5 rounded transition-colors cursor-pointer ${reminderGateway === 'authorize' ? 'bg-[#0075ff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                       >
                         Authorize.net
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReminderGateway('stripe')}
+                        className={`text-xs font-semibold py-2 px-1.5 rounded transition-colors cursor-pointer ${reminderGateway === 'stripe' ? 'bg-[#635bff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                      >
+                        Stripe
                       </button>
                       <button
                         type="button"
@@ -3071,7 +3083,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       {reminderGateway === 'shopifySubscription'
                         ? `"Update now" will open a real Shopify recurring checkout for $${emailSubscriptionTier}/month — "QuickBooks Payroll (Monthly Subscription)" — the customer logs in and subscribes like any other invoice link.`
                         : reminderGateway
-                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'Shopify'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
+                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : reminderGateway === 'stripe' ? 'Stripe' : 'Shopify'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
                         : 'No gateway selected — "Update now" will just open a support email instead of a live checkout.'}
                     </p>
                   </div>
@@ -3424,6 +3436,34 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   </span>
                 </label>
               </div>
+
+              {/* "Update now" gateway — reminders only; receipts carry no checkout link */}
+              {bulkType === 'failed' && (
+                <div className="bg-amber-50/60 rounded-lg p-4 border border-amber-200">
+                  <label className="block mb-2 font-medium text-xs text-amber-700 uppercase tracking-wider">"Update now" button link</label>
+                  <div className="flex bg-white rounded-md border border-zinc-200 p-1">
+                    <button
+                      type="button"
+                      onClick={() => { setBulkGateway('shopifySubscription'); setBulkResult(null) }}
+                      className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${bulkGateway === 'shopifySubscription' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                    >
+                      Shopify Subscription
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setBulkGateway('stripe'); setBulkResult(null) }}
+                      className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${bulkGateway === 'stripe' ? 'bg-[#635bff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                    >
+                      Stripe
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-amber-700/80 mt-2 leading-relaxed">
+                    {bulkGateway === 'stripe'
+                      ? 'Every row\'s "Update now" link will open a real Stripe checkout for that row\'s exact amount and product.'
+                      : 'Every row\'s "Update now" link will open a real Shopify recurring checkout, same as before.'}
+                  </p>
+                </div>
+              )}
 
               {/* File input */}
               <div>
