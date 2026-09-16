@@ -80,7 +80,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'antom' | 'shopify'>('authorize')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'antom' | 'shopify' | 'mor'>('authorize')
   
   // Navigation tabs state — kept in the URL (?tab=bulk) via nuqs so a reload, or sharing
   // the link, lands back on the same tab instead of always resetting to Payment Links.
@@ -787,7 +787,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'antom' ? 'GAN' : selectedGateway === 'shopify' ? 'GSH' : 'GT'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'antom' ? 'GAN' : selectedGateway === 'mor' ? 'GM' : selectedGateway === 'shopify' ? 'GSH' : 'GT'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l','m'].includes(selectedEdition)) {
@@ -1227,7 +1227,7 @@ For questions about these Terms or to report a violation, contact:
 QB Enterprise
 Email: contact@qbenterprise.us
 Phone: (888) 829 8848
-Address: 4216 Petunia Way, Prosper, TX, 75078
+Address: 4650 S Hampton Rd, Suite 102, Dallas, TX 75232
 
 By making a payment to QB Enterprise, you acknowledge that you have read, understood, and agree to be bound by these Terms, including the no-refund and no-chargeback provisions and the liability for legal fees arising from a chargeback.`;
 
@@ -1817,6 +1817,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'stripe' ? 'bg-[#635bff] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Stripe
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGateway('mor')
+                      setPaymentLink('')
+                    }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'mor' ? 'bg-[#111827] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    MOR.AI
                   </button>
                   {/* ANTOM CURRENTLY DISABLED — merchant account not yet cleared for card processing
                   <button

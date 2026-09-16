@@ -6,6 +6,7 @@ import ContactInfo from './components/contactInfo';
 import OrderSummary from './components/orderSummary';
 import BusinessAddress from './components/businessAddress';
 import StripePaymentForm from './components/StripePaymentForm';
+import MorPaymentForm from './components/MorPaymentForm';
 import { useUserDetails } from '@/app/hooks/useUserDetails';
 import { useSteps } from '@/app/hooks/useSteps';
 import useParamPaymentDetails from '@/app/hooks/useParamPaymentDetails';
@@ -22,8 +23,10 @@ export default function CheckoutForm() {
     const [isSubmittingStripe, setIsSubmittingStripe] = useState(false);
     const [isSubmittingAntom, setIsSubmittingAntom] = useState(false);
     const [isSubmittingShopify, setIsSubmittingShopify] = useState(false);
+    const [isSubmittingMor, setIsSubmittingMor] = useState(false);
     const [stripeClientSecret, setStripeClientSecret] = useState<string>('');
     const [stripeLocalOrderId, setStripeLocalOrderId] = useState<string>('');
+    const [morCheckoutUrl, setMorCheckoutUrl] = useState<string>('');
     const [clientSignatureBase64, setClientSignatureBase64] = useState<string>('');
     const [signatureMode, setSignatureMode] = useState<'draw' | 'type'>('draw');
     const [typedSignature, setTypedSignature] = useState('');
@@ -328,6 +331,52 @@ export default function CheckoutForm() {
                     setIsSubmittingAntom(false);
                     throw new Error('Invalid response from Antom checkout');
                 }
+            } else if (paymentObj?.gateway === 'MOR') {
+                setIsSubmittingMor(true);
+                const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
+                const planDetails = paymentObj?.isService
+                    ? paymentObj.serviceName
+                    : paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined;
+
+                const res = await fetch('/api/mor/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amountUSD,
+                        email: formData.email,
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        phone: formData.phone,
+                        planDetails,
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        companyName: formData.companyName,
+                        ein: formData.ein,
+                        clientSignatureBase64,
+                        agreedToTerms: agreedToTerms ? 'true' : 'false'
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Failed to initiate MOR.AI checkout');
+                }
+
+                const data = await res.json();
+                setIsSubmittingMor(false);
+                if (data.checkoutUrl) {
+                    setMorCheckoutUrl(data.checkoutUrl);
+                    setStep(3);
+                } else {
+                    throw new Error('No checkout URL returned from MOR.AI');
+                }
             } else if (paymentObj?.gateway === 'Shopify') {
                 setIsSubmittingShopify(true);
                 const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
@@ -440,7 +489,7 @@ export default function CheckoutForm() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <form onSubmit={handleSave} className="lg:col-span-2">
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 md:p-8">
-                            {!stripeClientSecret ? (
+                            {!stripeClientSecret && !morCheckoutUrl ? (
                                 <>
                                     <CompanyInfo
                                         companyName={formData.companyName}
@@ -684,19 +733,21 @@ export default function CheckoutForm() {
                                 </div>
                             ) : (
                                 <button
-                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || !clientSignatureBase64}
+                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || isSubmittingMor || !clientSignatureBase64}
                                     type="submit"
                                     className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify ? 'Connecting...' : 'Proceed to Payment'}
+                                    {authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || isSubmittingMor ? 'Connecting...' : 'Proceed to Payment'}
                                 </button>
                             )}
                             </>
-                            ) : (
-                                <StripePaymentForm 
+                            ) : stripeClientSecret ? (
+                                <StripePaymentForm
                                     clientSecret={stripeClientSecret}
                                     localOrderId={stripeLocalOrderId}
                                 />
+                            ) : (
+                                <MorPaymentForm checkoutUrl={morCheckoutUrl} />
                             )}
                         </div>
                     </form>

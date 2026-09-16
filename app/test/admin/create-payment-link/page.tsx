@@ -386,7 +386,7 @@ For questions about these Terms or to report a violation, contact:
 QB Enterprise
 Email: contact@qbenterprise.us
 Phone: (888) 829 8848
-Address: 4216 Petunia Way, Prosper, TX, 75078
+Address: 4650 S Hampton Rd, Suite 102, Dallas, TX 75232
 
 By making a payment to QB Enterprise, you acknowledge that you have read, understood, and agree to be bound by these Terms, including the no-refund and no-chargeback provisions and the liability for legal fees arising from a chargeback.`;
 
