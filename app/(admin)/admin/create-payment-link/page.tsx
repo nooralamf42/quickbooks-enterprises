@@ -201,7 +201,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const logsPerPage = 5
 
   // Send Email tab state
-  const [emailType, setEmailType] = useState<'success' | 'failed'>('success')
+  const [emailType, setEmailType] = useState<'success' | 'failed' | 'refund'>('success')
   const [emailForm, setEmailForm] = useState({
     toEmail: '',
     customerName: '',
@@ -217,6 +217,9 @@ export default function QuickBooksPaymentLinkCreator() {
     cancellationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
     // Default to a month out — the typical subscription cycle. Shown as "Due date:".
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    refundAmountUSD: '',
+    refundedAt: new Date().toISOString().slice(0, 10),
+    refundReason: '',
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
   const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription'>('')
@@ -416,7 +419,7 @@ export default function QuickBooksPaymentLinkCreator() {
         const res = await fetch('/api/admin/bulk-email-history', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ emails: [email], type: emailType === 'success' ? 'receipt' : 'reminder' }),
+          body: JSON.stringify({ emails: [email], type: emailType === 'success' ? 'receipt' : emailType === 'refund' ? 'refund' : 'reminder' }),
         })
         const data = await res.json()
         const sentAt = res.ok ? data.history?.[email.toLowerCase()] : undefined
@@ -473,6 +476,10 @@ export default function QuickBooksPaymentLinkCreator() {
         payload.licenseNumber = emailForm.licenseNumber
         payload.productNumber = emailForm.productNumber
         payload.dueDate = emailForm.dueDate
+      } else if (emailType === 'refund') {
+        payload.refundAmountUSD = emailForm.refundAmountUSD
+        payload.refundedAt = emailForm.refundedAt
+        payload.reason = emailForm.refundReason
       } else {
         payload.amountDueUSD = emailForm.amountDueUSD
         payload.cancellationDate = emailForm.cancellationDate
@@ -496,7 +503,7 @@ export default function QuickBooksPaymentLinkCreator() {
         throw new Error(data.error || 'Send failed')
       }
 
-      toast.success(emailType === 'success' ? 'Receipt email sent!' : 'Payment reminder sent!')
+      toast.success(emailType === 'success' ? 'Receipt email sent!' : emailType === 'refund' ? 'Refund email sent!' : 'Payment reminder sent!')
       setSingleDuplicateConfirming(false)
       fetchEmailLogs()
     } catch (error: any) {
@@ -1818,6 +1825,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     Stripe
                   </button>
+                  {/* MOR.AI CURRENTLY DISABLED — no mor_live_... key yet, only a sandbox key
                   <button
                     type="button"
                     onClick={() => {
@@ -1828,6 +1836,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     MOR.AI
                   </button>
+                  */}
                   {/* ANTOM CURRENTLY DISABLED — merchant account not yet cleared for card processing
                   <button
                     type="button"
@@ -2766,7 +2775,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   <Mail size={16} className="text-zinc-400" />
                   Send Transactional Email
                 </h2>
-                <p className="text-xs text-zinc-500 mt-0.5">Fill in the fields and send a receipt or payment reminder directly — no existing order required.</p>
+                <p className="text-xs text-zinc-500 mt-0.5">Fill in the fields and send a receipt, payment reminder, or refund confirmation directly — no existing order required.</p>
               </div>
 
               {/* Email type toggle */}
@@ -2786,6 +2795,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${emailType === 'failed' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Payment Reminder
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailType('refund')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${emailType === 'refund' ? 'bg-sky-600 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Refund
                   </button>
                 </div>
               </div>
@@ -2933,7 +2949,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     type="text"
                     value={emailForm.paymentMethodLabel}
                     onChange={(e) => updateEmailForm('paymentMethodLabel', e.target.value)}
-                    placeholder={emailType === 'success' ? 'e.g. VISA ending in 1234' : 'e.g. AMEX ending in 6043'}
+                    placeholder={emailType === 'success' ? 'e.g. VISA ending in 1234' : emailType === 'refund' ? 'e.g. VISA ending in 1234' : 'e.g. AMEX ending in 6043'}
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                   />
                 </div>
@@ -2995,6 +3011,41 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       value={emailForm.dueDate}
                       onChange={(e) => updateEmailForm('dueDate', e.target.value)}
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
+                    />
+                  </div>
+                </div>
+              ) : emailType === 'refund' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 border-t pt-5 border-zinc-100">
+                  <div>
+                    <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Refund Amount ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      required
+                      value={emailForm.refundAmountUSD}
+                      onChange={(e) => updateEmailForm('refundAmountUSD', e.target.value)}
+                      placeholder="22.05"
+                      className="flex h-10 w-full rounded-md border border-sky-600 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-sky-600/30 font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Refund Date</label>
+                    <input
+                      type="date"
+                      value={emailForm.refundedAt}
+                      onChange={(e) => updateEmailForm('refundedAt', e.target.value)}
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block mb-1.5 font-medium text-xs text-zinc-500">Reason <span className="text-[10px] text-zinc-400 italic font-normal">(optional)</span></label>
+                    <input
+                      type="text"
+                      value={emailForm.refundReason}
+                      onChange={(e) => updateEmailForm('refundReason', e.target.value)}
+                      placeholder="e.g. Duplicate charge"
+                      className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600"
                     />
                   </div>
                 </div>
@@ -3104,7 +3155,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <div className={`rounded-lg p-3 border ${singleSendPrior.isRecent ? 'bg-red-50 border-red-200' : 'bg-zinc-50 border-zinc-200'}`}>
                   <p className={`text-[11px] font-semibold flex items-center gap-1.5 ${singleSendPrior.isRecent ? 'text-red-700' : 'text-zinc-600'}`}>
                     {singleSendPrior.isRecent && <AlertCircle size={13} className="shrink-0" />}
-                    {emailType === 'success' ? 'A receipt' : 'A reminder'} was already sent to this address on {singleSendPrior.label}
+                    {emailType === 'success' ? 'A receipt' : emailType === 'refund' ? 'A refund email' : 'A reminder'} was already sent to this address on {singleSendPrior.label}
                     {singleSendPrior.isRecent ? ' — less than a week ago.' : '.'}
                   </p>
                 </div>
@@ -3114,7 +3165,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <div className="border border-red-300 bg-red-50 rounded-lg p-4">
                   <p className="text-xs font-bold text-red-900">Send it again anyway?</p>
                   <p className="text-[11px] text-red-800 mt-1">
-                    This recipient already got {emailType === 'success' ? 'a receipt' : 'a reminder'} on {singleSendPrior?.label}. This cannot be undone.
+                    This recipient already got {emailType === 'success' ? 'a receipt' : emailType === 'refund' ? 'a refund email' : 'a reminder'} on {singleSendPrior?.label}. This cannot be undone.
                   </p>
                   <div className="flex gap-2 mt-3">
                     <button
@@ -3139,9 +3190,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <button
                   type="submit"
                   disabled={isSendingCustomEmail}
-                  className={`w-full py-2.5 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-semibold rounded-lg text-xs transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed border border-zinc-950/10 ${emailType === 'success' ? 'bg-[#2ca01c] hover:bg-[#248a18]' : 'bg-amber-500 hover:bg-amber-600'}`}
+                  className={`w-full py-2.5 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-semibold rounded-lg text-xs transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed border border-zinc-950/10 ${emailType === 'success' ? 'bg-[#2ca01c] hover:bg-[#248a18]' : emailType === 'refund' ? 'bg-sky-600 hover:bg-sky-700' : 'bg-amber-500 hover:bg-amber-600'}`}
                 >
-                  {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : 'Send Payment Reminder'}
+                  {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : emailType === 'refund' ? 'Send Refund Email' : 'Send Payment Reminder'}
                 </button>
               )}
             </form>
@@ -3242,8 +3293,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <div className="text-[10px] text-zinc-400">{entry.sentAt ? new Date(entry.sentAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' EST' : ''}</div>
                         </td>
                         <td className="py-3 px-4 align-top">
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${entry.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                            {entry.type === 'reminder' ? 'REMINDER' : 'RECEIPT'}
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${entry.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : entry.type === 'refund' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                            {entry.type === 'reminder' ? 'REMINDER' : entry.type === 'refund' ? 'REFUND' : 'RECEIPT'}
                           </span>
                         </td>
                         <td className="py-3 px-4 align-top">
@@ -3350,8 +3401,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               <div className="overflow-y-auto flex-1 p-6 md:p-8">
                 <div className="flex items-center justify-between mb-6 border-b border-zinc-100 pb-4">
                   <h2 className="text-lg font-bold text-zinc-900">Email Data Used</h2>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${selectedEmailLog.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                    {selectedEmailLog.type === 'reminder' ? 'REMINDER' : 'RECEIPT'}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${selectedEmailLog.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : selectedEmailLog.type === 'refund' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                    {selectedEmailLog.type === 'reminder' ? 'REMINDER' : selectedEmailLog.type === 'refund' ? 'REFUND' : 'RECEIPT'}
                   </span>
                 </div>
 

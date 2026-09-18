@@ -7,10 +7,12 @@ export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
 
-    const signature = req.headers.get('mor-signature') || '';
-    const timestamp = req.headers.get('mor-timestamp') || '';
-    const deliveryId = req.headers.get('mor-delivery-id') || '';
-    const eventType = req.headers.get('mor-event-type') || '';
+    // The docs example uses "Mor-Signature", but the live dashboard (Checkout settings)
+    // says the secret is sent as "X-MOR-Signature" — accept either header name.
+    const signature = req.headers.get('mor-signature') || req.headers.get('x-mor-signature') || '';
+    const timestamp = req.headers.get('mor-timestamp') || req.headers.get('x-mor-timestamp') || '';
+    const deliveryId = req.headers.get('mor-delivery-id') || req.headers.get('x-mor-delivery-id') || '';
+    const eventType = req.headers.get('mor-event-type') || req.headers.get('x-mor-event-type') || '';
 
     const secret = process.env.MOR_WEBHOOK_SECRET || '';
     if (!secret || !verifyMorSignature(rawBody, signature, timestamp, secret)) {

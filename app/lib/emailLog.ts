@@ -16,7 +16,7 @@ export type DeliveryStatus =
 
 export interface EmailLogEntry {
   /** What kind of email this was. */
-  type: 'receipt' | 'reminder' | 'other';
+  type: 'receipt' | 'reminder' | 'refund' | 'other';
   toEmail: string;
   customerName?: string;
   orderId?: string;

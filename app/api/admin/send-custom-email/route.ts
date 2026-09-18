@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendEmail } from '@/app/lib/emailSender';
-import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
+import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, renderRefundEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
 export async function POST(req: NextRequest) {
@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
     if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
       return NextResponse.json({ error: 'A valid recipient email is required' }, { status: 400 });
     }
-    if (type !== 'success' && type !== 'failed') {
-      return NextResponse.json({ error: 'type must be "success" or "failed"' }, { status: 400 });
+    if (type !== 'success' && type !== 'failed' && type !== 'refund') {
+      return NextResponse.json({ error: 'type must be "success", "failed", or "refund"' }, { status: 400 });
     }
 
     // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or MailerSend, switchable from the admin panel.
@@ -93,6 +93,46 @@ export async function POST(req: NextRequest) {
       // No internal payment-notification alert here on purpose — that's reserved for real
       // payment events (the gateway webhooks). A manual/admin-triggered receipt send isn't
       // a new payment, so it shouldn't re-notify the business as if one just happened.
+    } else if (type === 'refund') {
+      const { refundAmountUSD, refundedAt, reason } = body;
+      if (refundAmountUSD === undefined || refundAmountUSD === null || isNaN(Number(refundAmountUSD))) {
+        return NextResponse.json({ error: 'refundAmountUSD is required' }, { status: 400 });
+      }
+
+      const { data, error, provider } = await sendEmail({
+        from: 'Intuit QuickBooks <notifications@quickbooks-enterprises.com>',
+        replyTo: 'billing@quickbooks-enterprises.com',
+        to: toEmail,
+        subject: 'Your QuickBooks Enterprise refund has been processed',
+        html: renderRefundEmailHtml({
+          customerName: name,
+          toEmail,
+          companyName,
+          orderId: fallbackOrderId,
+          refundedAt: refundedAt ? new Date(refundedAt) : new Date(),
+          refundAmountUSD: Number(refundAmountUSD),
+          paymentMethodLabel: paymentMethodLabel || 'Card on file',
+          planDetails,
+          reason: reason || undefined,
+        }),
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message || 'Email provider rejected the send' }, { status: 502 });
+      }
+
+      await logEmailSent({
+        type: 'refund',
+        toEmail,
+        customerName: name,
+        orderId: fallbackOrderId,
+        planDetails,
+        amountUSD: Number(refundAmountUSD),
+        subject: 'Your QuickBooks Enterprise refund has been processed',
+        trigger: 'admin-manual',
+        providerMessageId: data?.id,
+        provider,
+      });
     } else {
       const { amountDueUSD, cancellationDate, updateUrl, dueDate } = body;
       if (amountDueUSD === undefined || amountDueUSD === null || isNaN(Number(amountDueUSD))) {

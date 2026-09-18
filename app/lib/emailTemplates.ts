@@ -117,7 +117,11 @@ function emailHeader(): string {
     </table>`;
 }
 
-function orderDetailsSection(companyName: string, orderId: string, planDetails?: string): string {
+function orderDetailsSection(companyName: string, orderId: string, planDetails?: string, variant: 'order' | 'refund' = 'order'): string {
+  const heading = variant === 'refund' ? 'Refund details' : 'Order details';
+  const billedToLabel = variant === 'refund' ? 'Refund to:' : 'Billed to:';
+  const orderIdLabel = variant === 'refund' ? 'Refund ID:' : 'Order ID:';
+  const itemsLabel = variant === 'refund' ? 'Items on this refund:' : 'Items on this order:';
   return `
     <table align="center" width="100%" border="0" cellpadding="0" cellspacing="0" style="width:100%;max-width:660px" bgcolor="#ffffff">
       <tr>
@@ -125,7 +129,7 @@ function orderDetailsSection(companyName: string, orderId: string, planDetails?:
           <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:580px">
             <tr>
               <td valign="top" align="left" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:26px;font-weight:600;padding-top:40px;padding-bottom:20px;color:#000000">
-                Order details
+                ${heading}
               </td>
             </tr>
           </table>
@@ -135,18 +139,18 @@ function orderDetailsSection(companyName: string, orderId: string, planDetails?:
         <td>
           <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:580px">
             <tr>
-              <td align="left" valign="top" width="240" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:600;color:#000000">Billed to:</td>
+              <td align="left" valign="top" width="240" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:600;color:#000000">${billedToLabel}</td>
               <td width="20" style="width:20px">&nbsp;</td>
               <td valign="top" align="left" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:400;color:#000000">${escapeHtml(companyName)}</td>
             </tr>
             <tr>
-              <td align="left" valign="top" width="240" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:600;padding-top:8px;color:#000000">Order ID:</td>
+              <td align="left" valign="top" width="240" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:600;padding-top:8px;color:#000000">${orderIdLabel}</td>
               <td width="20" style="width:20px">&nbsp;</td>
               <td align="left" valign="top" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:400;padding-top:8px;color:#000000">${escapeHtml(orderId)}</td>
             </tr>
             ${planDetails ? `
             <tr>
-              <td align="left" valign="top" width="240" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:600;padding-top:8px;color:#000000">Items on this order:</td>
+              <td align="left" valign="top" width="240" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:600;padding-top:8px;color:#000000">${itemsLabel}</td>
               <td width="20" style="width:20px">&nbsp;</td>
               <td align="left" valign="top" style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:16px;line-height:24px;font-weight:400;padding-top:8px;color:#000000">${escapeHtml(planDetails)}</td>
             </tr>` : ''}
@@ -371,6 +375,99 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
     </table>
 
     ${orderDetailsSection(companyName || customerName, orderId, planDetails)}
+    ${supportBox()}
+    ${emailFooter(data.toEmail)}
+
+  </div>
+</div>`);
+}
+
+export interface RefundEmailData {
+  customerName: string;
+  toEmail: string;
+  companyName?: string;
+  orderId: string;
+  refundedAt: Date;
+  refundAmountUSD: number;
+  paymentMethodLabel: string;
+  planDetails?: string;
+  /** Optional note on why the refund was issued — shown only when provided. */
+  reason?: string;
+}
+
+export function renderRefundEmailHtml(data: RefundEmailData): string {
+  const {
+    customerName, companyName, orderId, refundedAt, refundAmountUSD, paymentMethodLabel, planDetails, reason,
+  } = data;
+
+  const name = escapeHtml(customerName || 'there');
+  const dateStr = refundedAt.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const amountStr = `$${refundAmountUSD.toFixed(2)}`;
+
+  return wrapEmailDocument('Refund processed', `
+<div style="margin:0;padding:0;font-family:Avenir,Arial,sans-serif;background-color:#f4f5f8">
+  <div style="background-color:#f4f5f8;width:100%">
+
+    ${emailHeader()}
+
+    <table bgcolor="#F4F4EF" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="background-color:#f4f4ef;text-align:center;width:100%;max-width:660px">
+      <tr>
+        <td align="center" style="text-align:center">
+          <table width="100%" align="center" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:580px;text-align:center;margin:0 auto">
+            <tr>
+              <td align="center" style="text-align:center;padding-top:40px">
+                <img alt="Refund processed" width="72" height="72" style="width:72px;height:72px;display:block;margin:0 auto;border:0" src="${SUCCESS_ICON_URL}">
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="font-family:Avenir,Arial,sans-serif;text-align:center;font-size:40px;font-weight:600;line-height:52px;padding-top:10px;color:#000000">
+                Refund processed
+              </td>
+            </tr>
+            <tr>
+              <td style="font-family:Avenir,Arial,sans-serif;font-size:20px;font-weight:400;line-height:28px;color:#000000;text-align:center;padding-top:12px">
+                ${name}, your refund has been processed.
+              </td>
+            </tr>
+
+            <tr>
+              <td align="center" style="text-align:center;padding-top:40px;padding-bottom:40px">
+                <table align="center" width="100%" style="width:100%;max-width:580px;border-radius:4px;background-color:#ffffff;border:1px solid #c3ced5;margin:0 auto;text-align:center">
+                  <tr>
+                    <td align="center" style="text-align:center;padding-top:36px;padding-bottom:38px">
+                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="text-align:center;width:100%;max-width:500px;margin:0 auto">
+                        ${detailRow('Refund number:', escapeHtml(orderId), true)}
+                        ${detailRow('Refund date:', dateStr)}
+                        ${detailRow('Refund amount:', amountStr)}
+                        ${detailRow('Refunded to:', escapeHtml(paymentMethodLabel))}
+                        ${planDetails ? detailRow('Plan:', escapeHtml(planDetails)) : ''}
+                        ${reason ? detailRow('Reason:', escapeHtml(reason)) : ''}
+                      </table>
+
+                      <table align="center" border="0" cellspacing="0" cellpadding="0" width="100%" style="text-align:center;width:100%;max-width:500px;margin:0 auto">
+                        <tr>
+                          <td style="padding-top:24px">
+                            <table width="100%" align="center" style="text-align:center;width:100%;margin:0 auto">
+                              <tr>
+                                <td align="center" style="font-family:Avenir,Arial,sans-serif;font-size:16px;line-height:24px;font-weight:400;text-align:center;color:#000000">
+                                  Refunds can take 5&ndash;10 business days to appear on your statement, depending on your bank. Contact our support team if you have questions.
+                                </td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    ${orderDetailsSection(companyName || customerName, orderId, planDetails, 'refund')}
     ${supportBox()}
     ${emailFooter(data.toEmail)}
 
