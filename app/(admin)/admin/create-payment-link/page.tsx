@@ -2944,7 +2944,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   )}
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">Payment Method Label</label>
+                  <label className="block mb-1.5 font-medium text-xs text-zinc-500">{emailType === 'refund' ? 'Refund Method Label' : 'Payment Method Label'}</label>
                   <input
                     type="text"
                     value={emailForm.paymentMethodLabel}
