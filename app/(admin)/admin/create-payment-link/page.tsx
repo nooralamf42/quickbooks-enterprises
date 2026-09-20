@@ -29,6 +29,89 @@ function formatDateMMDDYYYY(input: Date | string | number, timeZone?: string): s
   });
 }
 
+/** Formats a date as 'YYYY-MM-DD' in the given IANA timezone. en-CA happens to format as
+ *  YYYY-MM-DD, which is also exactly what `<input type="date">` needs for its value/max/min
+ *  attributes, and what a plain string-range comparison against another such key needs. */
+function formatDateKeyInTimeZone(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(date);
+}
+
+/** Today's date as 'YYYY-MM-DD' in the given IANA timezone — used as the `max` on date-range
+ *  filters so an admin can't pick a future day. */
+function getTodayDateString(timeZone: string): string {
+  return formatDateKeyInTimeZone(new Date(), timeZone);
+}
+
+/** Inserts slashes as the admin types digits into a date filter field, capping at 8 digits
+ *  (mmddyyyy) so the result never grows past "mm/dd/yyyy". */
+function maskMmDdYyyyInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8);
+  const mm = digits.slice(0, 2);
+  const dd = digits.slice(2, 4);
+  const yyyy = digits.slice(4, 8);
+  if (digits.length <= 2) return mm;
+  if (digits.length <= 4) return `${mm}/${dd}`;
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+/** Parses a completed "mm/dd/yyyy" string into 'YYYY-MM-DD', or null if it's incomplete or
+ *  not a real calendar date (Date silently rolls over an out-of-range day/month otherwise,
+ *  e.g. "02/30/2026" would become March 2 without this check). */
+function parseMmDdYyyy(display: string): string | null {
+  const match = display.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return null;
+  const [, mm, dd, yyyy] = match;
+  const d = new Date(`${yyyy}-${mm}-${dd}T00:00:00Z`);
+  if (isNaN(d.getTime()) || d.getUTCFullYear() !== Number(yyyy) || d.getUTCMonth() + 1 !== Number(mm) || d.getUTCDate() !== Number(dd)) {
+    return null;
+  }
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** The inverse of parseMmDdYyyy's output — 'YYYY-MM-DD' back to "mm/dd/yyyy" for display. */
+function isoToMmDdYyyy(iso: string): string {
+  if (!iso) return '';
+  const [yyyy, mm, dd] = iso.split('-');
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+/** A date filter field that always displays and accepts mm/dd/yyyy, regardless of the
+ *  viewer's OS/browser locale. Native `<input type="date">` renders in whatever format the
+ *  OS regional settings specify (e.g. dd-mm-yyyy) — the `lang` attribute does not reliably
+ *  override this in Chrome — which is exactly the mismatch this replaces. It also sidesteps
+ *  native date inputs' browser-enforced minimum width, which was wider than intended and
+ *  contributed to the filter row overflowing its container.
+ *  Keeps its own display-text state while the admin is mid-typing, and only commits a
+ *  complete, valid date up to the parent (clamped to `maxIso`) once it fully parses —
+ *  partial input like "09/2" is shown but never fetched against. */
+function DateFilterInput({ value, onChange, maxIso, className }: { value: string, onChange: (iso: string) => void, maxIso: string, className?: string }) {
+  const [display, setDisplay] = useState(isoToMmDdYyyy(value));
+
+  useEffect(() => {
+    setDisplay(isoToMmDdYyyy(value));
+  }, [value]);
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder="mm/dd/yyyy"
+      value={display}
+      onChange={(e) => {
+        const masked = maskMmDdYyyyInput(e.target.value);
+        setDisplay(masked);
+        if (masked === '') {
+          onChange('');
+          return;
+        }
+        const parsed = parseMmDdYyyy(masked);
+        if (parsed) onChange(parsed > maxIso ? maxIso : parsed);
+      }}
+      className={className}
+    />
+  );
+}
+
 /** Delivery states reported by Resend. Anything red means the customer did not get the email. */
 const DELIVERY_STATUS_STYLE: Record<string, string> = {
   delivered:  'bg-green-50 text-green-700 border-green-200',
@@ -198,7 +281,9 @@ export default function QuickBooksPaymentLinkCreator() {
   const [advStatus, setAdvStatus] = useState('All')
   const [advAmount, setAdvAmount] = useState('All')
   const [searchQuery, setSearchQuery] = useState('')
-  const logsPerPage = 5
+  const [advDateFrom, setAdvDateFrom] = useState('') // 'YYYY-MM-DD' or ''
+  const [advDateTo, setAdvDateTo] = useState('') // 'YYYY-MM-DD' or ''
+  const [logsPerPage, setLogsPerPage] = useState(5)
 
   // Send Email tab state
   const [emailType, setEmailType] = useState<'success' | 'failed' | 'refund'>('success')
@@ -242,7 +327,9 @@ export default function QuickBooksPaymentLinkCreator() {
   const [emailLogsPage, setEmailLogsPage] = useState(1)
   const [emailLogsSearch, setEmailLogsSearch] = useState('')
   const [emailLogsTrigger, setEmailLogsTrigger] = useState('') // '' = all triggers
-  const emailLogsPerPage = 20
+  const [emailLogsDateFrom, setEmailLogsDateFrom] = useState('') // 'YYYY-MM-DD' or ''
+  const [emailLogsDateTo, setEmailLogsDateTo] = useState('') // 'YYYY-MM-DD' or ''
+  const [emailLogsPerPage, setEmailLogsPerPage] = useState(20)
 
   const editions = [
     { name: 'Silver', value: 'silver' },
@@ -548,6 +635,12 @@ export default function QuickBooksPaymentLinkCreator() {
     setCopiedLink(false)
   }, [users, totalPrice, selectedEdition, selectedYears, discountAmount])
 
+  // New date-range/page-size filters should start from page 1 — the old page number may no
+  // longer contain any rows once the filter narrows (or the page size changes) the result set.
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [advDateFrom, advDateTo, logsPerPage])
+
   const fetchLogs = async () => {
     setIsLoadingLogs(true)
     try {
@@ -602,6 +695,8 @@ export default function QuickBooksPaymentLinkCreator() {
       const params = new URLSearchParams({ page: String(targetPage), limit: String(emailLogsPerPage) })
       if (emailLogsSearch.trim()) params.set('q', emailLogsSearch.trim())
       if (emailLogsTrigger) params.set('trigger', emailLogsTrigger)
+      if (emailLogsDateFrom) params.set('dateFrom', emailLogsDateFrom)
+      if (emailLogsDateTo) params.set('dateTo', emailLogsDateTo)
 
       const response = await fetch(`/api/admin/email-logs?${params}`, {
         headers: {
@@ -647,6 +742,17 @@ export default function QuickBooksPaymentLinkCreator() {
   useEffect(() => {
     if (activeTab === 'sentEmails') fetchEmailLogs(1)
   }, [emailLogsTrigger])
+
+  // Date range needs no debounce either — discrete date-picker input, not free text.
+  useEffect(() => {
+    if (activeTab === 'sentEmails') fetchEmailLogs(1)
+  }, [emailLogsDateFrom, emailLogsDateTo])
+
+  // Changing page size makes the current page number potentially meaningless, so jump
+  // back to page 1 rather than trying to preserve scroll position across a resize.
+  useEffect(() => {
+    if (activeTab === 'sentEmails') fetchEmailLogs(1)
+  }, [emailLogsPerPage])
 
   const handleSimulatePayment = async () => {
     setIsSimulating(true)
@@ -1639,8 +1745,309 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
     }
   }
 
+  /** Builds a one-page summary PDF for a single Email Logs row — everything used to build
+   *  and send that email, plus what happened to it (delivery + engagement). Distinct from
+   *  downloadPDF() above: that one produces a legal consent/signature certificate for a
+   *  payment, this is just a record of one transactional email send.
+   *  Styled as a formal letterhead document (real logo, business address block, bordered
+   *  table, footer) since these get sent to banks — not just an internal admin readout. */
+  const downloadEmailLogPDF = async (entry: any) => {
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+
+      const primaryColor = [44, 160, 28] // #2ca01c
+      const darkColor = [33, 37, 41]
+      const grayColor = [108, 117, 125]
+      const lightRowColor = [247, 248, 250]
+      const ruleColor = [210, 214, 220]
+      const typeColor = entry.type === 'reminder' ? [217, 119, 6] : entry.type === 'refund' ? [3, 105, 161] : primaryColor
+      const typeLabel = entry.type === 'reminder' ? 'REMINDER' : entry.type === 'refund' ? 'REFUND' : 'RECEIPT'
+
+      // --- LETTERHEAD ---
+      try {
+        // The source file is 2560x656 — embedding it at that resolution directly (jsPDF
+        // doesn't recompress) bloats the PDF to several MB for a logo that only ever
+        // renders at 46mm wide. Redrawing it onto a small canvas first and re-encoding
+        // from there keeps the file a normal size regardless of the source asset's size.
+        const logoRes = await fetch('/quickbooks_logo.png')
+        const logoBlob = await logoRes.blob()
+        const logoImg = new Image()
+        const objectUrl = URL.createObjectURL(logoBlob)
+        await new Promise<void>((res, rej) => {
+          logoImg.onload = () => res()
+          logoImg.onerror = rej
+          logoImg.src = objectUrl
+        })
+        const targetWidthPx = 600 // ~300dpi for a 46mm-wide print — plenty sharp, tiny file
+        const targetHeightPx = Math.round(targetWidthPx * (logoImg.naturalHeight / logoImg.naturalWidth))
+        const canvas = document.createElement('canvas')
+        canvas.width = targetWidthPx
+        canvas.height = targetHeightPx
+        canvas.getContext('2d')!.drawImage(logoImg, 0, 0, targetWidthPx, targetHeightPx)
+        const logoBase64 = canvas.toDataURL('image/png')
+        URL.revokeObjectURL(objectUrl)
+
+        const logoWidth = 46
+        const logoHeight = logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth)
+        doc.addImage(logoBase64, 'PNG', 20, 13, logoWidth, logoHeight)
+      } catch (logoErr) {
+        // Non-fatal — a failed logo fetch should never block the document itself.
+        console.error('[Email Log PDF] Logo load failed, falling back to text:', logoErr)
+        doc.setFont('Helvetica', 'bold')
+        doc.setFontSize(18)
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
+        doc.text('QB ENTERPRISE', 20, 22)
+      }
+
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
+      doc.text('QB Enterprise', 190, 15, { align: 'right' })
+      doc.setFont('Helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2])
+      doc.text('4650 S Hampton Rd, Suite 102, Dallas, TX 75232', 190, 19.5, { align: 'right' })
+      doc.text('contact@qbenterprise.us  ·  (888) 829-8848', 190, 23.5, { align: 'right' })
+
+      doc.setDrawColor(ruleColor[0], ruleColor[1], ruleColor[2])
+      doc.setLineWidth(0.5)
+      doc.line(20, 32, 190, 32)
+
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
+      doc.text('EMAIL DELIVERY RECORD', 20, 41)
+
+      doc.setFillColor(typeColor[0], typeColor[1], typeColor[2])
+      doc.roundedRect(163, 35.5, 27, 7, 1.5, 1.5, 'F')
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(255, 255, 255)
+      doc.text(typeLabel, 176.5, 40.2, { align: 'center' })
+
+      doc.setFont('Helvetica', 'normal')
+      doc.setFontSize(8.5)
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2])
+      const introLines = doc.splitTextToSize(
+        'This is a system-generated record confirming an email notification sent by QB Enterprise regarding the transaction referenced below.',
+        170
+      )
+      doc.text(introLines, 20, 47)
+
+      // --- DETAILS TABLE ---
+      const sentAtStr = entry.sentAt
+        ? new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York', year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+          }).format(new Date(entry.sentAt)) + ' EST'
+        : 'N/A'
+
+      const amountStr = entry.amountUSD !== undefined && entry.amountUSD !== null
+        ? `$${Number(entry.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : undefined
+
+      const engagementStr = entry.clickedAt
+        ? `Clicked ${entry.clickCount || 1}×${entry.lastClickedUrl ? ` — ${entry.lastClickedUrl}` : ''}`
+        : entry.openedAt
+        ? `Opened ${entry.openCount || 1}×`
+        : 'No opens or clicks recorded'
+
+      const rows: [string, string | undefined][] = [
+        ['Sent at', sentAtStr],
+        ['Subject', entry.subject],
+        ['Recipient email', entry.toEmail],
+        ['Customer name', entry.customerName],
+        ['Order ID', entry.orderId],
+        ['Plan details', entry.planDetails],
+        ['Amount (USD)', amountStr],
+        ['Trigger', entry.trigger],
+        ['Provider', entry.provider],
+        ['Delivery status', entry.deliveryStatus],
+        ...(entry.deliveryDetail ? [['Delivery detail', entry.deliveryDetail] as [string, string]] : []),
+        ['Engagement', engagementStr],
+        ['Record ID', entry._id],
+      ]
+
+      let cursorY = 47 + introLines.length * 4 + 6
+      const tableLeft = 20
+      const tableRight = 190
+      const tableWidth = tableRight - tableLeft
+      const labelX = tableLeft + 4
+      const valueX = 74
+      const valueWidth = tableRight - valueX - 4
+      const bottomMargin = 270
+
+      doc.setFontSize(9.5)
+      rows.forEach(([label, value], idx) => {
+        const lines = doc.splitTextToSize(value || 'Not provided', valueWidth)
+        const rowHeight = Math.max(lines.length * 4.6, 7.5) + 2.5
+
+        if (cursorY + rowHeight > bottomMargin) {
+          doc.addPage()
+          cursorY = 20
+        }
+
+        if (idx % 2 === 0) {
+          doc.setFillColor(lightRowColor[0], lightRowColor[1], lightRowColor[2])
+          doc.rect(tableLeft, cursorY - 5, tableWidth, rowHeight, 'F')
+        }
+
+        doc.setFont('Helvetica', 'bold')
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
+        doc.text(label.toUpperCase(), labelX, cursorY)
+
+        doc.setFont('Helvetica', 'normal')
+        doc.setTextColor(value ? darkColor[0] : 170, value ? darkColor[1] : 170, value ? darkColor[2] : 170)
+        doc.text(lines, valueX, cursorY)
+
+        cursorY += rowHeight
+      })
+
+      doc.setDrawColor(ruleColor[0], ruleColor[1], ruleColor[2])
+      doc.line(tableLeft, cursorY, tableRight, cursorY)
+
+      // --- ACTIVITY LOG ---
+      // Built from two sources: the email log's own lifecycle timestamps (sentAt,
+      // statusUpdatedAt, openedAt, clickedAt) below, plus real tracked payment-link activity
+      // (link opens, payment outcome) fetched further down and merged in — the same
+      // underlying data the Consent Logs "Activity Session Timeline" shows.
+      const activityEvents: { at: Date; label: string }[] = []
+      if (entry.sentAt) {
+        activityEvents.push({ at: new Date(entry.sentAt), label: `Email sent${entry.provider ? ` via ${String(entry.provider).toUpperCase()}` : ''}` })
+      }
+      if (entry.statusUpdatedAt && entry.deliveryStatus) {
+        activityEvents.push({
+          at: new Date(entry.statusUpdatedAt),
+          label: `Delivery status: ${String(entry.deliveryStatus).toUpperCase()}`,
+        })
+      }
+      if (entry.openedAt) {
+        activityEvents.push({ at: new Date(entry.openedAt), label: `Opened${entry.openCount ? ` (${entry.openCount} total open${entry.openCount === 1 ? '' : 's'})` : ''}` })
+      }
+      if (entry.clickedAt) {
+        activityEvents.push({
+          at: new Date(entry.clickedAt),
+          label: `Clicked${entry.clickCount ? ` (${entry.clickCount} total click${entry.clickCount === 1 ? '' : 's'})` : ''}`,
+        })
+      }
+
+      // Real tracked activity — payment-link opens and the order's actual payment outcome —
+      // same underlying data as the Consent Logs "Activity Session Timeline". Fetched
+      // separately since an email log row doesn't itself carry this; never fatal to the PDF
+      // if it fails, since it's supplementary to the fields already gathered above.
+      try {
+        const stored = localStorage.getItem('adminAuth')
+        const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+        const activityParams = new URLSearchParams()
+        if (entry.toEmail) activityParams.set('toEmail', entry.toEmail)
+        if (entry.orderId) activityParams.set('orderId', entry.orderId)
+        if (entry.amountUSD !== undefined && entry.amountUSD !== null) activityParams.set('amountUSD', String(entry.amountUSD))
+
+        const activityRes = await fetch(`/api/admin/email-log-activity?${activityParams}`, {
+          headers: { 'Authorization': `Bearer ${passwordHash}` },
+        })
+
+        if (activityRes.ok) {
+          const activityData = await activityRes.json()
+
+          for (const evt of activityData.events || []) {
+            const label = evt.event === 'link_opened' ? 'Payment link opened'
+              : evt.event === 'email_entered' ? 'Entered email on payment page'
+              : String(evt.event).replace(/_/g, ' ')
+            activityEvents.push({ at: new Date(evt.timestamp), label })
+          }
+
+          const order = activityData.order
+          if (order?.status === 'Completed' && order.paidAt) {
+            activityEvents.push({
+              at: new Date(order.paidAt),
+              label: `Payment completed${order.fsOrderReference ? ` — Ref: ${order.fsOrderReference}` : ''}`,
+            })
+          } else if (order?.status === 'Failed' && (order.updatedAt || order.paidAt)) {
+            activityEvents.push({ at: new Date(order.updatedAt || order.paidAt), label: 'Payment failed' })
+          }
+        }
+      } catch (activityErr) {
+        console.error('[Email Log PDF] Activity fetch failed (non-fatal):', activityErr)
+      }
+
+      activityEvents.sort((a, b) => a.at.getTime() - b.at.getTime())
+
+      if (activityEvents.length > 0) {
+        cursorY += 9
+        if (cursorY > bottomMargin) {
+          doc.addPage()
+          cursorY = 20
+        }
+
+        doc.setFont('Helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
+        doc.text('ACTIVITY LOG', tableLeft, cursorY)
+        cursorY += 7
+
+        const logTimeX = labelX
+        const logLabelX = tableLeft + 58
+        const logLabelWidth = tableRight - logLabelX - 4
+
+        doc.setFontSize(9)
+        activityEvents.forEach((evt, idx) => {
+          const timeStr = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York', month: 'short', day: 'numeric', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+          }).format(evt.at) + ' EST'
+          const lines = doc.splitTextToSize(evt.label, logLabelWidth)
+          const rowHeight = Math.max(lines.length * 4.6, 7.5) + 2.5
+
+          if (cursorY + rowHeight > bottomMargin) {
+            doc.addPage()
+            cursorY = 20
+          }
+
+          if (idx % 2 === 0) {
+            doc.setFillColor(lightRowColor[0], lightRowColor[1], lightRowColor[2])
+            doc.rect(tableLeft, cursorY - 5, tableWidth, rowHeight, 'F')
+          }
+
+          doc.setFont('Helvetica', 'bold')
+          doc.setTextColor(darkColor[0], darkColor[1], darkColor[2])
+          doc.text(timeStr, logTimeX, cursorY)
+
+          doc.setFont('Helvetica', 'normal')
+          doc.text(lines, logLabelX, cursorY)
+
+          cursorY += rowHeight
+        })
+
+        doc.setDrawColor(ruleColor[0], ruleColor[1], ruleColor[2])
+        doc.line(tableLeft, cursorY, tableRight, cursorY)
+      }
+
+      // --- FOOTER ---
+      doc.setFont('Helvetica', 'normal')
+      doc.setFontSize(7.5)
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2])
+      doc.text('QB Enterprise  ·  4650 S Hampton Rd, Suite 102, Dallas, TX 75232  ·  contact@qbenterprise.us  ·  (888) 829-8848', 105, 283, { align: 'center' })
+      doc.text(`System-generated record — no signature required. Generated ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST.`, 105, 287, { align: 'center' })
+
+      const safeName = (entry.customerName || entry.toEmail || 'email').replace(/[^a-z0-9]+/gi, '_')
+      const dateSuffix = entry.sentAt && !isNaN(new Date(entry.sentAt).getTime())
+        ? `_${new Date(entry.sentAt).toISOString().slice(0, 10)}`
+        : ''
+      doc.save(`Email_${typeLabel}_${safeName}${dateSuffix}.pdf`)
+      toast.success('PDF downloaded!')
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to generate PDF')
+    }
+  }
+
   const TEST_EMAILS = ['info@qualitybusinesstech.us', 'nick.powerjobs@gmail.com', 'contact@qbenterprise.us'].map(e => e.toLowerCase())
-  
+
+  // Hoisted out of the filter loop below — constructing a fresh Intl.DateTimeFormat per row
+  // across thousands of consent logs is measurably slower than reusing one instance.
+  const estDateKeyFormatter = useMemo(() => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York' }), [])
+
   const displayedLogs = logs.filter(log => {
     // 1. Basic Mode
     const isTestRecord = (
@@ -1680,7 +2087,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       if (advAmount === '>500' && log.amountUSD <= 500) return false;
     }
     
-    // 5. Search Query
+    // 5. Date Range Filter (compared as America/New_York calendar days, matching how the
+    //    date is displayed elsewhere on this row)
+    if (advDateFrom || advDateTo) {
+      if (!log.agreedTimestamp) return false;
+      const logDateKey = estDateKeyFormatter.format(new Date(log.agreedTimestamp));
+      if (advDateFrom && logDateKey < advDateFrom) return false;
+      if (advDateTo && logDateKey > advDateTo) return false;
+    }
+
+    // 6. Search Query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       const searchableString = `
@@ -2165,7 +2581,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="Failed">Failed Only</option>
               </select>
               
-              <select 
+              <select
                 value={advAmount}
                 onChange={(e) => setAdvAmount(e.target.value)}
                 className="px-3 py-1.5 border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium cursor-pointer"
@@ -2174,6 +2590,34 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <option value="<50">Under $50</option>
                 <option value="50-500">$50 to $500</option>
                 <option value=">500">Over $500</option>
+              </select>
+
+              <div className="flex items-center gap-1">
+                <DateFilterInput
+                  value={advDateFrom}
+                  onChange={setAdvDateFrom}
+                  maxIso={advDateTo || getTodayDateString('America/New_York')}
+                  className="px-2 py-1.5 border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium w-[100px]"
+                />
+                <span className="text-zinc-400 text-[10px]">to</span>
+                <DateFilterInput
+                  value={advDateTo}
+                  onChange={setAdvDateTo}
+                  maxIso={getTodayDateString('America/New_York')}
+                  className="px-2 py-1.5 border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium w-[100px]"
+                />
+              </div>
+
+              <select
+                value={logsPerPage}
+                onChange={(e) => setLogsPerPage(Number(e.target.value))}
+                className="px-3 py-1.5 border border-zinc-200 rounded-md bg-white text-zinc-700 focus:outline-none focus:ring-2 focus:ring-zinc-900/20 font-medium cursor-pointer"
+              >
+                <option value={5}>5 / page</option>
+                <option value={10}>10 / page</option>
+                <option value={20}>20 / page</option>
+                <option value={50}>50 / page</option>
+                <option value={100}>100 / page</option>
               </select>
             </div>
 
@@ -3220,7 +3664,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     type="text"
                     value={emailLogsSearch}
                     onChange={(e) => setEmailLogsSearch(e.target.value)}
-                    placeholder="Search by email…"
+                    placeholder="Search by email or name…"
                     className="pl-7 pr-3 py-1.5 border border-zinc-200 rounded-lg text-[11px] w-full md:w-48 focus:outline-none focus:ring-1 focus:ring-blue-300"
                   />
                 </div>
@@ -3236,6 +3680,31 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   <option value="authorize-webhook">Authorize webhook</option>
                   <option value="authorize-sync">Authorize sync</option>
                   <option value="authorize-complete">Authorize complete</option>
+                </select>
+                <div className="flex items-center gap-1">
+                  <DateFilterInput
+                    value={emailLogsDateFrom}
+                    onChange={setEmailLogsDateFrom}
+                    maxIso={emailLogsDateTo || getTodayDateString('America/New_York')}
+                    className="border border-zinc-200 rounded-lg text-[11px] px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 w-[90px]"
+                  />
+                  <span className="text-zinc-400 text-[10px]">to</span>
+                  <DateFilterInput
+                    value={emailLogsDateTo}
+                    onChange={setEmailLogsDateTo}
+                    maxIso={getTodayDateString('America/New_York')}
+                    className="border border-zinc-200 rounded-lg text-[11px] px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 w-[90px]"
+                  />
+                </div>
+                <select
+                  value={emailLogsPerPage}
+                  onChange={(e) => setEmailLogsPerPage(Number(e.target.value))}
+                  className="border border-zinc-200 rounded-lg text-[11px] px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
+                >
+                  <option value={10}>10 / page</option>
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                  <option value={100}>100 / page</option>
                 </select>
                 <button
                   type="button"
@@ -3266,7 +3735,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">Loading sent emails...</p>
             ) : emailLogsList.length === 0 ? (
               <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">
-                {emailLogsSearch.trim() ? `No emails found for "${emailLogsSearch.trim()}".` : 'No emails have been sent yet.'}
+                {(emailLogsSearch.trim() || emailLogsTrigger || emailLogsDateFrom || emailLogsDateTo)
+                  ? 'No emails match these filters.'
+                  : 'No emails have been sent yet.'}
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -3344,7 +3815,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                             <span className="text-zinc-300">—</span>
                           )}
                         </td>
-                        <td className="py-3 px-4 align-top text-right">
+                        <td className="py-3 px-4 align-top text-right whitespace-nowrap space-x-1.5">
                           <button
                             type="button"
                             onClick={() => setSelectedEmailLog(entry)}
@@ -3352,6 +3823,14 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           >
                             <Eye size={11} />
                             View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => downloadEmailLogPDF(entry)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 border border-zinc-200 font-semibold rounded-md text-[10px] transition-colors shadow-xs bg-white hover:bg-zinc-50 text-zinc-700 cursor-pointer"
+                          >
+                            <FileText size={11} className="text-zinc-500" />
+                            PDF
                           </button>
                         </td>
                       </tr>
@@ -3426,7 +3905,14 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </div>
               </div>
 
-              <div className="p-4 border-t border-zinc-100 flex justify-end">
+              <div className="p-4 border-t border-zinc-100 flex justify-end gap-2">
+                <button
+                  onClick={() => downloadEmailLogPDF(selectedEmailLog)}
+                  className="inline-flex items-center gap-1.5 px-5 py-2 border border-zinc-200 text-zinc-700 font-semibold rounded-lg hover:bg-zinc-50 transition-colors shadow-sm text-sm cursor-pointer"
+                >
+                  <FileText size={14} />
+                  Download PDF
+                </button>
                 <button
                   onClick={() => setSelectedEmailLog(null)}
                   className="px-5 py-2 bg-zinc-900 text-white font-semibold rounded-lg hover:bg-zinc-800 transition-colors shadow-sm text-sm cursor-pointer"
