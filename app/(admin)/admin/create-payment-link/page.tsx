@@ -317,6 +317,10 @@ export default function QuickBooksPaymentLinkCreator() {
   const [singleSendPrior, setSingleSendPrior] = useState<{ label: string; isRecent: boolean } | null>(null)
   const [isCheckingSingleHistory, setIsCheckingSingleHistory] = useState(false)
   const [singleDuplicateConfirming, setSingleDuplicateConfirming] = useState(false)
+  /** Domain-level MX check for the single-recipient form — flags an address like
+   *  "ap@pchtechnoloies.com" (a typo, zero mail servers) before the admin even clicks Send,
+   *  instead of finding out minutes later from a provider bounce. */
+  const [singleEmailDomainInvalid, setSingleEmailDomainInvalid] = useState<string | null>(null)
 
   // Sent Emails history (emailLogs collection). Paginated server-side — at a few hundred
   // sends a day the table would otherwise only ever show the newest fraction of one day.
@@ -525,6 +529,32 @@ export default function QuickBooksPaymentLinkCreator() {
 
     return () => clearTimeout(handle)
   }, [emailForm.toEmail, emailType])
+
+  /** Debounced MX check for the single-recipient form — same DNS check sendEmail() itself
+   *  runs, just surfaced here before the admin clicks Send rather than after. */
+  useEffect(() => {
+    const email = emailForm.toEmail.trim()
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setSingleEmailDomainInvalid(null)
+      return
+    }
+
+    const handle = setTimeout(async () => {
+      try {
+        const stored = localStorage.getItem('adminAuth')
+        const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+        const res = await fetch(`/api/admin/check-email-domain?email=${encodeURIComponent(email)}`, {
+          headers: { 'Authorization': `Bearer ${passwordHash}` },
+        })
+        const data = await res.json()
+        setSingleEmailDomainInvalid(res.ok && data.valid === false ? (data.reason || 'This domain cannot receive email') : null)
+      } catch {
+        setSingleEmailDomainInvalid(null)
+      }
+    }, 500)
+
+    return () => clearTimeout(handle)
+  }, [emailForm.toEmail])
 
   const sendCustomEmail = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -3263,8 +3293,14 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     value={emailForm.toEmail}
                     onChange={(e) => updateEmailForm('toEmail', e.target.value)}
                     placeholder="customer@example.com"
-                    className="flex h-10 w-full rounded-md border border-[#2ca01c] bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30"
+                    className={`flex h-10 w-full rounded-md border bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 ${singleEmailDomainInvalid ? 'border-red-400 focus:ring-red-300/30' : 'border-[#2ca01c] focus:ring-[#2ca01c]/30'}`}
                   />
+                  {singleEmailDomainInvalid && (
+                    <p className="mt-1.5 text-[11px] font-semibold text-red-700 flex items-center gap-1.5">
+                      <AlertCircle size={13} className="shrink-0" />
+                      {singleEmailDomainInvalid} — this address will bounce.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block mb-1.5 font-medium text-xs text-zinc-500">Customer Name</label>
