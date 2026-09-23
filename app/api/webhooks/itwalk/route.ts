@@ -23,7 +23,10 @@ const EVENT_STATUS: Record<string, DeliveryStatus> = {
 interface DlrPayload {
   results?: {
     messageId?: string;
-    status?: { groupName?: string };
+    status?: { groupName?: string; description?: string };
+    // Present on failures — e.g. { id: 6006, description: "Recipient address is invalid" },
+    // the same reason + code shown in itWALK's own Logs page.
+    error?: { id?: number; description?: string };
   }[];
 }
 
@@ -61,7 +64,14 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status);
+        // Keep the provider's own reason so the admin UI can explain *why* it failed
+        // (invalid address, no mail server, ...) instead of just showing "bounced".
+        const errDesc = result.error?.description;
+        const detail = errDesc && result.error?.id
+          ? `${errDesc} (code ${result.error.id})`
+          : status === 'delivered' ? undefined : (errDesc || result.status?.description);
+
+        const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status, detail);
         if (!matched) console.warn(`[itWALK Webhook] No log row for ${providerMessageId} (${groupName})`);
         outcomes.push({ messageId: providerMessageId, matched, status });
       }

@@ -135,6 +135,36 @@ function cleanDeliveryDetail(detail?: string): string {
   return detail.replace(/\.?\s*Recipient (removed from|added to) suppression list[^.]*\.?/gi, '').trim()
 }
 
+/** Turns a provider's technical failure text (itWALK error codes, Postal SMTP messages) into
+ *  a plain-English reason an admin can act on — "bounced" alone doesn't say whether the
+ *  address is wrong, the domain is a typo, or the recipient's server is just refusing us.
+ *  Matched on the raw detail, before cleanDeliveryDetail strips Postal's suppression note. */
+function explainDeliveryFailure(status?: string, rawDetail?: string): string {
+  const d = rawDetail || ''
+  if (/is on the suppression list/i.test(d)) {
+    return 'Skipped — this address failed repeatedly before, so it is on the block list.'
+  }
+  if (/6037|domain mx not found|no smtp servers were available|no hosts to try|nxdomain/i.test(d)) {
+    return 'The domain has no mail server — the email address is most likely misspelled.'
+  }
+  if (/6006|recipient address is invalid|user unknown|no such user|does not exist|mailbox (not found|unavailable)|address rejected/i.test(d)) {
+    return "This email address doesn't exist (invalid mailbox)."
+  }
+  if (/mailbox full|over quota|quota exceeded/i.test(d)) {
+    return "The recipient's mailbox is full."
+  }
+  if (/spam|blacklist|blocklist|reputation|policy/i.test(d)) {
+    return "Blocked by the recipient's mail server (spam or policy filter)."
+  }
+  if (/6012|permanent (smtp )?delivery error/i.test(d)) {
+    return "The recipient's mail server permanently refused it — the address is probably invalid or blocked."
+  }
+  if (status === 'bounced' || status === 'failed') {
+    return 'Permanently rejected — the address is most likely wrong (the provider gave no further detail).'
+  }
+  return ''
+}
+
 const PROVIDER_STYLE: Record<string, string> = {
   postal:     'bg-purple-50 text-purple-700 border-purple-200',
   itwalk:     'bg-cyan-50 text-cyan-700 border-cyan-200',
@@ -328,6 +358,10 @@ export default function QuickBooksPaymentLinkCreator() {
   const [emailLogsTotal, setEmailLogsTotal] = useState(0)
   const [isLoadingEmailLogs, setIsLoadingEmailLogs] = useState(false)
   const [selectedEmailLog, setSelectedEmailLog] = useState<any>(null)
+  /** Click-to-open detail for a delivery status badge. Fixed-positioned from the click's own
+   *  coordinates because the table sits in an overflow-x-auto wrapper that would clip an
+   *  absolutely-positioned popover. */
+  const [statusPopover, setStatusPopover] = useState<{ entry: any; top: number; left: number } | null>(null)
   const [emailLogsPage, setEmailLogsPage] = useState(1)
   const [emailLogsSearch, setEmailLogsSearch] = useState('')
   const [emailLogsTrigger, setEmailLogsTrigger] = useState('') // '' = all triggers
@@ -3821,20 +3855,21 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           </span>
                         </td>
                         <td className="py-3 px-4 align-top">
-                          <span
-                            title={cleanDeliveryDetail(entry.deliveryDetail) || DELIVERY_STATUS_HINT[entry.deliveryStatus] || ''}
-                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${DELIVERY_STATUS_STYLE[entry.deliveryStatus] || 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect()
+                              setStatusPopover({
+                                entry,
+                                top: rect.bottom + 6,
+                                left: Math.max(8, Math.min(rect.left, window.innerWidth - 348)),
+                              })
+                            }}
+                            title="Click for details"
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border cursor-pointer hover:brightness-95 ${DELIVERY_STATUS_STYLE[entry.deliveryStatus] || 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}
                           >
                             {(entry.deliveryStatus || 'unknown').toUpperCase()}
-                          </span>
-                          {FAILURE_DELIVERY_STATUSES.has(entry.deliveryStatus) && cleanDeliveryDetail(entry.deliveryDetail) && (
-                            <div
-                              className="text-[10px] mt-0.5 max-w-[220px] whitespace-normal break-words text-red-600"
-                              title={cleanDeliveryDetail(entry.deliveryDetail)}
-                            >
-                              {cleanDeliveryDetail(entry.deliveryDetail)}
-                            </div>
-                          )}
+                          </button>
                         </td>
                         <td className="py-3 px-4 align-top">
                           {entry.clickedAt ? (
@@ -3902,6 +3937,51 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
           </div>
           </div>
         )}
+
+        {statusPopover && (() => {
+          const e = statusPopover.entry
+          const isFailure = FAILURE_DELIVERY_STATUSES.has(e.deliveryStatus)
+          const reason = explainDeliveryFailure(e.deliveryStatus, e.deliveryDetail)
+          const original = cleanDeliveryDetail(e.deliveryDetail)
+          return (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setStatusPopover(null)} />
+              <div
+                className="fixed z-50 w-[340px] max-w-[calc(100vw-16px)] bg-white border border-zinc-200 rounded-xl shadow-xl p-4 text-xs"
+                style={{ top: statusPopover.top, left: statusPopover.left }}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${DELIVERY_STATUS_STYLE[e.deliveryStatus] || 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}>
+                    {(e.deliveryStatus || 'unknown').toUpperCase()}
+                  </span>
+                  <button type="button" onClick={() => setStatusPopover(null)} className="text-zinc-400 hover:text-zinc-800 cursor-pointer">
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mb-1">Reason</p>
+                <p className={`font-medium leading-relaxed ${isFailure ? 'text-red-700' : 'text-zinc-800'}`}>
+                  {reason || DELIVERY_STATUS_HINT[e.deliveryStatus] || 'No further detail from the provider.'}
+                </p>
+
+                {original && (
+                  <>
+                    <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider mt-3 mb-1">Original message</p>
+                    <p className="font-mono text-[10px] text-zinc-600 bg-zinc-50 border border-zinc-100 rounded-md p-2 break-words">
+                      {original}
+                    </p>
+                  </>
+                )}
+
+                {e.statusUpdatedAt && (
+                  <p className="text-[10px] text-zinc-400 mt-3">
+                    Updated {new Date(e.statusUpdatedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })} EST
+                  </p>
+                )}
+              </div>
+            </>
+          )
+        })()}
 
         {selectedEmailLog && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
