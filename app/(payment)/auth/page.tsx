@@ -131,6 +131,7 @@ const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) 
                 {/* Use Different Account Link */}
                 <div className="text-center mb-6">
                     <button
+                        type="button"
                         onClick={onBack}
                         className="text-blue-600 hover:text-blue-800 text-sm underline"
                     >
