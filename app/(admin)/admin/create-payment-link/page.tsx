@@ -2295,6 +2295,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     Online Payment
                   </button>
+                  {/* STRIPE CURRENTLY DISABLED
                   <button
                     type="button"
                     onClick={() => {
@@ -2305,6 +2306,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     Stripe
                   </button>
+                  */}
                   {/* MOR.AI CURRENTLY DISABLED — no mor_live_... key yet, only a sandbox key
                   <button
                     type="button"
@@ -3616,7 +3618,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
                   <div className="md:col-span-3 bg-amber-50/60 rounded-lg p-4 border border-amber-200">
                     <label className="block mb-2 font-medium text-xs text-amber-700 uppercase tracking-wider">"Update now" button link</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 bg-white rounded-md border border-zinc-200 p-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 bg-white rounded-md border border-zinc-200 p-1">
                       <button
                         type="button"
                         onClick={() => setReminderGateway('')}
@@ -3631,6 +3633,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       >
                         Authorize.net
                       </button>
+                      {/* STRIPE CURRENTLY DISABLED
                       <button
                         type="button"
                         onClick={() => setReminderGateway('stripe')}
@@ -3638,6 +3641,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       >
                         Stripe
                       </button>
+                      */}
                       <button
                         type="button"
                         onClick={() => setReminderGateway('shopify')}
@@ -3658,7 +3662,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       {reminderGateway === 'shopifySubscription'
                         ? `"Update now" will open a real Shopify recurring checkout for $${emailSubscriptionTier}/month — "QuickBooks Payroll (Monthly Subscription)" — the customer logs in and subscribes like any other invoice link.`
                         : reminderGateway
-                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : reminderGateway === 'stripe' ? 'Stripe' : 'Shopify'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
+                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'Shopify'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
                         : 'No gateway selected — "Update now" will just open a support email instead of a live checkout.'}
                     </p>
                   </div>
@@ -4100,7 +4104,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </label>
               </div>
 
-              {/* "Update now" gateway — reminders only; receipts carry no checkout link */}
+              {/* STRIPE CURRENTLY DISABLED — bulk had a Shopify Subscription / Stripe toggle
+                  here for "Update now" links; with Stripe off, Shopify Subscription is the
+                  only gateway again so the picker is hidden rather than shown with one option.
               {bulkType === 'failed' && (
                 <div className="bg-amber-50/60 rounded-lg p-4 border border-amber-200">
                   <label className="block mb-2 font-medium text-xs text-amber-700 uppercase tracking-wider">"Update now" button link</label>
@@ -4127,6 +4133,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   </p>
                 </div>
               )}
+              */}
 
               {/* File input */}
               <div>
