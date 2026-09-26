@@ -2,8 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 // import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendEmail } from '@/app/lib/emailSender';
-import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, renderRefundEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
+import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, renderRefundEmailHtml, renderFeedbackEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
+
+// NOTE: app/lib/surveyEmailTemplate.ts (an earlier draft that copied Intuit's own "How
+// did we do?" survey email verbatim — including their real spoof@intuit.com report
+// address, their legal-notice links, and their copyright footer) is intentionally not
+// imported here. Sending that from this domain would impersonate Intuit's own support
+// org, not just use QuickBooks branding like the rest of this app does. Use
+// renderFeedbackEmailHtml below instead — same idea (NPS request, survey link), but
+// honestly from us.
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,8 +32,8 @@ export async function POST(req: NextRequest) {
     if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
       return NextResponse.json({ error: 'A valid recipient email is required' }, { status: 400 });
     }
-    if (type !== 'success' && type !== 'failed' && type !== 'refund') {
-      return NextResponse.json({ error: 'type must be "success", "failed", or "refund"' }, { status: 400 });
+    if (type !== 'success' && type !== 'failed' && type !== 'refund' && type !== 'survey') {
+      return NextResponse.json({ error: 'type must be "success", "failed", "refund", or "survey"' }, { status: 400 });
     }
 
     // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or MailerSend, switchable from the admin panel.
@@ -133,7 +141,7 @@ export async function POST(req: NextRequest) {
         providerMessageId: data?.id,
         provider,
       });
-    } else {
+    } else if (type === 'failed') {
       const { amountDueUSD, cancellationDate, updateUrl, dueDate } = body;
       if (amountDueUSD === undefined || amountDueUSD === null || isNaN(Number(amountDueUSD))) {
         return NextResponse.json({ error: 'amountDueUSD is required' }, { status: 400 });
@@ -188,6 +196,35 @@ export async function POST(req: NextRequest) {
         planDetails,
         amountUSD: Number(amountDueUSD),
         subject: branding.subject,
+        trigger: 'admin-manual',
+        providerMessageId: data?.id,
+        provider,
+      });
+    } else if (type === 'survey') {
+      const { data, error, provider } = await sendEmail({
+        from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+        replyTo: 'billing@quickbooks-enterprises.com',
+        to: toEmail,
+        subject: 'We would like your feedback',
+        html: renderFeedbackEmailHtml({
+          customerName: name === 'there' ? '' : name,
+          toEmail,
+          companyName: companyName || undefined,
+        }),
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message || 'Email provider rejected the send' }, { status: 502 });
+      }
+
+      await logEmailSent({
+        type: 'receipt', // Re-using 'receipt' since we don't have a 'survey' enum type without migrating DB schema
+        toEmail,
+        customerName: name,
+        orderId: fallbackOrderId,
+        planDetails,
+        amountUSD: 0,
+        subject: 'We would like your feedback',
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,

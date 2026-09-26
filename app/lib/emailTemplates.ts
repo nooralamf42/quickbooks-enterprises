@@ -382,6 +382,97 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
 </div>`);
 }
 
+export interface FeedbackEmailData {
+  customerName?: string;
+  toEmail: string;
+  companyName?: string;
+}
+
+/** Feedback/NPS request — same house style as the other templates (own logo, own
+ *  colors, own footer). Deliberately NOT a copy of Intuit's own "How did we do?"
+ *  survey email (which was tried and rejected): this doesn't send as "QuickBooks
+ *  Customer Success", doesn't reference a fabricated support case as if Intuit
+ *  handled it, and doesn't carry Intuit's own copyright/legal-notice footer or their
+ *  spoof@intuit.com abuse-report address. It asks for feedback as ourselves. */
+export function renderFeedbackEmailHtml(data: FeedbackEmailData): string {
+  const name = (data.customerName || '').trim();
+  const greeting = name ? `Hi ${escapeHtml(name)},` : 'Hi,';
+  const encode = (v?: string) => (v ? Buffer.from(v).toString('base64') : '');
+  const emailParam = `&u=${encode(data.toEmail)}`;
+  const nameParam = name ? `&n=${encode(name)}` : '';
+  const companyParam = data.companyName ? `&co=${encode(data.companyName)}` : '';
+  const scoreLink = (score: number) =>
+    `${BASE_URL}/survey?score=${score}${emailParam}${nameParam}${companyParam}`;
+
+  const scoreButtons = Array.from({ length: 11 }, (_, score) => `
+    <td style="padding:0 3px 8px 0">
+      <a href="${scoreLink(score)}" target="_blank" style="display:block;width:34px;height:34px;line-height:34px;text-align:center;background-color:${BRAND_GREEN};color:#ffffff;font-family:Avenir,Arial,sans-serif;font-size:14px;font-weight:600;text-decoration:none;border-radius:4px">${score}</a>
+    </td>`).join('');
+
+  return wrapEmailDocument('We would like your feedback', `
+<div style="margin:0;padding:0;font-family:Avenir,Arial,sans-serif;background-color:#f4f5f8">
+  <div style="background-color:#f4f5f8;width:100%">
+
+    ${emailHeader()}
+
+    <table bgcolor="#ffffff" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="width:100%;max-width:660px">
+      <tr>
+        <td>
+          <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:580px">
+            <tr>
+              <td style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:26px;font-weight:600;padding-top:40px;padding-bottom:16px;color:#000000">
+                ${greeting}
+              </td>
+            </tr>
+            <tr>
+              <td style="font-family:Avenir,Arial,sans-serif;font-size:16px;line-height:24px;color:#000000;padding-bottom:24px;text-align:left">
+                Thank you for being a QuickBooks Enterprise customer${data.companyName ? ` at ${escapeHtml(data.companyName)}` : ''}. We'd like to hear about your recent experience with us — it only takes a moment.
+              </td>
+            </tr>
+            <tr>
+              <td align="center" style="padding-bottom:40px">
+                <table align="center" width="100%" style="width:100%;max-width:580px;border-radius:4px;background-color:#ffffff;border:1px solid #c3ced5;text-align:left">
+                  <tr>
+                    <td style="padding:28px 24px 20px">
+                      <table width="100%" border="0" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="font-family:Avenir,Arial,sans-serif;font-size:16px;font-weight:600;line-height:24px;color:#000000;padding-bottom:14px">
+                            How likely are you to recommend us to a friend or colleague?
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding-bottom:8px">
+                            <table width="100%" border="0" cellpadding="0" cellspacing="0">
+                              <tr>
+                                <td style="font-family:Avenir,Arial,sans-serif;font-size:12px;color:#555555">Not at all likely</td>
+                                <td align="right" style="font-family:Avenir,Arial,sans-serif;font-size:12px;color:#555555">Extremely likely</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td>
+                            <table border="0" cellpadding="0" cellspacing="0"><tr>${scoreButtons}</tr></table>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    ${supportBox('Questions or concerns?')}
+    ${emailFooter(data.toEmail)}
+
+  </div>
+</div>`);
+}
+
 export interface RefundEmailData {
   customerName: string;
   toEmail: string;
