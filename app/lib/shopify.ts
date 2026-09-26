@@ -238,6 +238,12 @@ export async function registerOrdersPaidWebhook(callbackUrl: string) {
   });
 }
 
+// STOPGAP (2026-09-27): was a hardcoded gid pointing at a selling plan that no longer
+// resolves to anything real on the live store (quickbooks-2030) — cartCreate silently
+// accepted it and completed checkout as a one-time sale instead of a subscription,
+// which is why 30-day recharges never happened for any customer on this tier. Left here
+// only as a fallback default; resolveSellingPlanIdForVariant() below now looks the real,
+// current plan up per-variant instead of trusting a value that can go stale like this.
 export const PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID = 'gid://shopify/SellingPlan/693802336620';
 
 export const PAYROLL_SUBSCRIPTION_VARIANTS: Record<string, string> = {
@@ -256,10 +262,58 @@ export interface SubscriptionCheckoutParams {
   address?: DraftOrderAddress;
 }
 
+/** Looks up the selling plan actually attached to a variant right now, via the Storefront
+ *  API's own sellingPlanAllocations field — the same thing Shopify itself consults to
+ *  decide whether a line item is a subscription. Returns null if the variant has no live
+ *  selling plan, which the caller treats as a hard failure rather than silently falling
+ *  back to a one-time sale (that silent fallback is exactly what caused recharges to stop
+ *  happening for every subscription checkout until now). */
+export async function resolveSellingPlanIdForVariant(variantId: string): Promise<string | null> {
+  const shop = requireEnv('SHOPIFY_SHOP_DOMAIN');
+  const storefrontToken = requireEnv('SHOPIFY_STOREFRONT_ACCESS_TOKEN');
+  const apiVersion = process.env.SHOPIFY_API_VERSION || '2026-01';
+
+  const query = `
+    query($id: ID!) {
+      node(id: $id) {
+        ... on ProductVariant {
+          sellingPlanAllocations(first: 5) {
+            edges { node { sellingPlan { id name } } }
+          }
+        }
+      }
+    }
+  `;
+
+  const res = await fetch(`https://${shop}/api/${apiVersion}/graphql.json`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Shopify-Storefront-Access-Token': storefrontToken,
+    },
+    body: JSON.stringify({ query, variables: { id: variantId } }),
+  });
+
+  const json = await res.json();
+  const edges = json?.data?.node?.sellingPlanAllocations?.edges;
+  const id = edges?.[0]?.node?.sellingPlan?.id;
+  if (!id) {
+    console.error('[Shopify] No live selling plan found for variant', variantId, JSON.stringify(json));
+  }
+  return id ?? null;
+}
+
 /** Creates a fresh Storefront API cart for a QuickBooks Payroll subscription tier and returns its checkout URL. */
 export async function createSubscriptionCheckoutUrl(params: SubscriptionCheckoutParams): Promise<string | null> {
   const variantId = PAYROLL_SUBSCRIPTION_VARIANTS[params.tier];
   if (!variantId) return null;
+
+  const sellingPlanId = await resolveSellingPlanIdForVariant(variantId);
+  if (!sellingPlanId) {
+    // Do NOT fall back to checking out without a selling plan — that produces a normal
+    // one-time order that looks fine right up until day 30, when nothing recharges it.
+    return null;
+  }
 
   const shop = requireEnv('SHOPIFY_SHOP_DOMAIN');
   const storefrontToken = requireEnv('SHOPIFY_STOREFRONT_ACCESS_TOKEN');
@@ -284,7 +338,7 @@ export async function createSubscriptionCheckoutUrl(params: SubscriptionCheckout
       query: mutation,
       variables: {
         input: {
-          lines: [{ merchandiseId: variantId, quantity: 1, sellingPlanId: PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID }],
+          lines: [{ merchandiseId: variantId, quantity: 1, sellingPlanId }],
           // Cart attributes are carried through to the resulting Order's note_attributes,
           // which is how the orders/paid webhook ties the Shopify order back to our Mongo record.
           attributes: params.localOrderId ? [{ key: 'localOrderId', value: params.localOrderId }] : undefined,
