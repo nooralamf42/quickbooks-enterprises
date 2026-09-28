@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
       }
 
       await logEmailSent({
-        type: 'receipt', // Re-using 'receipt' since we don't have a 'survey' enum type without migrating DB schema
+        type: 'survey',
         toEmail,
         customerName: name,
         orderId: fallbackOrderId,
@@ -257,7 +257,8 @@ export async function POST(req: NextRequest) {
       }
 
       await logEmailSent({
-        type: 'receipt', // Re-using 'receipt' since we don't have a 'query' enum type without migrating DB schema
+        type: 'query',
+        messageBody: String(bodyText),
         toEmail,
         customerName: name,
         orderId: fallbackOrderId,

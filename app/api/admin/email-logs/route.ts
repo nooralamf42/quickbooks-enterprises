@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl;
     const q = (searchParams.get('q') || '').trim();
     const trigger = (searchParams.get('trigger') || '').trim();
+    const type = (searchParams.get('type') || '').trim();
     const dateFromRaw = (searchParams.get('dateFrom') || '').trim();
     const dateToRaw = (searchParams.get('dateTo') || '').trim();
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
@@ -68,6 +69,9 @@ export async function GET(req: NextRequest) {
       filter.$or = [{ toEmail: re }, { customerName: re }];
     }
     if (trigger) filter.trigger = trigger;
+    // Allow-listed rather than passed straight through, so an arbitrary string can never end
+    // up as a query value.
+    if (['receipt', 'reminder', 'refund', 'survey', 'query', 'other'].includes(type)) filter.type = type;
 
     const sentAtFilter: Record<string, Date> = {};
     if (dateFromRaw) {
