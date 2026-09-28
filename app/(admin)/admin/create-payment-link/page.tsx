@@ -369,6 +369,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [emailLogsPage, setEmailLogsPage] = useState(1)
   const [emailLogsSearch, setEmailLogsSearch] = useState('')
   const [emailLogsTrigger, setEmailLogsTrigger] = useState('') // '' = all triggers
+  const [emailLogsType, setEmailLogsType] = useState('') // '' = all email types
   const [emailLogsDateFrom, setEmailLogsDateFrom] = useState('') // 'YYYY-MM-DD' or ''
   const [emailLogsDateTo, setEmailLogsDateTo] = useState('') // 'YYYY-MM-DD' or ''
   const [emailLogsPerPage, setEmailLogsPerPage] = useState(20)
@@ -766,6 +767,7 @@ export default function QuickBooksPaymentLinkCreator() {
       const params = new URLSearchParams({ page: String(targetPage), limit: String(emailLogsPerPage) })
       if (emailLogsSearch.trim()) params.set('q', emailLogsSearch.trim())
       if (emailLogsTrigger) params.set('trigger', emailLogsTrigger)
+      if (emailLogsType) params.set('type', emailLogsType)
       if (emailLogsDateFrom) params.set('dateFrom', emailLogsDateFrom)
       if (emailLogsDateTo) params.set('dateTo', emailLogsDateTo)
 
@@ -809,10 +811,10 @@ export default function QuickBooksPaymentLinkCreator() {
     return () => clearTimeout(t)
   }, [emailLogsSearch])
 
-  // Trigger filter needs no debounce — it's a select, not free text.
+  // Trigger and type filters need no debounce — they're selects, not free text.
   useEffect(() => {
     if (activeTab === 'sentEmails') fetchEmailLogs(1)
-  }, [emailLogsTrigger])
+  }, [emailLogsTrigger, emailLogsType])
 
   // Date range needs no debounce either — discrete date-picker input, not free text.
   useEffect(() => {
@@ -1831,8 +1833,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       const grayColor = [108, 117, 125]
       const lightRowColor = [247, 248, 250]
       const ruleColor = [210, 214, 220]
-      const typeColor = entry.type === 'reminder' ? [217, 119, 6] : entry.type === 'refund' ? [3, 105, 161] : primaryColor
-      const typeLabel = entry.type === 'reminder' ? 'REMINDER' : entry.type === 'refund' ? 'REFUND' : 'RECEIPT'
+      const typeColor = entry.type === 'reminder' ? [217, 119, 6] : entry.type === 'refund' ? [3, 105, 161] : entry.type === 'query' ? [147, 51, 234] : entry.type === 'survey' ? [79, 70, 229] : primaryColor
+      const typeLabel = entry.type === 'reminder' ? 'REMINDER' : entry.type === 'refund' ? 'REFUND' : entry.type === 'query' ? 'QUERY' : entry.type === 'survey' ? 'SURVEY' : 'RECEIPT'
 
       // --- LETTERHEAD ---
       try {
@@ -1900,7 +1902,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       doc.setFontSize(8.5)
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2])
       const introLines = doc.splitTextToSize(
-        'This is a system-generated record confirming an email notification sent by QB Enterprise regarding the transaction referenced below.',
+        entry.type === 'query' || entry.type === 'survey' ? 'This is a system-generated record confirming a message sent by QB Enterprise, with its delivery and engagement history.' : 'This is a system-generated record confirming an email notification sent by QB Enterprise regarding the transaction referenced below.',
         170
       )
       doc.text(introLines, 20, 47)
@@ -1917,25 +1919,34 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
         ? `$${Number(entry.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : undefined
 
-      const engagementStr = entry.clickedAt
-        ? `Clicked ${entry.clickCount || 1}×${entry.lastClickedUrl ? ` — ${entry.lastClickedUrl}` : ''}`
-        : entry.openedAt
-        ? `Opened ${entry.openCount || 1}×`
-        : 'No opens or clicks recorded'
+      const fmtEst = (d?: string | Date) => d
+        ? new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York', year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit', second: '2-digit',
+          }).format(new Date(d)) + ' EST'
+        : undefined
 
       const rows: [string, string | undefined][] = [
         ['Sent at', sentAtStr],
         ['Subject', entry.subject],
+        ...(entry.messageBody ? [['Message', entry.messageBody] as [string, string]] : []),
         ['Recipient email', entry.toEmail],
         ['Customer name', entry.customerName],
-        ['Order ID', entry.orderId],
-        ['Plan details', entry.planDetails],
-        ['Amount (USD)', amountStr],
+        ...(entry.type === 'query' || entry.type === 'survey' ? [] : [
+          ['Order ID', entry.orderId],
+          ['Plan details', entry.planDetails],
+          ['Amount (USD)', amountStr],
+        ] as [string, string | undefined][]),
         ['Trigger', entry.trigger],
         ['Provider', entry.provider],
         ['Delivery status', entry.deliveryStatus],
         ...(entry.deliveryDetail ? [['Delivery detail', entry.deliveryDetail] as [string, string]] : []),
-        ['Engagement', engagementStr],
+        ['Delivery status updated', fmtEst(entry.statusUpdatedAt)],
+        ['Opened', entry.openedAt ? `Yes — first opened ${fmtEst(entry.openedAt)}` : 'No open recorded'],
+        ['Times opened', entry.openedAt ? String(entry.openCount || 1) : '0'],
+        ['Link clicked', entry.clickedAt ? `Yes — first clicked ${fmtEst(entry.clickedAt)}` : 'No click recorded'],
+        ['Times clicked', entry.clickedAt ? String(entry.clickCount || 1) : '0'],
+        ...(entry.lastClickedUrl ? [['Last link clicked', entry.lastClickedUrl] as [string, string]] : []),
         ['Record ID', entry._id],
       ]
 
@@ -3808,6 +3819,18 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   />
                 </div>
                 <select
+                  value={emailLogsType}
+                  onChange={(e) => setEmailLogsType(e.target.value)}
+                  className="border border-zinc-200 rounded-lg text-[11px] px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
+                >
+                  <option value="">All types</option>
+                  <option value="receipt">Receipt</option>
+                  <option value="reminder">Reminder</option>
+                  <option value="refund">Refund</option>
+                  <option value="survey">Survey</option>
+                  <option value="query">Query</option>
+                </select>
+                <select
                   value={emailLogsTrigger}
                   onChange={(e) => setEmailLogsTrigger(e.target.value)}
                   className="border border-zinc-200 rounded-lg text-[11px] px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-blue-300 cursor-pointer"
@@ -3874,7 +3897,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">Loading sent emails...</p>
             ) : emailLogsList.length === 0 ? (
               <p className="text-xs text-zinc-400 px-6 md:px-8 pb-8">
-                {(emailLogsSearch.trim() || emailLogsTrigger || emailLogsDateFrom || emailLogsDateTo)
+                {(emailLogsSearch.trim() || emailLogsTrigger || emailLogsType || emailLogsDateFrom || emailLogsDateTo)
                   ? 'No emails match these filters.'
                   : 'No emails have been sent yet.'}
               </p>
@@ -3903,8 +3926,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <div className="text-[10px] text-zinc-400">{entry.sentAt ? new Date(entry.sentAt).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' }) + ' EST' : ''}</div>
                         </td>
                         <td className="py-3 px-4 align-top">
-                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${entry.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : entry.type === 'refund' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                            {entry.type === 'reminder' ? 'REMINDER' : entry.type === 'refund' ? 'REFUND' : 'RECEIPT'}
+                          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border ${entry.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : entry.type === 'refund' ? 'bg-sky-50 text-sky-700 border-sky-200' : entry.type === 'query' ? 'bg-purple-50 text-purple-700 border-purple-200' : entry.type === 'survey' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                            {entry.type === 'reminder' ? 'REMINDER' : entry.type === 'refund' ? 'REFUND' : entry.type === 'query' ? 'QUERY' : entry.type === 'survey' ? 'SURVEY' : 'RECEIPT'}
                           </span>
                         </td>
                         <td className="py-3 px-4 align-top">
@@ -3912,7 +3935,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                           <div className="text-zinc-500">{entry.toEmail}</div>
                         </td>
                         <td className="py-3 px-4 align-top text-zinc-600 max-w-[220px] truncate" title={entry.planDetails}>{entry.planDetails || '—'}</td>
-                        <td className="py-3 px-4 align-top font-semibold text-zinc-800">{entry.amountUSD !== undefined && entry.amountUSD !== null ? `$${Number(entry.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
+                        <td className="py-3 px-4 align-top font-semibold text-zinc-800">{entry.type !== 'query' && entry.type !== 'survey' && entry.amountUSD !== undefined && entry.amountUSD !== null ? `$${Number(entry.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'}</td>
                         <td className="py-3 px-4 align-top">
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold bg-zinc-100 text-zinc-600 border border-zinc-200">
                             {entry.trigger || 'unknown'}
@@ -4065,8 +4088,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               <div className="overflow-y-auto flex-1 p-6 md:p-8">
                 <div className="flex items-center justify-between mb-6 border-b border-zinc-100 pb-4">
                   <h2 className="text-lg font-bold text-zinc-900">Email Data Used</h2>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${selectedEmailLog.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : selectedEmailLog.type === 'refund' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                    {selectedEmailLog.type === 'reminder' ? 'REMINDER' : selectedEmailLog.type === 'refund' ? 'REFUND' : 'RECEIPT'}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${selectedEmailLog.type === 'reminder' ? 'bg-amber-50 text-amber-700 border-amber-200' : selectedEmailLog.type === 'refund' ? 'bg-sky-50 text-sky-700 border-sky-200' : selectedEmailLog.type === 'query' ? 'bg-purple-50 text-purple-700 border-purple-200' : selectedEmailLog.type === 'survey' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                    {selectedEmailLog.type === 'reminder' ? 'REMINDER' : selectedEmailLog.type === 'refund' ? 'REFUND' : selectedEmailLog.type === 'query' ? 'QUERY' : selectedEmailLog.type === 'survey' ? 'SURVEY' : 'RECEIPT'}
                   </span>
                 </div>
 
@@ -4078,7 +4101,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     ['Customer name', selectedEmailLog.customerName],
                     ['Order ID', selectedEmailLog.orderId],
                     ['Plan details', selectedEmailLog.planDetails],
-                    ['Amount (USD)', selectedEmailLog.amountUSD !== undefined && selectedEmailLog.amountUSD !== null ? `$${Number(selectedEmailLog.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : undefined],
+                    ['Amount (USD)', selectedEmailLog.type !== 'query' && selectedEmailLog.type !== 'survey' && selectedEmailLog.amountUSD !== undefined && selectedEmailLog.amountUSD !== null ? `$${Number(selectedEmailLog.amountUSD).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : undefined],
                     ['Trigger', selectedEmailLog.trigger],
                     ['Record ID', selectedEmailLog._id],
                   ].map(([label, value]) => (

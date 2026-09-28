@@ -16,13 +16,16 @@ export type DeliveryStatus =
 
 export interface EmailLogEntry {
   /** What kind of email this was. */
-  type: 'receipt' | 'reminder' | 'refund' | 'other';
+  type: 'receipt' | 'reminder' | 'refund' | 'survey' | 'query' | 'other';
   toEmail: string;
   customerName?: string;
   orderId?: string;
   planDetails?: string;
   amountUSD?: number;
   subject: string;
+  /** Full message text for free-form 'query' emails, so the Email Logs record (and its PDF)
+   *  shows what was actually said, not just the subject line. */
+  messageBody?: string;
   /** Where the send was initiated from, for auditing. */
   trigger: 'authorize-webhook' | 'authorize-sync' | 'authorize-complete' | 'admin-manual' | 'admin-order' | 'admin-bulk';
   /** Resend's message id. The join key for delivery webhooks — without it a log row
