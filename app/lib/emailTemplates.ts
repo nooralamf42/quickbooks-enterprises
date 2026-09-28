@@ -382,6 +382,66 @@ export function renderPaymentReceiptEmailHtml(data: PaymentReceiptEmailData): st
 </div>`);
 }
 
+export interface QueryEmailData {
+  customerName?: string;
+  toEmail: string;
+  companyName?: string;
+  /** Admin-typed subject line for this specific send. */
+  subject: string;
+  /** Admin-typed message body, shown as-is after the greeting. Plain text — line breaks
+   *  become paragraph breaks, nothing else is interpreted, so an admin can't accidentally
+   *  (or deliberately) inject markup into a transactional email. */
+  bodyText: string;
+}
+
+/** Free-form message to a customer — own branding throughout, no NPS scoring, nothing
+ *  copied from Intuit. The admin supplies the subject and body text for a specific send;
+ *  this just wraps it in the same header/footer every other email here uses. */
+export function renderQueryEmailHtml(data: QueryEmailData): string {
+  const name = (data.customerName || '').trim();
+  const greeting = name ? `Hi ${escapeHtml(name)},` : 'Hi,';
+
+  const bodyParagraphs = data.bodyText
+    .split(/\n{2,}/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) => `
+      <tr>
+        <td style="font-family:Avenir,Arial,sans-serif;font-size:16px;line-height:24px;color:#000000;padding-bottom:16px;text-align:left;white-space:pre-line">
+          ${escapeHtml(para)}
+        </td>
+      </tr>`)
+    .join('');
+
+  return wrapEmailDocument(data.subject || 'A message from QuickBooks Enterprise', `
+<div style="margin:0;padding:0;font-family:Avenir,Arial,sans-serif;background-color:#f4f5f8">
+  <div style="background-color:#f4f5f8;width:100%">
+
+    ${emailHeader()}
+
+    <table bgcolor="#ffffff" border="0" cellpadding="0" cellspacing="0" width="100%" align="center" style="width:100%;max-width:660px">
+      <tr>
+        <td>
+          <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="width:100%;max-width:580px">
+            <tr>
+              <td style="font-family:Avenir,Arial,sans-serif;text-align:left;font-size:26px;font-weight:600;padding-top:40px;padding-bottom:16px;color:#000000">
+                ${greeting}
+              </td>
+            </tr>
+            ${bodyParagraphs}
+            <tr><td style="padding-bottom:24px"></td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    ${supportBox('Questions or concerns?')}
+    ${emailFooter(data.toEmail)}
+
+  </div>
+</div>`);
+}
+
 export interface FeedbackEmailData {
   customerName?: string;
   toEmail: string;

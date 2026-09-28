@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // import { Resend } from 'resend'; // STOPGAP: commented while the Resend account is
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendEmail } from '@/app/lib/emailSender';
-import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, renderRefundEmailHtml, renderFeedbackEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
+import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, renderRefundEmailHtml, renderFeedbackEmailHtml, renderQueryEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
 import { logEmailSent } from '@/app/lib/emailLog';
 
 // NOTE: app/lib/surveyEmailTemplate.ts (an earlier draft that copied Intuit's own "How
@@ -32,8 +32,8 @@ export async function POST(req: NextRequest) {
     if (!toEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(toEmail)) {
       return NextResponse.json({ error: 'A valid recipient email is required' }, { status: 400 });
     }
-    if (type !== 'success' && type !== 'failed' && type !== 'refund' && type !== 'survey') {
-      return NextResponse.json({ error: 'type must be "success", "failed", "refund", or "survey"' }, { status: 400 });
+    if (type !== 'success' && type !== 'failed' && type !== 'refund' && type !== 'survey' && type !== 'query') {
+      return NextResponse.json({ error: 'type must be "success", "failed", "refund", "survey", or "query"' }, { status: 400 });
     }
 
     // const resend = new Resend(process.env.RESEND_API_KEY); // STOPGAP: see sendEmail() below — dispatches to Postmark or MailerSend, switchable from the admin panel.
@@ -225,6 +225,45 @@ export async function POST(req: NextRequest) {
         planDetails,
         amountUSD: 0,
         subject: 'We would like your feedback',
+        trigger: 'admin-manual',
+        providerMessageId: data?.id,
+        provider,
+      });
+    } else if (type === 'query') {
+      const { subject, bodyText } = body;
+      if (!subject || !String(subject).trim()) {
+        return NextResponse.json({ error: 'A subject/title is required' }, { status: 400 });
+      }
+      if (!bodyText || !String(bodyText).trim()) {
+        return NextResponse.json({ error: 'Message body is required' }, { status: 400 });
+      }
+
+      const { data, error, provider } = await sendEmail({
+        from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
+        replyTo: 'billing@quickbooks-enterprises.com',
+        to: toEmail,
+        subject: String(subject).trim(),
+        html: renderQueryEmailHtml({
+          customerName: name === 'there' ? '' : name,
+          toEmail,
+          companyName: companyName || undefined,
+          subject: String(subject).trim(),
+          bodyText: String(bodyText),
+        }),
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message || 'Email provider rejected the send' }, { status: 502 });
+      }
+
+      await logEmailSent({
+        type: 'receipt', // Re-using 'receipt' since we don't have a 'query' enum type without migrating DB schema
+        toEmail,
+        customerName: name,
+        orderId: fallbackOrderId,
+        planDetails,
+        amountUSD: 0,
+        subject: String(subject).trim(),
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,

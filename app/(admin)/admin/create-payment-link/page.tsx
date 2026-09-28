@@ -317,7 +317,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [logsPerPage, setLogsPerPage] = useState(5)
 
   // Send Email tab state
-  const [emailType, setEmailType] = useState<'success' | 'failed' | 'refund' | 'survey'>('success')
+  const [emailType, setEmailType] = useState<'success' | 'failed' | 'refund' | 'survey' | 'query'>('success')
   const [emailForm, setEmailForm] = useState({
     toEmail: '',
     customerName: '',
@@ -336,6 +336,9 @@ export default function QuickBooksPaymentLinkCreator() {
     refundAmountUSD: '',
     refundedAt: new Date().toISOString().slice(0, 10),
     refundReason: '',
+    // "Query" tab — a free-form message, admin-written subject + body, no NPS scoring.
+    queryTitle: '',
+    queryBody: '',
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
   const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription'>('')
@@ -639,6 +642,9 @@ export default function QuickBooksPaymentLinkCreator() {
         if (reminderGateway && emailForm.amountDueUSD) {
           payload.updateUrl = buildUpdateLink(Number(emailForm.amountDueUSD), reminderGateway)
         }
+      } else if (emailType === 'query') {
+        payload.subject = emailForm.queryTitle
+        payload.bodyText = emailForm.queryBody
       }
 
       const response = await fetch('/api/admin/send-custom-email', {
@@ -655,7 +661,7 @@ export default function QuickBooksPaymentLinkCreator() {
         throw new Error(data.error || 'Send failed')
       }
 
-      toast.success(emailType === 'success' ? 'Receipt email sent!' : emailType === 'refund' ? 'Refund email sent!' : emailType === 'survey' ? 'Survey email sent!' : 'Payment reminder sent!')
+      toast.success(emailType === 'success' ? 'Receipt email sent!' : emailType === 'refund' ? 'Refund email sent!' : emailType === 'survey' ? 'Survey email sent!' : emailType === 'query' ? 'Message sent!' : 'Payment reminder sent!')
       setSingleDuplicateConfirming(false)
       fetchEmailLogs()
     } catch (error: any) {
@@ -3331,6 +3337,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     Survey
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailType('query')}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors cursor-pointer ${emailType === 'query' ? 'bg-purple-600 text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    Query
+                  </button>
                 </div>
               </div>
 
@@ -3379,7 +3392,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                   />
                 </div>
-                {emailType !== 'survey' && (
+                {emailType !== 'survey' && emailType !== 'query' && (
                   <>
                 <div>
                   <label className="block mb-1.5 font-medium text-xs text-zinc-500">Order ID <span className="text-[10px] text-zinc-400 italic font-normal">(optional, auto-generated if blank)</span></label>
@@ -3492,6 +3505,33 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                   />
                 </div>
+                  </>
+                )}
+                {emailType === 'query' && (
+                  <>
+                    <div className="md:col-span-2">
+                      <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Title / Subject *</label>
+                      <input
+                        type="text"
+                        required
+                        value={emailForm.queryTitle}
+                        onChange={(e) => updateEmailForm('queryTitle', e.target.value)}
+                        placeholder="e.g. Following up on your recent order"
+                        className="flex h-10 w-full rounded-md border border-purple-300 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-300/30 focus:border-purple-400"
+                      />
+                      <p className="mt-1 text-[10px] text-zinc-400">Used as both the email subject line and the heading shown in the message.</p>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block mb-1.5 font-semibold text-xs text-zinc-900">Message *</label>
+                      <textarea
+                        required
+                        rows={8}
+                        value={emailForm.queryBody}
+                        onChange={(e) => updateEmailForm('queryBody', e.target.value)}
+                        placeholder={"Write the message body here. This appears after the greeting exactly as typed.\n\nLeave a blank line between paragraphs."}
+                        className="flex w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-300/30 focus:border-purple-400 resize-y"
+                      />
+                    </div>
                   </>
                 )}
                 {emailType === 'success' && (
@@ -3698,7 +3738,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <div className={`rounded-lg p-3 border ${singleSendPrior.isRecent ? 'bg-red-50 border-red-200' : 'bg-zinc-50 border-zinc-200'}`}>
                   <p className={`text-[11px] font-semibold flex items-center gap-1.5 ${singleSendPrior.isRecent ? 'text-red-700' : 'text-zinc-600'}`}>
                     {singleSendPrior.isRecent && <AlertCircle size={13} className="shrink-0" />}
-                    {emailType === 'success' ? 'A receipt' : emailType === 'refund' ? 'A refund email' : emailType === 'survey' ? 'A survey email' : 'A reminder'} was already sent to this address on {singleSendPrior.label}
+                    {emailType === 'success' ? 'A receipt' : emailType === 'refund' ? 'A refund email' : emailType === 'survey' ? 'A survey email' : emailType === 'query' ? 'A message' : 'A reminder'} was already sent to this address on {singleSendPrior.label}
                     {singleSendPrior.isRecent ? ' — less than a week ago.' : '.'}
                   </p>
                 </div>
@@ -3708,7 +3748,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <div className="border border-red-300 bg-red-50 rounded-lg p-4">
                   <p className="text-xs font-bold text-red-900">Send it again anyway?</p>
                   <p className="text-[11px] text-red-800 mt-1">
-                    This recipient already got {emailType === 'success' ? 'a receipt' : emailType === 'refund' ? 'a refund email' : emailType === 'survey' ? 'a survey email' : 'a reminder'} on {singleSendPrior?.label}. This cannot be undone.
+                    This recipient already got {emailType === 'success' ? 'a receipt' : emailType === 'refund' ? 'a refund email' : emailType === 'survey' ? 'a survey email' : emailType === 'query' ? 'a message' : 'a reminder'} on {singleSendPrior?.label}. This cannot be undone.
                   </p>
                   <div className="flex gap-2 mt-3">
                     <button
@@ -3733,9 +3773,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <button
                   type="submit"
                   disabled={isSendingCustomEmail}
-                  className={`w-full py-2.5 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-semibold rounded-lg text-xs transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed border border-zinc-950/10 ${emailType === 'success' ? 'bg-[#2ca01c] hover:bg-[#248a18]' : emailType === 'refund' ? 'bg-sky-600 hover:bg-sky-700' : emailType === 'survey' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-amber-500 hover:bg-amber-600'}`}
+                  className={`w-full py-2.5 disabled:bg-zinc-100 text-white disabled:text-zinc-400 font-semibold rounded-lg text-xs transition-all cursor-pointer shadow-sm disabled:cursor-not-allowed border border-zinc-950/10 ${emailType === 'success' ? 'bg-[#2ca01c] hover:bg-[#248a18]' : emailType === 'refund' ? 'bg-sky-600 hover:bg-sky-700' : emailType === 'survey' ? 'bg-indigo-600 hover:bg-indigo-700' : emailType === 'query' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-amber-500 hover:bg-amber-600'}`}
                 >
-                  {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : emailType === 'refund' ? 'Send Refund Email' : emailType === 'survey' ? 'Send Survey Email' : 'Send Payment Reminder'}
+                  {isSendingCustomEmail ? 'Sending...' : emailType === 'success' ? 'Send Payment Receipt' : emailType === 'refund' ? 'Send Refund Email' : emailType === 'survey' ? 'Send Survey Email' : emailType === 'query' ? 'Send Message' : 'Send Payment Reminder'}
                 </button>
               )}
             </form>
