@@ -238,12 +238,12 @@ export async function registerOrdersPaidWebhook(callbackUrl: string) {
   });
 }
 
-// STOPGAP (2026-09-27): was a hardcoded gid pointing at a selling plan that no longer
-// resolves to anything real on the live store (quickbooks-2030) — cartCreate silently
-// accepted it and completed checkout as a one-time sale instead of a subscription,
-// which is why 30-day recharges never happened for any customer on this tier. Left here
-// only as a fallback default; resolveSellingPlanIdForVariant() below now looks the real,
-// current plan up per-variant instead of trusting a value that can go stale like this.
+// THIS app's own selling plan ("monthly-billing" / "Billed monthly"). Verified live against
+// quickbooks-2030 on 2026-09-28: it is valid, and every contract it produces is owned by
+// this app ("QB Enterprise Checkout"). An earlier note here claimed this id was stale — that
+// was wrong. The real reason renewals never happened is that Shopify only auto-bills contracts
+// owned by its own Subscriptions app; for a contract owned by this app, this app must start
+// each renewal charge itself (see app/lib/shopifyRenewals.ts).
 export const PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID = 'gid://shopify/SellingPlan/693802336620';
 
 export const PAYROLL_SUBSCRIPTION_VARIANTS: Record<string, string> = {
@@ -262,12 +262,14 @@ export interface SubscriptionCheckoutParams {
   address?: DraftOrderAddress;
 }
 
-/** Looks up the selling plan actually attached to a variant right now, via the Storefront
- *  API's own sellingPlanAllocations field — the same thing Shopify itself consults to
- *  decide whether a line item is a subscription. Returns null if the variant has no live
- *  selling plan, which the caller treats as a hard failure rather than silently falling
- *  back to a one-time sale (that silent fallback is exactly what caused recharges to stop
- *  happening for every subscription checkout until now). */
+/** Confirms this app's own selling plan is still attached to the variant, and returns its id.
+ *  Returns null if it isn't, which the caller treats as a hard failure.
+ *
+ *  Deliberately does NOT just take "the first plan on the variant": the product can carry
+ *  plans from more than one app (a second plan created in Shopify's own Subscriptions app
+ *  sits on it too). A contract from a plan owned by another app is one this app never hears
+ *  about and never bills, so silently picking whichever plan happens to be listed first
+ *  could sell customers a subscription nobody renews. */
 export async function resolveSellingPlanIdForVariant(variantId: string): Promise<string | null> {
   const shop = requireEnv('SHOPIFY_SHOP_DOMAIN');
   const storefrontToken = requireEnv('SHOPIFY_STOREFRONT_ACCESS_TOKEN');
@@ -295,12 +297,13 @@ export async function resolveSellingPlanIdForVariant(variantId: string): Promise
   });
 
   const json = await res.json();
-  const edges = json?.data?.node?.sellingPlanAllocations?.edges;
-  const id = edges?.[0]?.node?.sellingPlan?.id;
-  if (!id) {
-    console.error('[Shopify] No live selling plan found for variant', variantId, JSON.stringify(json));
+  const edges: { node?: { sellingPlan?: { id?: string } } }[] = json?.data?.node?.sellingPlanAllocations?.edges ?? [];
+  const ours = edges.find((e) => e?.node?.sellingPlan?.id === PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID);
+  if (!ours) {
+    console.error('[Shopify] Our selling plan is not attached to variant', variantId, JSON.stringify(json));
+    return null;
   }
-  return id ?? null;
+  return PAYROLL_SUBSCRIPTION_SELLING_PLAN_ID;
 }
 
 /** Creates a fresh Storefront API cart for a QuickBooks Payroll subscription tier and returns its checkout URL. */
