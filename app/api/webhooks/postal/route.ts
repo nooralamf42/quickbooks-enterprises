@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import {
   updateDeliveryStatusByProviderMessageId,
   recordEngagementByProviderMessageId,
@@ -59,11 +59,17 @@ export async function POST(req: NextRequest) {
     const providerMessageId =
       req.nextUrl.searchParams.get('server') === 'mail2' ? `${MAIL2_ID_PREFIX}${messageId}` : String(messageId);
 
+    // Postal gives up on a webhook after 5s and files it as failed-and-retry. A cold start plus
+    // the Mongo connect can eat that, so the database work runs after the response is sent
+    // (kept alive by after()) and Postal always gets its 200 straight away. Trade-off: a DB
+    // error here is only logged, no longer surfaced to Postal as a 500 to be retried.
     if (event === 'MessageLoaded' || event === 'MessageLinkClicked') {
       const kind = event === 'MessageLinkClicked' ? 'clicked' : 'opened';
-      const matched = await recordEngagementByProviderMessageId(providerMessageId, kind, body.payload?.url);
-      if (!matched) console.warn(`[Postal Webhook] No log row for ${providerMessageId} (${event})`);
-      return NextResponse.json({ ok: true, matched, kind });
+      after(async () => {
+        const matched = await recordEngagementByProviderMessageId(providerMessageId, kind, body.payload?.url);
+        if (!matched) console.warn(`[Postal Webhook] No log row for ${providerMessageId} (${event})`);
+      });
+      return NextResponse.json({ ok: true, queued: true, kind });
     }
 
     const status = EVENT_STATUS[event];
@@ -72,9 +78,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ignored: `unrecognized event ${rawEvent}` });
     }
 
-    const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status, body.payload?.details);
-    if (!matched) console.warn(`[Postal Webhook] No log row for ${providerMessageId} (${event})`);
-    return NextResponse.json({ ok: true, matched, status });
+    after(async () => {
+      const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status, body.payload?.details);
+      if (!matched) console.warn(`[Postal Webhook] No log row for ${providerMessageId} (${event})`);
+    });
+    return NextResponse.json({ ok: true, queued: true, status });
   } catch (err: any) {
     console.error('[Postal Webhook] Error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
