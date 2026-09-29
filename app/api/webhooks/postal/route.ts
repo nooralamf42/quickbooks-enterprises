@@ -4,6 +4,7 @@ import {
   recordEngagementByProviderMessageId,
   type DeliveryStatus,
 } from '@/app/lib/emailLog';
+import { MAIL2_ID_PREFIX } from '@/app/lib/postal';
 
 /** Postal's webhook — configured per-server in the Postal dashboard (Settings -> Webhooks),
  *  pointing at this one endpoint for every event type. Postal signs webhook payloads with
@@ -52,7 +53,11 @@ export async function POST(req: NextRequest) {
     }
 
     const event = normalizeEvent(rawEvent);
-    const providerMessageId = String(messageId);
+    // Rows sent through the mail2 server are logged as "mail2-<id>" (see MAIL2_ID_PREFIX in
+    // app/lib/postal.ts); its webhook is registered with ?server=mail2. Events without the
+    // param come from the older server, whose rows keep the bare numeric id.
+    const providerMessageId =
+      req.nextUrl.searchParams.get('server') === 'mail2' ? `${MAIL2_ID_PREFIX}${messageId}` : String(messageId);
 
     if (event === 'MessageLoaded' || event === 'MessageLinkClicked') {
       const kind = event === 'MessageLinkClicked' ? 'clicked' : 'opened';

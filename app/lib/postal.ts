@@ -11,7 +11,16 @@
  *  messages: {"<recipient>": {id, token}}}} — id/token are per-recipient, message_id is a
  *  single Message-ID-style string shared across all recipients on the send. */
 
-const POSTAL_API = process.env.POSTAL_API_URL || 'https://postal-dashboard.quickbooks-enterprises.com/api/v1/send/message';
+const POSTAL_API = process.env.POSTAL_API_URL || 'https://mail2.quickbooks-enterprises.com/api/v1/send/message';
+
+// Postal message ids are per-server counters, and the older server's ids (1..~260) overlap
+// the new server's. Delivery/engagement webhooks look log rows up by providerMessageId alone,
+// so an unprefixed id from this server could update a different, older row. The webhook
+// route re-adds this prefix for events posted to /api/webhooks/postal?server=mail2. Only
+// applied while POSTAL_API_URL actually points at the mail2 host, so sends that still go to
+// the older server (env not switched yet) keep the bare ids its own webhook reports.
+export const MAIL2_ID_PREFIX = 'mail2-';
+const ID_PREFIX = POSTAL_API.includes('//mail2.') ? MAIL2_ID_PREFIX : '';
 
 // The only domain verified/DKIM-signed on our Postal server — every other provider wired
 // in here sends from the bare quickbooks-enterprises.com, but Postal rejects that outright
@@ -19,6 +28,11 @@ const POSTAL_API = process.env.POSTAL_API_URL || 'https://postal-dashboard.quick
 // domain here means callers (send-custom-email, etc.) don't need a Postal-specific from
 // address; they keep using the same literal they pass to every other provider.
 const VERIFIED_SEND_DOMAIN = 'mail.quickbooks-enterprises.com';
+
+// Every Postal email is answered at this mailbox, whatever reply-to the caller passed. The
+// From address is on the mail. subdomain, whose MX points at the Postal server rather than a
+// mailbox, so a plain reply to it would go nowhere.
+const POSTAL_REPLY_TO = 'notifications@quickbooks-enterprises.com';
 
 function toVerifiedDomain(from: string): string {
   const match = from.match(/^(.*)<(.+)@(.+)>$/);
@@ -63,7 +77,7 @@ export async function sendViaPostal(params: PostalSendParams): Promise<PostalSen
         from: toVerifiedDomain(params.from),
         subject: params.subject,
         html_body: params.html,
-        ...(params.replyTo ? { reply_to: params.replyTo } : {}),
+        reply_to: POSTAL_REPLY_TO,
       }),
     });
 
@@ -79,7 +93,7 @@ export async function sendViaPostal(params: PostalSendParams): Promise<PostalSen
     const id = json?.data?.messages?.[params.to]?.id;
     if (!id) return { error: { message: 'Postal response had no message id for recipient' } };
 
-    return { data: { id: String(id) } };
+    return { data: { id: `${ID_PREFIX}${id}` } };
   } catch (err: any) {
     return { error: { message: err?.message || 'Postal request failed' } };
   }
