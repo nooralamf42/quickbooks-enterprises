@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { verifyWebhookHmac, formatCardLabel, adminGraphQL } from '@/app/lib/shopify';
 import { sendPaymentNotificationEmail } from '@/app/lib/paymentNotification';
+import { advanceNextBillingDate } from '@/app/lib/shopifyRenewals';
 
 /**
  * These subscription topics deliver a "thin" payload (mainly `admin_graphql_api_id`),
@@ -77,7 +78,13 @@ async function handleBillingSuccess(db: any, payload: any) {
   const result = await adminGraphQL<{
     node: {
       id: string;
-      subscriptionContract: { id: string; customer: { email?: string } | null };
+      originTime: string | null;
+      subscriptionContract: {
+        id: string;
+        nextBillingDate: string | null;
+        billingPolicy: { interval: string; intervalCount: number } | null;
+        customer: { email?: string } | null;
+      };
       transactions: {
         nodes: {
           status: string;
@@ -93,7 +100,8 @@ async function handleBillingSuccess(db: any, payload: any) {
       node(id: $id) {
         ... on SubscriptionBillingAttempt {
           id
-          subscriptionContract { id customer { email } }
+          originTime
+          subscriptionContract { id nextBillingDate billingPolicy { interval intervalCount } customer { email } }
           transactions(first: 5) {
             nodes {
               status
@@ -113,6 +121,18 @@ async function handleBillingSuccess(db: any, payload: any) {
   if (!attempt) {
     console.warn('[Shopify Subscription Webhook] billing success: node lookup failed', attemptGid, result.errors);
     return;
+  }
+
+  // Shopify leaves nextBillingDate untouched after a successful charge on a contract this app
+  // owns, so move it forward here. Done before the logging below so an early return there
+  // (already-logged order, etc.) can never leave the contract looking due again.
+  if (attempt.originTime) {
+    const policy = attempt.subscriptionContract.billingPolicy ?? { interval: 'MONTH', intervalCount: 1 };
+    const adv = await advanceNextBillingDate(
+      adminGraphQL, attempt.subscriptionContract.id, new Date(attempt.originTime),
+      attempt.subscriptionContract.nextBillingDate, policy.interval, policy.intervalCount,
+    );
+    console.log('[Shopify Subscription Webhook] next billing date:', attempt.subscriptionContract.id, JSON.stringify(adv));
   }
 
   const successfulTxn = attempt.transactions?.nodes?.find(

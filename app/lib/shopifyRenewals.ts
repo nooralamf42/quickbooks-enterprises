@@ -42,6 +42,8 @@ export interface RenewalOptions {
 export type RenewalAction =
   | 'charged'
   | 'would_charge'
+  | 'already_billed_date_advanced'
+  | 'already_billed_would_advance_date'
   | 'not_due'
   | 'skipped_overdue_needs_review'
   | 'skipped_waiting_retry'
@@ -78,9 +80,10 @@ const LIST_QUERY = `
         id
         status
         nextBillingDate
+        billingPolicy { interval intervalCount }
         lines(first: 1) { nodes { currentPrice { amount currencyCode } } }
         billingAttempts(first: 20) {
-          nodes { id ready errorCode errorMessage originTime createdAt }
+          nodes { id ready errorCode errorMessage originTime createdAt order { id } }
         }
       }
     }
@@ -96,7 +99,59 @@ const CREATE_ATTEMPT = `
   }
 `;
 
+const SET_NEXT_BILLING_DATE = `
+  mutation ($id: ID!, $date: DateTime!) {
+    subscriptionContractSetNextBillingDate(contractId: $id, date: $date) {
+      contract { id nextBillingDate }
+      userErrors { field message }
+    }
+  }
+`;
+
 const numericId = (gid: string) => gid.split('/').pop() || gid;
+
+/** `date` plus one billing interval, in UTC, keeping the time of day. Month/year steps clamp
+ *  to the last day of a shorter month (Jan 31 + 1 month = Feb 28), so a contract that started
+ *  on the 31st never drifts or overflows into the next month. */
+export function addBillingInterval(date: Date, interval: string, count: number): Date {
+  const d = new Date(date.getTime());
+  if (interval === 'DAY') { d.setUTCDate(d.getUTCDate() + count); return d; }
+  if (interval === 'WEEK') { d.setUTCDate(d.getUTCDate() + 7 * count); return d; }
+  const months = interval === 'YEAR' ? 12 * count : count;
+  const day = d.getUTCDate();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+  d.setUTCDate(Math.min(day, lastDay));
+  return d;
+}
+
+/**
+ * Moves a contract's nextBillingDate forward one interval after its cycle was billed.
+ *
+ * Shopify does NOT do this for contracts owned by an app — the owning app has to (verified
+ * live: after a successful billing attempt the contract still showed the old due date, which
+ * would have made every later run see it as due again). Only acts when the contract's current
+ * date is still the cycle that was just billed, so calling it twice (job + webhook) is a no-op
+ * the second time rather than skipping a month.
+ */
+export async function advanceNextBillingDate(
+  gql: GraphQLRunner,
+  contractGid: string,
+  billedCycle: Date,
+  currentNextBillingDate: string | null,
+  interval: string,
+  count: number,
+): Promise<{ advanced: boolean; newDate?: string; reason?: string }> {
+  if (!currentNextBillingDate || new Date(currentNextBillingDate).getTime() !== billedCycle.getTime()) {
+    return { advanced: false, reason: 'next billing date already moved past this cycle' };
+  }
+  const next = addBillingInterval(billedCycle, interval, count);
+  const res = await gql(SET_NEXT_BILLING_DATE, { id: contractGid, date: next.toISOString() });
+  const err = res.data?.subscriptionContractSetNextBillingDate?.userErrors?.[0];
+  if (!res.ok || err) return { advanced: false, reason: err ? err.message : JSON.stringify(res.errors) };
+  return { advanced: true, newDate: next.toISOString() };
+}
 
 export async function runRenewalBilling(gql: GraphQLRunner, opts: RenewalOptions = {}): Promise<RenewalReport> {
   const live = opts.live === true;
@@ -137,16 +192,29 @@ export async function runRenewalBilling(gql: GraphQLRunner, opts: RenewalOptions
     const isSelected = selected.has(numericId(c.id));
     if (selected.size > 0 && !isSelected) { rows.push({ ...base, action: 'skipped_not_selected' }); continue; }
 
+    // Attempts already made for THIS billing cycle (matched by originTime == the due date).
+    const attempts: any[] = (c.billingAttempts?.nodes ?? []).filter(
+      (a: any) => a.originTime && new Date(a.originTime).getTime() === due.getTime(),
+    );
+    // This cycle was already billed successfully but the due date never moved (Shopify leaves
+    // that to the owning app). Never charge it again — just move the date forward. Checked
+    // BEFORE the overdue guard: moving a date is not a charge, so how overdue it looks is
+    // irrelevant, and the guard would otherwise leave exactly these contracts stuck.
+    const succeeded = attempts.find((a) => a.ready && !a.errorCode && a.order?.id);
+    if (succeeded) {
+      const policy = c.billingPolicy ?? { interval: 'MONTH', intervalCount: 1 };
+      if (!live) { rows.push({ ...base, action: 'already_billed_would_advance_date', detail: `billed by ${succeeded.id}` }); continue; }
+      const adv = await advanceNextBillingDate(gql, c.id, due, c.nextBillingDate, policy.interval, policy.intervalCount);
+      rows.push({ ...base, action: adv.advanced ? 'already_billed_date_advanced' : 'error', detail: adv.advanced ? `next due ${adv.newDate}` : adv.reason });
+      continue;
+    }
+
     const overdueDays = (now.getTime() - due.getTime()) / DAY_MS;
     if (overdueDays > maxOverdueDays && !isSelected) {
       rows.push({ ...base, action: 'skipped_overdue_needs_review', detail: `${Math.floor(overdueDays)} days overdue — name it explicitly to charge` });
       continue;
     }
 
-    // Attempts already made for THIS billing cycle (matched by originTime == the due date).
-    const attempts: any[] = (c.billingAttempts?.nodes ?? []).filter(
-      (a: any) => a.originTime && new Date(a.originTime).getTime() === due.getTime(),
-    );
     const inFlight = attempts.find((a) => !a.ready && !a.errorCode && now.getTime() - new Date(a.createdAt).getTime() < 60 * 60 * 1000);
     if (inFlight) { rows.push({ ...base, action: 'skipped_attempt_in_flight', detail: inFlight.id }); continue; }
 
