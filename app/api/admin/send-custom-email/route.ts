@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
       //   subject: 'We received your QuickBooks Enterprise payment!',
       //   html: renderPaymentReceiptEmailHtml({ ... }),
       // });
-      const { data, error, provider } = await sendEmail({
+      const { data, error, provider, html } = await sendEmail({
         from: 'Intuit QuickBooks <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
@@ -97,6 +97,7 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,
+        html,
       });
       // No internal payment-notification alert here on purpose — that's reserved for real
       // payment events (the gateway webhooks). A manual/admin-triggered receipt send isn't
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'refundAmountUSD is required' }, { status: 400 });
       }
 
-      const { data, error, provider } = await sendEmail({
+      const { data, error, provider, html } = await sendEmail({
         from: 'Intuit QuickBooks <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,
+        html,
       });
     } else if (type === 'failed') {
       const { amountDueUSD, cancellationDate, updateUrl, dueDate } = body;
@@ -163,7 +165,7 @@ export async function POST(req: NextRequest) {
       // Payroll reminders get a different subject/sender (Intuit-run subscription framing)
       // than every other reminder — see getReminderEmailBranding(). Receipts are unaffected.
       const branding = getReminderEmailBranding(planDetails);
-      const { data, error, provider } = await sendEmail({
+      const { data, error, provider, html } = await sendEmail({
         from: branding.from,
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
@@ -199,9 +201,10 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,
+        html,
       });
     } else if (type === 'survey') {
-      const { data, error, provider } = await sendEmail({
+      const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
@@ -228,6 +231,7 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,
+        html,
       });
     } else if (type === 'query') {
       const { subject, bodyText } = body;
@@ -238,7 +242,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Message body is required' }, { status: 400 });
       }
 
-      const { data, error, provider } = await sendEmail({
+      const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
@@ -268,6 +272,7 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-manual',
         providerMessageId: data?.id,
         provider,
+        html,
       });
     }
 

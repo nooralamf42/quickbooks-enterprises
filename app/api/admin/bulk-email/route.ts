@@ -191,6 +191,7 @@ export async function POST(req: NextRequest) {
           planDetails: row.product,
           amountUSD: amount,
           subject,
+          html,
           trigger: 'admin-bulk' as const,
         };
 

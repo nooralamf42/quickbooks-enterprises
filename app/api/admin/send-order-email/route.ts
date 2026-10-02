@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       //   subject: 'We received your QuickBooks Enterprise payment!',
       //   html: renderPaymentReceiptEmailHtml({ ... }),
       // });
-      const { data, error, provider } = await sendEmail({
+      const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
@@ -91,6 +91,7 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-order',
         providerMessageId: data?.id,
         provider,
+        html,
       });
       // No internal payment-notification alert here on purpose — this order was already
       // paid (that's why it exists), so resending its receipt isn't a new payment event
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
       //   subject: 'Action needed: update your QuickBooks Enterprise payment method',
       //   html: renderPaymentFailedEmailHtml({ ... }),
       // });
-      const { data, error, provider } = await sendEmail({
+      const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
@@ -143,6 +144,7 @@ export async function POST(req: NextRequest) {
         trigger: 'admin-order',
         providerMessageId: data?.id,
         provider,
+        html,
       });
     }
 

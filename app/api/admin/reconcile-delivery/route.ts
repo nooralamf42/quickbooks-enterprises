@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
         resendId: { $exists: true, $ne: null },
         deliveryStatus: { $in: ['accepted', 'sent', 'delayed'] },
       })
+      .project({ html: 0 })
       .sort({ sentAt: -1 })
       .limit(MAX_LOOKUPS)
       .toArray();

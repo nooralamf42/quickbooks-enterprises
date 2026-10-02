@@ -22,6 +22,9 @@ export interface SendEmailResult {
   /** Which provider actually handled this send — the message id alone doesn't say, since
    *  both providers' ids get stored in the same providerMessageId field. */
   provider: EmailProvider;
+  /** The exact HTML handed to the provider, echoed back so callers can store it with the log
+   *  row (the Email Logs PDF shows the sent email as its first page). */
+  html?: string;
 }
 
 /** Sends through whichever provider is active (set in the admin panel) — the single funnel
@@ -47,5 +50,5 @@ export async function sendEmail(params: SendEmailParams): Promise<SendEmailResul
     : provider === 'itwalk' ? await sendViaItwalk(params)
     : provider === 'postal' ? await sendViaPostal(params)
     : await sendViaPostmark(params);
-  return { ...result, provider };
+  return { ...result, provider, html: params.html };
 }

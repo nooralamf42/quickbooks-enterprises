@@ -1836,6 +1836,83 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       const typeColor = entry.type === 'reminder' ? [217, 119, 6] : entry.type === 'refund' ? [3, 105, 161] : entry.type === 'query' ? [147, 51, 234] : entry.type === 'survey' ? [79, 70, 229] : primaryColor
       const typeLabel = entry.type === 'reminder' ? 'REMINDER' : entry.type === 'refund' ? 'REFUND' : entry.type === 'query' ? 'QUERY' : entry.type === 'survey' ? 'SURVEY' : 'RECEIPT'
 
+      // --- PAGE 1: THE EMAIL AS THE CUSTOMER RECEIVED IT ---
+      // The record below becomes page 2. Fetched per row (never part of the list response).
+      // Any failure here is non-fatal: the PDF falls back to the record alone, as before.
+      try {
+        const stored = localStorage.getItem('adminAuth')
+        const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+        const emailRes = await fetch(`/api/admin/email-logs/${entry._id}/html`, {
+          headers: { 'Authorization': `Bearer ${passwordHash}` },
+        })
+        const emailData = emailRes.ok ? await emailRes.json() : null
+        if (emailData?.html) {
+          const { default: html2canvas } = await import('html2canvas')
+
+          // Render in an off-screen iframe so the email's own CSS can't touch the admin page,
+          // and the admin page's CSS can't touch the email.
+          const frame = document.createElement('iframe')
+          frame.style.cssText = 'position:fixed;left:-10000px;top:0;width:660px;height:1000px;border:0;visibility:hidden'
+          document.body.appendChild(frame)
+          let emailImage: { dataUrl: string; width: number; height: number } | null = null
+          try {
+            await new Promise<void>((res) => {
+              frame.onload = () => res()
+              frame.srcdoc = emailData.html
+            })
+            const frameDoc = frame.contentDocument!
+            // Wait for the logo/icons — capturing before they load would leave blank boxes.
+            await Promise.race([
+              Promise.all(Array.from(frameDoc.images).map((img) => img.complete ? Promise.resolve() : new Promise<void>((r) => { img.onload = () => r(); img.onerror = () => r() }))),
+              new Promise((r) => setTimeout(r, 6000)),
+            ])
+            // foreignObject capture can't fetch external images, so inline them as data URLs first
+            // (the hosted logo/icons allow cross-origin fetches). A failed one is just left alone.
+            await Promise.all(Array.from(frameDoc.images).map(async (img) => {
+              try {
+                const blob = await (await fetch(img.src)).blob()
+                img.src = await new Promise<string>((res, rej) => {
+                  const reader = new FileReader()
+                  reader.onload = () => res(reader.result as string)
+                  reader.onerror = rej
+                  reader.readAsDataURL(blob)
+                })
+                await img.decode().catch(() => {})
+              } catch { /* keep the original src */ }
+            }))
+            frame.style.height = `${frameDoc.documentElement.scrollHeight}px`
+            // foreignObjectRendering hands the drawing to the browser's own renderer. html2canvas'
+            // default painter clips table-cell text in these emails (last "Order details" rows
+            // and the legal paragraph came out half-cut).
+            const emailHeight = frameDoc.documentElement.scrollHeight
+            const canvas = await html2canvas(frameDoc.body, {
+              scale: 2, useCORS: true, backgroundColor: '#f4f5f8',
+              width: 660, height: emailHeight, windowWidth: 660, windowHeight: emailHeight,
+              foreignObjectRendering: true,
+            })
+            // JPEG keeps the file small; an email screenshot has no transparency to preserve.
+            emailImage = { dataUrl: canvas.toDataURL('image/jpeg', 0.92), width: canvas.width, height: canvas.height }
+          } finally {
+            document.body.removeChild(frame)
+          }
+
+          if (emailImage) {
+            // Fit to one A4 page: full width if the email is short enough, otherwise scaled
+            // down by height.
+            const maxW = 190
+            const maxH = 250
+            const ratio = emailImage.height / emailImage.width
+            let imgW = maxW
+            let imgH = imgW * ratio
+            if (imgH > maxH) { imgH = maxH; imgW = imgH / ratio }
+            doc.addImage(emailImage.dataUrl, 'JPEG', (210 - imgW) / 2, 15, imgW, imgH)
+            doc.addPage()
+          }
+        }
+      } catch (emailErr) {
+        console.error('[Email Log PDF] Could not add the email page, continuing without it:', emailErr)
+      }
+
       // --- LETTERHEAD ---
       try {
         // The source file is 2560x656 — embedding it at that resolution directly (jsPDF

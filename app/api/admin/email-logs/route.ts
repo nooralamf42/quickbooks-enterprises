@@ -86,7 +86,8 @@ export async function GET(req: NextRequest) {
 
     const collection = db.collection('emailLogs');
     const [logs, total] = await Promise.all([
-      collection.find(filter).sort({ sentAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+      // html is the stored email (~18 KB a row) — fetched per row via /[id]/html, never in the list.
+      collection.find(filter).project({ html: 0 }).sort({ sentAt: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
       collection.countDocuments(filter),
     ]);
 

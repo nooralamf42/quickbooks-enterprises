@@ -20,6 +20,13 @@ const POSTAL_API = process.env.POSTAL_API_URL || 'https://mail2.quickbooks-enter
 // applied while POSTAL_API_URL actually points at the mail2 host, so sends that still go to
 // the older server (env not switched yet) keep the bare ids its own webhook reports.
 export const MAIL2_ID_PREFIX = 'mail2-';
+
+/** Postal appends a hidden open-tracking image to every tracked email it sends. A copy of the
+ *  email taken back out of Postal must not keep it: rendering that copy (the Email Logs PDF)
+ *  would load the pixel and register a fake "open" on the original message. */
+export function stripPostalTrackingPixel(html: string): string {
+  return html.replace(/<p class=['"]ampimg['"][\s\S]*?<\/p>/i, '');
+}
 const ID_PREFIX = POSTAL_API.includes('//mail2.') ? MAIL2_ID_PREFIX : '';
 
 // The only domain verified/DKIM-signed on our Postal server — every other provider wired

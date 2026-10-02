@@ -26,6 +26,9 @@ export interface EmailLogEntry {
   /** Full message text for free-form 'query' emails, so the Email Logs record (and its PDF)
    *  shows what was actually said, not just the subject line. */
   messageBody?: string;
+  /** The exact HTML of the email as sent, for the Email Logs PDF's first page. Large (~18 KB),
+   *  so list queries must exclude it; rows sent before this field existed have none. */
+  html?: string;
   /** Where the send was initiated from, for auditing. */
   trigger: 'authorize-webhook' | 'authorize-sync' | 'authorize-complete' | 'admin-manual' | 'admin-order' | 'admin-bulk';
   /** Resend's message id. The join key for delivery webhooks — without it a log row
