@@ -1818,6 +1818,20 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
     }
   }
 
+  /** jsPDF's built-in Helvetica only has Latin-1 + a few Windows-1252 symbols. Any other character
+   *  (e.g. the invisible U+2060 "word joiner" that WhatsApp/iMessage copy-paste adds, or an emoji)
+   *  makes jsPDF fall back to a 2-byte encoding that spaces every letter of that line apart and
+   *  runs it off the page. Strip invisible characters and swap anything unsupported for "?". */
+  const pdfSafe = (text?: string): string => {
+    if (!text) return ''
+    const winAnsiExtras = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ'
+    return Array.from(
+      text
+        .replace(/[­​-‏‪-‮⁠-⁤⁦-⁩﻿]/g, '')
+        .replace(/[ -   　]/g, ' ')
+    ).map((ch) => (ch.codePointAt(0)! <= 0xFF || winAnsiExtras.includes(ch) ? ch : '?')).join('')
+  }
+
   /** Builds a one-page summary PDF for a single Email Logs row — everything used to build
    *  and send that email, plus what happened to it (delivery + engagement). Distinct from
    *  downloadPDF() above: that one produces a legal consent/signature certificate for a
@@ -2038,7 +2052,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
 
       doc.setFontSize(9.5)
       rows.forEach(([label, value], idx) => {
-        const lines = doc.splitTextToSize(value || 'Not provided', valueWidth)
+        const lines = doc.splitTextToSize(pdfSafe(value) || 'Not provided', valueWidth)
         const rowHeight = Math.max(lines.length * 4.6, 7.5) + 2.5
 
         if (cursorY + rowHeight > bottomMargin) {
