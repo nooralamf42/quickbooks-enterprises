@@ -1,4 +1,4 @@
-import { sendViaItwalk } from '@/app/lib/itwalk';
+import { sendViaPostal } from '@/app/lib/postal';
 
 /** The internal "New Successful Payment" alert sent to the business's own inbox on every
  *  completed payment — distinct from the customer-facing receipt, which is sent manually
@@ -8,10 +8,9 @@ import { sendViaItwalk } from '@/app/lib/itwalk';
  *
  *  Deliberately hardcoded to a specific provider rather than the switchable sendEmail()
  *  dispatcher, so this notification never silently moves to whatever a manual-send
- *  provider toggle picks for the Send Email tab. Was ZeptoMail; switched to itWALK
- *  2026-09-04 after ZeptoMail's account got fully blocked ("Account Blocked", not just a
- *  per-message failure) — itWALK is the provider confirmed working end-to-end this session,
- *  including surviving the full branded template unflagged. */
+ *  provider toggle picks for the Send Email tab. Was ZeptoMail, then itWALK (switched
+ *  2026-09-04 after ZeptoMail's account got fully blocked); switched again to Postal
+ *  2026-10-09 after itWALK stopped sending. */
 
 export interface PaymentNotificationParams {
   /** Shown in the email heading, e.g. "New Successful Payment (Stripe)". */
@@ -65,7 +64,7 @@ export async function sendPaymentNotificationEmail(params: PaymentNotificationPa
   `;
 
   try {
-    const { error } = await sendViaItwalk({
+    const { error } = await sendViaPostal({
       from: 'notifications@quickbooks-enterprises.com',
       to: 'info@qualitybusinesstech.us',
       subject: `New Successful Payment: $${amountUSD} from ${customerName}`,
