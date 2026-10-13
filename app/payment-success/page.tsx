@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import { CheckCircle, Mail, Hash, DollarSign, Package } from 'lucide-react';
+import { CheckCircle, XCircle, Mail, Hash, DollarSign, Package } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -15,6 +15,10 @@ export default function PaymentSuccessPage() {
   const paymentIntentId = params.get('payment_intent');
   const orderId = params.get('order_id');
   const gateway = params.get('gateway');
+  // Only PayDollar sets this: its successUrl/failUrl/cancelUrl are display-only redirects, so the
+  // real status still comes from the sync-order fallback below (or the Data Feed webhook).
+  const outcome = params.get('outcome');
+  const paydollarNotSuccessful = gateway === 'paydollar' && outcome && outcome !== 'success';
 
   useEffect(() => {
     // If returning from Stripe Custom Elements, verify the payment immediately
@@ -52,21 +56,52 @@ export default function PaymentSuccessPage() {
     }
   }, [gateway, orderId]);
 
+  useEffect(() => {
+    // PayDollar's redirect URLs are display-only; query the Merchant API directly as a fallback
+    // in case the Data Feed webhook hasn't landed yet (or the customer bounced on failUrl/cancelUrl
+    // after actually completing payment on PayDollar's side).
+    if (gateway === 'paydollar' && orderId) {
+      fetch('/api/paydollar/sync-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ localOrderId: orderId })
+      }).catch(err => console.error('PayDollar sync fallback failed:', err));
+    }
+  }, [gateway, orderId]);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
       <div className="bg-white shadow-xl rounded-2xl p-8 max-w-lg w-full">
 
         {/* Icon + heading */}
         <div className="flex flex-col items-center text-center mb-8">
-          <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-5">
-            <CheckCircle className="text-[#2ca01c] w-11 h-11" />
-          </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-            Payment Successful!
-          </h1>
-          <p className="text-gray-500 text-sm leading-relaxed max-w-sm">
-            Your payment has been processed and confirmed. A confirmation email will be sent to you shortly.
-          </p>
+          {paydollarNotSuccessful ? (
+            <>
+              <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mb-5">
+                <XCircle className="text-red-500 w-11 h-11" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                {outcome === 'cancel' ? 'Payment Cancelled' : 'Payment Not Completed'}
+              </h1>
+              <p className="text-gray-500 text-sm leading-relaxed max-w-sm">
+                {outcome === 'cancel'
+                  ? 'You cancelled the payment before it was completed. No charge was made.'
+                  : 'PayDollar was unable to complete this payment. Please try again or contact us if the issue continues.'}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-5">
+                <CheckCircle className="text-[#2ca01c] w-11 h-11" />
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+                Payment Successful!
+              </h1>
+              <p className="text-gray-500 text-sm leading-relaxed max-w-sm">
+                Your payment has been processed and confirmed. A confirmation email will be sent to you shortly.
+              </p>
+            </>
+          )}
         </div>
 
         {/* Detail rows */}

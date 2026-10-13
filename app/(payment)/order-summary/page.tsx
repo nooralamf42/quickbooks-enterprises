@@ -24,6 +24,7 @@ export default function CheckoutForm() {
     const [isSubmittingAntom, setIsSubmittingAntom] = useState(false);
     const [isSubmittingShopify, setIsSubmittingShopify] = useState(false);
     const [isSubmittingMor, setIsSubmittingMor] = useState(false);
+    const [isSubmittingPaydollar, setIsSubmittingPaydollar] = useState(false);
     const [stripeClientSecret, setStripeClientSecret] = useState<string>('');
     const [stripeLocalOrderId, setStripeLocalOrderId] = useState<string>('');
     const [morCheckoutUrl, setMorCheckoutUrl] = useState<string>('');
@@ -461,6 +462,64 @@ export default function CheckoutForm() {
                     setIsSubmittingShopify(false);
                     throw new Error('Invalid response from subscription checkout');
                 }
+            } else if (paymentObj?.gateway === 'PayDollar') {
+                setIsSubmittingPaydollar(true);
+                const amountUSD = paymentObj?.total ? paymentObj.total / 100 : 0;
+                const planDetails = paymentObj?.isService
+                    ? paymentObj.serviceName
+                    : paymentObj?.edition
+                    ? paymentObj.edition.toLowerCase() === 'fsp'
+                        ? 'QuickBooks Enterprise FSP Edition'
+                        : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
+                    : undefined;
+
+                const res = await fetch('/api/paydollar/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        amountUSD,
+                        email: formData.email,
+                        firstName: formData.firstName,
+                        lastName: formData.lastName,
+                        phone: formData.phone,
+                        planDetails,
+                        address: formData.address,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        country: formData.country,
+                        companyName: formData.companyName,
+                        ein: formData.ein,
+                        clientSignatureBase64,
+                        agreedToTerms: agreedToTerms ? 'true' : 'false'
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.error || 'Failed to initiate PayDollar checkout');
+                }
+
+                const data = await res.json();
+                if (data.formAction && data.fields) {
+                    // PayDollar's hosted page is a "Client Post Through Browser" target: the customer's
+                    // own browser must POST the fields there directly, not a GET redirect.
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = data.formAction;
+                    for (const [key, value] of Object.entries<string>(data.fields)) {
+                        const input = document.createElement('input');
+                        input.type = 'hidden';
+                        input.name = key;
+                        input.value = value;
+                        form.appendChild(input);
+                    }
+                    document.body.appendChild(form);
+                    form.submit();
+                } else {
+                    setIsSubmittingPaydollar(false);
+                    throw new Error('Invalid response from PayDollar checkout');
+                }
             } else {
                 // If this is reached without a gateway match, throw an error
                 throw new Error('No valid payment gateway selected.');
@@ -470,6 +529,7 @@ export default function CheckoutForm() {
             setIsSubmittingStripe(false);
             setIsSubmittingAntom(false);
             setIsSubmittingShopify(false);
+            setIsSubmittingPaydollar(false);
             toast.error(err?.message || 'Failed to start checkout. Please try again.');
             setStep(1);
         }
@@ -733,11 +793,11 @@ export default function CheckoutForm() {
                                 </div>
                             ) : (
                                 <button
-                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || isSubmittingMor || !clientSignatureBase64}
+                                    disabled={authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || isSubmittingMor || isSubmittingPaydollar || !clientSignatureBase64}
                                     type="submit"
                                     className="mt-8 bg-[#2ca01c] hover:bg-[#248a18] text-white px-6 py-2 rounded-md font-medium transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                 >
-                                    {authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || isSubmittingMor ? 'Connecting...' : 'Proceed to Payment'}
+                                    {authIsPending || isSubmittingStripe || isSubmittingAntom || isSubmittingShopify || isSubmittingMor || isSubmittingPaydollar ? 'Connecting...' : 'Proceed to Payment'}
                                 </button>
                             )}
                             </>

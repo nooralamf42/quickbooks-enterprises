@@ -194,7 +194,7 @@ export default function QuickBooksPaymentLinkCreator() {
   const [selectedYears, setSelectedYears] = useState(1)
   const [discountAmount, setDiscountAmount] = useState('')
   const [paymentLink, setPaymentLink] = useState('')
-  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'antom' | 'shopify' | 'mor'>('authorize')
+  const [selectedGateway, setSelectedGateway] = useState<'authorize' | 'online' | 'stripe' | 'antom' | 'shopify' | 'mor' | 'paydollar'>('authorize')
   
   // Navigation tabs state — kept in the URL (?tab=bulk) via nuqs so a reload, or sharing
   // the link, lands back on the same tab instead of always resetting to Payment Links.
@@ -973,7 +973,7 @@ export default function QuickBooksPaymentLinkCreator() {
       return
     }
 
-    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'antom' ? 'GAN' : selectedGateway === 'mor' ? 'GM' : selectedGateway === 'shopify' ? 'GSH' : 'GT'
+    const gatewayFlag = selectedGateway === 'authorize' ? 'GA' : selectedGateway === 'online' ? 'GO' : selectedGateway === 'antom' ? 'GAN' : selectedGateway === 'mor' ? 'GM' : selectedGateway === 'shopify' ? 'GSH' : selectedGateway === 'paydollar' ? 'GPD' : 'GT'
     let paymentString = '';
 
     if (['a','b','c','d','e','f','g','h','i','j','k','l','m'].includes(selectedEdition)) {
@@ -2459,6 +2459,16 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'shopify' ? 'bg-[#95BF47] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
                   >
                     Shopify
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedGateway('paydollar')
+                      setPaymentLink('')
+                    }}
+                    className={`flex-1 text-xs font-semibold py-2 rounded transition-colors ${selectedGateway === 'paydollar' ? 'bg-[#e4002b] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    PayDollar
                   </button>
                 </div>
               </div>
