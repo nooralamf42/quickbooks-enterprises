@@ -3,7 +3,9 @@ import Stripe from 'stripe';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+// Constructing Stripe at module scope throws when STRIPE_SECRET_KEY is unset, which crashes
+// `next build`'s page-data collection (it executes route modules). Lazy init avoids that.
+let stripe: Stripe | null = null;
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +14,10 @@ export async function POST(req: Request) {
     if (!payment_intent || !order_id) {
       return NextResponse.json({ error: 'Missing parameters' }, { status: 400 });
     }
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json({ error: 'Stripe API key is not configured' }, { status: 500 });
+    }
+    if (!stripe) stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
     // Retrieve the payment intent from Stripe to verify it actually succeeded
     const paymentIntent = await stripe.paymentIntents.retrieve(payment_intent);
