@@ -3,16 +3,19 @@ import { v2 as cloudinary } from 'cloudinary';
 import { connectToDatabase } from '@/app/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
-// Configure Cloudinary with server-side credentials
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true,
-});
-
 export async function POST(req: NextRequest) {
   try {
+    // Configure lazily, not at module scope: on Cloudflare Workers (via OpenNext) process.env
+    // isn't populated until request-scoped context runs, so a module-scope call could
+    // permanently misconfigure this SDK's global singleton with empty credentials for the
+    // life of the isolate — same failure mode already fixed for Stripe and MongoDB.
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+      secure: true,
+    });
+
     const orderId = req.nextUrl.searchParams.get('orderId');
     if (!orderId) {
       return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
