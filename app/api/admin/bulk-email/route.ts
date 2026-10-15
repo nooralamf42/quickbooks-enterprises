@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendEmail } from '@/app/lib/emailSender';
 import { renderPaymentFailedEmailHtml, renderPaymentReceiptEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
+import { msg91ReceiptPayload, msg91ReminderPayload } from '@/app/lib/msg91';
 import { logEmailSent } from '@/app/lib/emailLog';
 
 export const maxDuration = 300;
@@ -142,30 +143,35 @@ export async function POST(req: NextRequest) {
         : branding.subject;
 
       try {
+        const receiptData = {
+          customerName, toEmail, companyName: row.companyName, orderId,
+          // A bulk receipt logs the send as the payment date — there's no separate
+          // billing date column any more.
+          paidAt: new Date(), amountUSD: amount,
+          paymentMethodLabel: row.paymentMethod || 'Card on file',
+          planDetails: row.product,
+          licenseNumber: row.licenseNumber || undefined,
+          dueDate,
+        };
+        const reminderData = {
+          customerName, toEmail, companyName: row.companyName, orderId,
+          amountDueUSD: amount,
+          paymentMethodLabel: row.paymentMethod || 'the payment method on file',
+          cancellationDate: cancellation,
+          dueDate,
+          planDetails: row.product,
+          updateUrl: row.updateUrl,
+          // Bulk sends are monthly subscriptions — this drives the "Plan:" row,
+          // leaving planDetails to describe the subscription itself.
+          billingCycle: 'Monthly',
+          // numUsers / contractYears deliberately omitted so those rows stay hidden.
+        };
         const html = type === 'success'
-          ? renderPaymentReceiptEmailHtml({
-              customerName, toEmail, companyName: row.companyName, orderId,
-              // A bulk receipt logs the send as the payment date — there's no separate
-              // billing date column any more.
-              paidAt: new Date(), amountUSD: amount,
-              paymentMethodLabel: row.paymentMethod || 'Card on file',
-              planDetails: row.product,
-              licenseNumber: row.licenseNumber || undefined,
-              dueDate,
-            })
-          : renderPaymentFailedEmailHtml({
-              customerName, toEmail, companyName: row.companyName, orderId,
-              amountDueUSD: amount,
-              paymentMethodLabel: row.paymentMethod || 'the payment method on file',
-              cancellationDate: cancellation,
-              dueDate,
-              planDetails: row.product,
-              updateUrl: row.updateUrl,
-              // Bulk sends are monthly subscriptions — this drives the "Plan:" row,
-              // leaving planDetails to describe the subscription itself.
-              billingCycle: 'Monthly',
-              // numUsers / contractYears deliberately omitted so those rows stay hidden.
-            });
+          ? renderPaymentReceiptEmailHtml(receiptData)
+          : renderPaymentFailedEmailHtml(reminderData);
+        const msg91Payload = type === 'success'
+          ? msg91ReceiptPayload(receiptData)
+          : msg91ReminderPayload(reminderData);
 
         // STOPGAP: original Resend call, restore when the account is reactivated —
         // const { data, error } = await resend.emails.send({
@@ -183,6 +189,7 @@ export async function POST(req: NextRequest) {
           subject,
           html,
           replyTo: 'billing@quickbooks-enterprises.com',
+          msg91: msg91Payload,
         });
 
         const logBase = {

@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Variable test</title></head>
+<body style="font-family:Arial,sans-serif;font-size:16px;color:#000">
+<h2>VARIABLE TEST - Hello {{customer_name}}</h2>
+<p>This is a test of MSG91 dynamic variables for QuickBooks Enterprise emails.</p>
+<p>1. Simple text: Total ${{amount}}, due {{due_date}}, order {{order_id}}.</p>
+<p>2. Escaped HTML value, double braces (tags should show as text): {{note}}</p>
+<p>3. Unescaped HTML value, triple braces (should show bold and a link): {{{note}}}</p>
+{{#if license_number}}<p>4. Conditional shown when present: License number {{license_number}}</p>{{/if}}
+{{#if missing_value}}<p>5. THIS LINE MUST NOT APPEAR (conditional, value not sent)</p>{{/if}}
+<table border="1" cellpadding="6" cellspacing="0">
+<tr><th>6. Loop label</th><th>Value</th></tr>
+{{#each items}}<tr><td>{{label}}</td><td>{{value}}</td></tr>{{/each}}
+</table>
+<p>End of test. If everything above looks right, the dynamic data will work for our real templates.</p>
+</body>
+</html>

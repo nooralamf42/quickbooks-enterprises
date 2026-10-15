@@ -1,0 +1,1 @@
+Receipt for {{customer_name}} - ${{amount}}

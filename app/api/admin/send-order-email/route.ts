@@ -5,6 +5,7 @@ import { ObjectId } from 'mongodb';
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendEmail } from '@/app/lib/emailSender';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml } from '@/app/lib/emailTemplates';
+import { msg91ReceiptPayload, msg91ReminderPayload } from '@/app/lib/msg91';
 import { logEmailSent } from '@/app/lib/emailLog';
 
 export async function POST(req: NextRequest) {
@@ -55,23 +56,25 @@ export async function POST(req: NextRequest) {
       //   subject: 'We received your QuickBooks Enterprise payment!',
       //   html: renderPaymentReceiptEmailHtml({ ... }),
       // });
+      const receiptData = {
+        customerName,
+        toEmail: record.email,
+        companyName: record.companyName,
+        orderId: record._id.toString(),
+        paidAt: record.paidAt ? new Date(record.paidAt) : new Date(),
+        amountUSD: record.amountUSD || 0,
+        paymentMethodLabel: record.paymentMethodLabel || 'Card on file',
+        planDetails: record.planDetails,
+        licenseNumber: record.licenseNumber || undefined,
+        productNumber: record.productNumber || undefined,
+      };
       const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
         subject: 'We received your QuickBooks Enterprise payment!',
-        html: renderPaymentReceiptEmailHtml({
-          customerName,
-          toEmail: record.email,
-          companyName: record.companyName,
-          orderId: record._id.toString(),
-          paidAt: record.paidAt ? new Date(record.paidAt) : new Date(),
-          amountUSD: record.amountUSD || 0,
-          paymentMethodLabel: record.paymentMethodLabel || 'Card on file',
-          planDetails: record.planDetails,
-          licenseNumber: record.licenseNumber || undefined,
-          productNumber: record.productNumber || undefined,
-        }),
+        html: renderPaymentReceiptEmailHtml(receiptData),
+        msg91: msg91ReceiptPayload(receiptData),
       });
 
       // Pre-existing gap, not new to this Postmark swap: this route never checked the
@@ -111,22 +114,24 @@ export async function POST(req: NextRequest) {
       //   subject: 'Action needed: update your QuickBooks Enterprise payment method',
       //   html: renderPaymentFailedEmailHtml({ ... }),
       // });
+      const reminderData = {
+        customerName,
+        toEmail: record.email,
+        companyName: record.companyName,
+        orderId: record._id.toString(),
+        amountDueUSD: record.amountUSD || 0,
+        paymentMethodLabel: record.paymentMethodLabel || 'the payment method on file',
+        dueDate,
+        cancellationDate,
+        planDetails: record.planDetails,
+      };
       const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: record.email,
         subject: 'Action needed: update your QuickBooks Enterprise payment method',
-        html: renderPaymentFailedEmailHtml({
-          customerName,
-          toEmail: record.email,
-          companyName: record.companyName,
-          orderId: record._id.toString(),
-          amountDueUSD: record.amountUSD || 0,
-          paymentMethodLabel: record.paymentMethodLabel || 'the payment method on file',
-          dueDate,
-          cancellationDate,
-          planDetails: record.planDetails,
-        }),
+        html: renderPaymentFailedEmailHtml(reminderData),
+        msg91: msg91ReminderPayload(reminderData),
       });
 
       if (error) {

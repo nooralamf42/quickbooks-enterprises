@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // under review (suspended 2026-08-25). Restore this import when reactivated.
 import { sendEmail } from '@/app/lib/emailSender';
 import { renderPaymentReceiptEmailHtml, renderPaymentFailedEmailHtml, renderRefundEmailHtml, renderFeedbackEmailHtml, renderQueryEmailHtml, getReminderEmailBranding } from '@/app/lib/emailTemplates';
+import { msg91ReceiptPayload, msg91ReminderPayload, msg91RefundPayload, msg91SurveyPayload, msg91QueryPayload } from '@/app/lib/msg91';
 import { logEmailSent } from '@/app/lib/emailLog';
 
 // NOTE: app/lib/surveyEmailTemplate.ts (an earlier draft that copied Intuit's own "How
@@ -56,26 +57,28 @@ export async function POST(req: NextRequest) {
       //   subject: 'We received your QuickBooks Enterprise payment!',
       //   html: renderPaymentReceiptEmailHtml({ ... }),
       // });
+      const receiptData = {
+        customerName: name,
+        toEmail,
+        companyName,
+        orderId: fallbackOrderId,
+        paidAt: paidAt ? new Date(paidAt) : new Date(),
+        amountUSD: Number(amountUSD),
+        paymentMethodLabel: paymentMethodLabel || 'Card on file',
+        planDetails,
+        licenseNumber: licenseNumber || undefined,
+        productNumber: productNumber || undefined,
+        numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
+        contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
+        dueDate: dueDate ? new Date(dueDate) : undefined,
+      };
       const { data, error, provider, html } = await sendEmail({
         from: 'Intuit QuickBooks <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
         subject: 'We received your QuickBooks Enterprise payment!',
-        html: renderPaymentReceiptEmailHtml({
-          customerName: name,
-          toEmail,
-          companyName,
-          orderId: fallbackOrderId,
-          paidAt: paidAt ? new Date(paidAt) : new Date(),
-          amountUSD: Number(amountUSD),
-          paymentMethodLabel: paymentMethodLabel || 'Card on file',
-          planDetails,
-          licenseNumber: licenseNumber || undefined,
-          productNumber: productNumber || undefined,
-          numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
-          contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
-          dueDate: dueDate ? new Date(dueDate) : undefined,
-        }),
+        html: renderPaymentReceiptEmailHtml(receiptData),
+        msg91: msg91ReceiptPayload(receiptData),
       });
 
       // Pre-existing gap, not new to this Postmark swap: this route never checked the
@@ -108,22 +111,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'refundAmountUSD is required' }, { status: 400 });
       }
 
+      const refundData = {
+        customerName: name,
+        toEmail,
+        companyName,
+        orderId: fallbackOrderId,
+        refundedAt: refundedAt ? new Date(refundedAt) : new Date(),
+        refundAmountUSD: Number(refundAmountUSD),
+        paymentMethodLabel: paymentMethodLabel || 'Card on file',
+        planDetails,
+        reason: reason || undefined,
+      };
       const { data, error, provider, html } = await sendEmail({
         from: 'Intuit QuickBooks <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
         subject: 'Your QuickBooks Enterprise refund has been processed',
-        html: renderRefundEmailHtml({
-          customerName: name,
-          toEmail,
-          companyName,
-          orderId: fallbackOrderId,
-          refundedAt: refundedAt ? new Date(refundedAt) : new Date(),
-          refundAmountUSD: Number(refundAmountUSD),
-          paymentMethodLabel: paymentMethodLabel || 'Card on file',
-          planDetails,
-          reason: reason || undefined,
-        }),
+        html: renderRefundEmailHtml(refundData),
+        msg91: msg91RefundPayload(refundData),
       });
 
       if (error) {
@@ -165,25 +170,27 @@ export async function POST(req: NextRequest) {
       // Payroll reminders get a different subject/sender (Intuit-run subscription framing)
       // than every other reminder — see getReminderEmailBranding(). Receipts are unaffected.
       const branding = getReminderEmailBranding(planDetails);
+      const reminderData = {
+        customerName: name,
+        toEmail,
+        companyName,
+        orderId: fallbackOrderId,
+        amountDueUSD: Number(amountDueUSD),
+        paymentMethodLabel: paymentMethodLabel || 'the payment method on file',
+        cancellationDate: new Date(cancellationDate),
+        dueDate: new Date(dueDate),
+        planDetails,
+        numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
+        contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
+        updateUrl: updateUrl || undefined,
+      };
       const { data, error, provider, html } = await sendEmail({
         from: branding.from,
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
         subject: branding.subject,
-        html: renderPaymentFailedEmailHtml({
-          customerName: name,
-          toEmail,
-          companyName,
-          orderId: fallbackOrderId,
-          amountDueUSD: Number(amountDueUSD),
-          paymentMethodLabel: paymentMethodLabel || 'the payment method on file',
-          cancellationDate: new Date(cancellationDate),
-          dueDate: new Date(dueDate),
-          planDetails,
-          numUsers: numUsers !== undefined && numUsers !== null && numUsers !== '' ? Number(numUsers) : undefined,
-          contractYears: contractYears !== undefined && contractYears !== null && contractYears !== '' ? Number(contractYears) : undefined,
-          updateUrl: updateUrl || undefined,
-        }),
+        html: renderPaymentFailedEmailHtml(reminderData),
+        msg91: msg91ReminderPayload(reminderData),
       });
 
       if (error) {
@@ -204,16 +211,18 @@ export async function POST(req: NextRequest) {
         html,
       });
     } else if (type === 'survey') {
+      const surveyData = {
+        customerName: name === 'there' ? '' : name,
+        toEmail,
+        companyName: companyName || undefined,
+      };
       const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
         subject: 'We would like your feedback',
-        html: renderFeedbackEmailHtml({
-          customerName: name === 'there' ? '' : name,
-          toEmail,
-          companyName: companyName || undefined,
-        }),
+        html: renderFeedbackEmailHtml(surveyData),
+        msg91: msg91SurveyPayload(surveyData),
       });
 
       if (error) {
@@ -242,18 +251,20 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Message body is required' }, { status: 400 });
       }
 
+      const queryData = {
+        customerName: name === 'there' ? '' : name,
+        toEmail,
+        companyName: companyName || undefined,
+        subject: String(subject).trim(),
+        bodyText: String(bodyText),
+      };
       const { data, error, provider, html } = await sendEmail({
         from: 'QuickBooks Enterprise <notifications@quickbooks-enterprises.com>',
         replyTo: 'billing@quickbooks-enterprises.com',
         to: toEmail,
         subject: String(subject).trim(),
-        html: renderQueryEmailHtml({
-          customerName: name === 'there' ? '' : name,
-          toEmail,
-          companyName: companyName || undefined,
-          subject: String(subject).trim(),
-          bodyText: String(bodyText),
-        }),
+        html: renderQueryEmailHtml(queryData),
+        msg91: msg91QueryPayload(queryData),
       });
 
       if (error) {
