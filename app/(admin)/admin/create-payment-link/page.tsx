@@ -342,7 +342,7 @@ export default function QuickBooksPaymentLinkCreator() {
     queryBody: '',
   })
   const [isSendingCustomEmail, setIsSendingCustomEmail] = useState(false)
-  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription'>('')
+  const [reminderGateway, setReminderGateway] = useState<'' | 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription' | 'paydollar'>('')
   const [emailSubscriptionTier, setEmailSubscriptionTier] = useState('49.87')
   const EMAIL_SUBSCRIPTION_TIERS = ['49.87', '98.78', '149.10', '198.70', '298.00', '349.89']
   const [planDetailsIsCustom, setPlanDetailsIsCustom] = useState(false)
@@ -443,8 +443,8 @@ export default function QuickBooksPaymentLinkCreator() {
   // edition format (needs users/years) or the plain service-code format —
   // so "Update now" opens a real, working checkout for this exact amount,
   // product, and gateway.
-  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription') => {
-    const gatewayFlag = gateway === 'authorize' ? 'GA' : gateway === 'stripe' ? 'GT' : gateway === 'shopifySubscription' ? 'GSHS' : 'GSH'
+  const buildUpdateLink = (amountUSD: number, gateway: 'authorize' | 'stripe' | 'shopify' | 'shopifySubscription' | 'paydollar') => {
+    const gatewayFlag = gateway === 'authorize' ? 'GA' : gateway === 'stripe' ? 'GT' : gateway === 'shopifySubscription' ? 'GSHS' : gateway === 'paydollar' ? 'GPD' : 'GSH'
     const tStr = Math.round(amountUSD * 100).toString(36)
 
     let paymentString: string
@@ -3833,6 +3833,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         Shopify
                       </button>
                       */}
+                      {/* SHOPIFY SUBSCRIPTION CURRENTLY DISABLED — temporarily off alongside
+                          plain Shopify above (2026-10-16).
                       <button
                         type="button"
                         onClick={() => setReminderGateway('shopifySubscription')}
@@ -3840,13 +3842,21 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       >
                         Shopify Subscription
                       </button>
+                      */}
+                      <button
+                        type="button"
+                        onClick={() => setReminderGateway('paydollar')}
+                        className={`text-xs font-semibold py-2 px-1.5 rounded transition-colors cursor-pointer ${reminderGateway === 'paydollar' ? 'bg-[#e4002b] text-white shadow-sm' : 'text-zinc-600 hover:bg-zinc-50'}`}
+                      >
+                        PayDollar
+                      </button>
                     </div>
 
                     <p className="text-[10px] text-amber-700/80 mt-2 leading-relaxed">
                       {reminderGateway === 'shopifySubscription'
                         ? `"Update now" will open a real Shopify recurring checkout for $${emailSubscriptionTier}/month — "QuickBooks Payroll (Monthly Subscription)" — the customer logs in and subscribes like any other invoice link.`
                         : reminderGateway
-                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : 'Shopify'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
+                        ? `"Update now" will open a real ${reminderGateway === 'authorize' ? 'Authorize.net' : reminderGateway === 'paydollar' ? 'PayDollar' : 'Shopify'} checkout for $${emailForm.amountDueUSD || '0.00'} — labeled "${emailProductDisplayName}"${isEmailProductQbEdition ? ` (${emailUsers} user${emailUsers === 1 ? '' : 's'}, ${emailYears} year${emailYears === 1 ? '' : 's'})` : ''} — the customer logs in and pays like any other invoice link.`
                         : 'No gateway selected — "Update now" will just open a support email instead of a live checkout.'}
                     </p>
                   </div>
