@@ -17,12 +17,11 @@ import {
  *  report — same scheme as ZeptoMail/MailPace in this codebase. Set MSG91_WEBHOOK_SECRET and
  *  add a header here named X-Webhook-Secret with that value in both of the webhooks above.
  *
- *  Matching a webhook event to a log row: MSG91's docs describe msgId as "a unique ID MSG91
- *  generates for each email request" but don't confirm it's the literal same string as the
- *  `unique_id` our send call stores as providerMessageId (msg91.ts) — the docs even show it
- *  rendered in angle brackets, which may just be display formatting or may mean a different
- *  shape entirely. Checks a few plausible field names defensively; if none match real
- *  payloads, re-check against a live webhook delivery and adjust. */
+ *  Matching a webhook event to a log row: the confirmed payload (from the live "Webhook
+ *  Payload" preview in MSG91's Create Webhook form) carries several id-shaped fields —
+ *  requestId, uuid, crqid, msgId — and it's not documented which one equals the `unique_id`
+ *  our send call stores as providerMessageId (msg91.ts). Rather than guess one, every
+ *  candidate is tried in turn against the log collection until one actually matches a row. */
 
 const EVENT_STATUS: Record<string, DeliveryStatus> = {
   delivered: 'delivered',
@@ -38,13 +37,18 @@ function verifySecret(expected: string, received: string): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function extractMessageId(body: Record<string, any>): string | undefined {
-  const candidate = body.msgId || body.msg_id || body.requestId || body.request_id || body.uuid || body.crqid;
-  if (typeof candidate === 'string' && candidate) {
-    // Docs show msgId rendered in angle brackets in their sample — strip them if present.
-    return candidate.replace(/^<|>$/g, '');
+/** Every id-shaped field in the payload, in the order to try them — deduplicated and with any
+ *  angle brackets (MSG91's docs show msgId rendered that way) stripped. */
+function candidateMessageIds(body: Record<string, any>): string[] {
+  const raw = [body.requestId, body.msgId, body.uuid, body.crqid, body.outboundEmailId];
+  const seen = new Set<string>();
+  for (const v of raw) {
+    if (typeof v === 'string' && v) {
+      const cleaned = v.replace(/^<|>$/g, '');
+      if (cleaned) seen.add(cleaned);
+    }
   }
-  return undefined;
+  return [...seen];
 }
 
 export async function POST(req: NextRequest) {
@@ -68,17 +72,25 @@ export async function POST(req: NextRequest) {
 
     if (!authenticated) return NextResponse.json({ ok: true, authenticated: false });
 
-    const providerMessageId = extractMessageId(body);
-    if (!providerMessageId) return NextResponse.json({ ok: true, ignored: 'no message id in payload' });
+    const candidates = candidateMessageIds(body);
+    if (candidates.length === 0) return NextResponse.json({ ok: true, ignored: 'no message id in payload' });
 
     const eventName = String(body.eventName || '').toLowerCase();
 
     if (eventName === 'opened' || eventName === 'clicked') {
       const kind = eventName === 'clicked' ? 'clicked' : 'opened';
       const linkUrl = typeof body.url === 'string' ? body.url : undefined;
-      const matched = await recordEngagementByProviderMessageId(providerMessageId, kind, linkUrl);
-      if (!matched) console.warn(`[MSG91 Webhook] No log row for ${providerMessageId} (${eventName})`);
-      return NextResponse.json({ ok: true, matched, kind });
+      let matched = false;
+      let matchedId: string | undefined;
+      for (const id of candidates) {
+        if (await recordEngagementByProviderMessageId(id, kind, linkUrl)) {
+          matched = true;
+          matchedId = id;
+          break;
+        }
+      }
+      if (!matched) console.warn(`[MSG91 Webhook] No log row for any of ${candidates.join(', ')} (${eventName})`);
+      return NextResponse.json({ ok: true, matched, matchedId, kind });
     }
 
     // "Report Received" delivery events carry an SMTP-style statusCode rather than a named
@@ -96,10 +108,18 @@ export async function POST(req: NextRequest) {
     if (!status) return NextResponse.json({ ok: true, ignored: eventName || statusCode || 'unrecognized event' });
 
     const detail = typeof body.reason === 'string' ? body.reason : undefined;
-    const matched = await updateDeliveryStatusByProviderMessageId(providerMessageId, status, detail);
-    if (!matched) console.warn(`[MSG91 Webhook] No log row for ${providerMessageId} (${eventName || statusCode})`);
+    let matched = false;
+    let matchedId: string | undefined;
+    for (const id of candidates) {
+      if (await updateDeliveryStatusByProviderMessageId(id, status, detail)) {
+        matched = true;
+        matchedId = id;
+        break;
+      }
+    }
+    if (!matched) console.warn(`[MSG91 Webhook] No log row for any of ${candidates.join(', ')} (${eventName || statusCode})`);
 
-    return NextResponse.json({ ok: true, matched, status });
+    return NextResponse.json({ ok: true, matched, matchedId, status });
   } catch (err: any) {
     console.error('[MSG91 Webhook] Error:', err);
     return NextResponse.json({ ok: false, error: 'Internal server error' });
