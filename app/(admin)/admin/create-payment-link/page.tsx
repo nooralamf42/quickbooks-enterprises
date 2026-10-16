@@ -2451,6 +2451,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                     Antom
                   </button>
                   */}
+                  {/* SHOPIFY CURRENTLY DISABLED — temporarily off as a payment gateway for new
+                      links (2026-10-16). Shopify Subscription is unaffected.
                   <button
                     type="button"
                     onClick={() => {
@@ -2461,6 +2463,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   >
                     Shopify
                   </button>
+                  */}
                   <button
                     type="button"
                     onClick={() => {
@@ -3820,6 +3823,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                         Stripe
                       </button>
                       */}
+                      {/* SHOPIFY CURRENTLY DISABLED — temporarily off as a payment gateway for
+                          new "Update now" links (2026-10-16). Shopify Subscription is unaffected.
                       <button
                         type="button"
                         onClick={() => setReminderGateway('shopify')}
@@ -3827,6 +3832,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                       >
                         Shopify
                       </button>
+                      */}
                       <button
                         type="button"
                         onClick={() => setReminderGateway('shopifySubscription')}
