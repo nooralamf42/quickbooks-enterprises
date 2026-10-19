@@ -12,11 +12,15 @@ import toast from 'react-hot-toast';
 // Fire-and-forget login/OTP audit trail, shown in the admin panel's Consent Logs event timeline
 // (grouped by paymentId + IP into one session, same as the existing link_opened/email_entered
 // events). `detail` is free-form per event type — the timeline UI renders it as-is.
-function logAuthEvent(event: string, paymentId: string | null, email?: string, detail?: Record<string, unknown>) {
+// `amount` matters beyond display: the Email Log PDF's activity section (email-log-activity
+// route) matches events by email + exact dollar amount to isolate the one relevant purchase —
+// an event logged without it silently gets filtered out of that PDF, even though it still shows
+// correctly in Consent Logs (which doesn't filter by amount).
+function logAuthEvent(event: string, paymentId: string | null, email?: string, amount?: number, detail?: Record<string, unknown>) {
     fetch('/api/track-event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ event, paymentId, email, detail }),
+        body: JSON.stringify({ event, paymentId, email, amount, detail }),
     }).catch(console.error);
 }
 
@@ -100,7 +104,7 @@ const LoginPage = ({ onNext }: { onNext: (email: string) => void }) => {
 // Password Page Component — kept as a UI step for parity with the real Intuit sign-in flow; any
 // non-empty value proceeds (this was never checked against a real password) straight on to the
 // actual security check, the OTP step below.
-const PasswordPage = ({ email, onBack, onNext }: { email: string; onBack: () => void; onNext: () => void }) => {
+const PasswordPage = ({ email, amount, onBack, onNext }: { email: string; amount?: number; onBack: () => void; onNext: () => void }) => {
     const searchParams = useSearchParams()
     const paymentID = searchParams.get('token')
     const [password, setPassword] = useState('');
@@ -110,7 +114,7 @@ const PasswordPage = ({ email, onBack, onNext }: { email: string; onBack: () => 
     const handleContinue = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
         if (password) {
-            logAuthEvent('password_entered', paymentID, email);
+            logAuthEvent('password_entered', paymentID, email, amount);
             setStep(1)
             onNext();
         }
@@ -219,7 +223,7 @@ function extractAccessToken(data: unknown): string | undefined {
 // OTP Page Component — replaces the old fake "Enter your Intuit password" step with a real
 // email OTP challenge via the MSG91 widget, so a customer actually has to prove they own the
 // email address before reaching checkout.
-const OtpPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
+const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; onBack: () => void }) => {
     const searchParams = useSearchParams()
     const paymentID = searchParams.get('token')
     const [code, setCode] = useState('');
@@ -286,9 +290,9 @@ const OtpPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
         sentOnceRef.current = true;
         window.sendOtp?.(
             email,
-            () => { logAuthEvent('otp_sent', paymentID, email); setOtpSent(true); },
+            () => { logAuthEvent('otp_sent', paymentID, email, amount); setOtpSent(true); },
             (error: any) => {
-                logAuthEvent('otp_send_failed', paymentID, email, { reason: error?.message || String(error) });
+                logAuthEvent('otp_send_failed', paymentID, email, amount, { reason: error?.message || String(error) });
                 toast.error('Could not send the verification code. Try resending.');
             },
         );
@@ -299,9 +303,9 @@ const OtpPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
         setIsResending(true);
         window.retryOtp?.(
             null,
-            () => { logAuthEvent('otp_sent', paymentID, email, { resend: true }); toast.success('Code resent'); setIsResending(false); },
+            () => { logAuthEvent('otp_sent', paymentID, email, amount, { resend: true }); toast.success('Code resent'); setIsResending(false); },
             (error: any) => {
-                logAuthEvent('otp_send_failed', paymentID, email, { resend: true, reason: error?.message || String(error) });
+                logAuthEvent('otp_send_failed', paymentID, email, amount, { resend: true, reason: error?.message || String(error) });
                 toast.error(error?.message || 'Could not resend the code'); setIsResending(false);
             },
         );
@@ -315,14 +319,14 @@ const OtpPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
         }
         if (!code || isVerifying) return;
 
-        logAuthEvent('otp_submitted', paymentID, email, { codeLength: code.length });
+        logAuthEvent('otp_submitted', paymentID, email, amount, { codeLength: code.length });
         setIsVerifying(true);
         window.verifyOtp?.(
             Number(code),
             async (data: unknown) => {
                 const accessToken = extractAccessToken(data);
                 if (!accessToken) {
-                    logAuthEvent('otp_verification_failed', paymentID, email, { reason: 'no access token in widget response' });
+                    logAuthEvent('otp_verification_failed', paymentID, email, amount, { reason: 'no access token in widget response' });
                     toast.error('Verification failed — try again.');
                     setIsVerifying(false);
                     return;
@@ -335,23 +339,23 @@ const OtpPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
                     });
                     const json = await res.json();
                     if (!res.ok || !json.success) {
-                        logAuthEvent('otp_verification_failed', paymentID, email, { reason: json.error || 'server rejected token' });
+                        logAuthEvent('otp_verification_failed', paymentID, email, amount, { reason: json.error || 'server rejected token' });
                         toast.error(json.error || 'Verification failed — try again.');
                         setIsVerifying(false);
                         return;
                     }
-                    logAuthEvent('otp_verified', paymentID, email);
+                    logAuthEvent('otp_verified', paymentID, email, amount);
                     setStep(2)
                     toast.success('Login successful')
                     router.push('/order-summary?token=' + paymentID)
                 } catch {
-                    logAuthEvent('otp_verification_failed', paymentID, email, { reason: 'network error contacting our server' });
+                    logAuthEvent('otp_verification_failed', paymentID, email, amount, { reason: 'network error contacting our server' });
                     toast.error('Verification failed — try again.');
                     setIsVerifying(false);
                 }
             },
             (error: any) => {
-                logAuthEvent('otp_verification_failed', paymentID, email, { reason: error?.message || 'Incorrect code' });
+                logAuthEvent('otp_verification_failed', paymentID, email, amount, { reason: error?.message || 'Incorrect code' });
                 toast.error(error?.message || 'Incorrect code — try again.');
                 setIsVerifying(false);
             },
@@ -507,16 +511,17 @@ export default function IntuitLogin() {
     const handleStepChange = (step: number) => {
         setCurrentPage(step.toString());
     };
+    const amount = paymentObj?.total ? paymentObj.total / 100 : undefined;
     return (
         <>
             {currentPage === 'login' && (
                 <LoginPage onNext={handleNext} />
             )}
             {currentPage === 'password' && (
-                <PasswordPage email={userDetails.email} onBack={handleBack} onNext={handlePasswordNext} />
+                <PasswordPage email={userDetails.email} amount={amount} onBack={handleBack} onNext={handlePasswordNext} />
             )}
             {currentPage === 'otp' && (
-                <OtpPage email={userDetails.email} onBack={handleBack} />
+                <OtpPage email={userDetails.email} amount={amount} onBack={handleBack} />
             )}
         </>
     );

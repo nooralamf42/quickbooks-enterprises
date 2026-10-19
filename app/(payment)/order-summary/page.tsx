@@ -146,11 +146,19 @@ export default function CheckoutForm() {
 
         // Continues the same funnel timeline (link_opened → email_entered → password_entered →
         // otp_* → form_filled → payment_completed/failed) in the admin Consent Logs view — keyed
-        // by the same link token used for every earlier step in this flow.
+        // by the same link token used for every earlier step in this flow. `amount` must be set:
+        // the Email Log PDF's activity section matches events by email + exact dollar amount, so
+        // an event logged without it silently drops out of that PDF (though it still shows fine
+        // in Consent Logs, which doesn't filter by amount).
         fetch('/api/track-event', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ event: 'form_filled', paymentId: paymentBase64, email: formData.email }),
+            body: JSON.stringify({
+                event: 'form_filled',
+                paymentId: paymentBase64,
+                email: formData.email,
+                amount: paymentObj?.total ? paymentObj.total / 100 : undefined,
+            }),
         }).catch(console.error);
 
         try {
