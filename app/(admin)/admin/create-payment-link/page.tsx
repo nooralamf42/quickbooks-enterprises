@@ -8,7 +8,7 @@ import { useQueryState, parseAsStringLiteral } from 'nuqs'
 import toast from 'react-hot-toast'
 import { jsPDF } from 'jspdf'
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
-import { ShieldCheck, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search, Mail, MailWarning, Users, Upload, Download, MessageSquare } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, FileText, RefreshCw, Layers, Link as LinkIcon, AlertCircle, Copy, Check, CheckCircle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Filter, Eye, X, Search, Mail, MailWarning, Users, Upload, Download, MessageSquare, Settings as SettingsIcon } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 /** Single source of truth for date display across this dashboard — always zero-padded
@@ -39,6 +39,26 @@ function formatEventLabel(event: string): string {
     .filter(Boolean)
     .map((word) => (word.toLowerCase() === 'otp' ? 'OTP' : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
     .join(' ');
+}
+
+/** A small pill-shaped on/off switch for the Settings tab — plain Tailwind (this project has no
+ *  shadcn/ui or Radix installed), styled to the same standard: track + sliding thumb, green when
+ *  on, with a loading pulse while a save is in flight. */
+function Switch({ checked, onChange, disabled, loading }: { checked: boolean; onChange: (next: boolean) => void; disabled?: boolean; loading?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-60 ${checked ? 'bg-[#2ca01c]' : 'bg-zinc-300'} ${loading ? 'animate-pulse' : ''}`}
+    >
+      <span
+        className={`inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${checked ? 'translate-x-6' : 'translate-x-1'}`}
+      />
+    </button>
+  );
 }
 
 /** Formats a date as 'YYYY-MM-DD' in the given IANA timezone. en-CA happens to format as
@@ -213,7 +233,7 @@ export default function QuickBooksPaymentLinkCreator() {
   // history:'replace' so clicking between tabs doesn't spam the browser back button.
   const [activeTab, setActiveTab] = useQueryState(
     'tab',
-    parseAsStringLiteral(['create', 'logs', 'email', 'sentEmails', 'bulk'] as const)
+    parseAsStringLiteral(['create', 'logs', 'email', 'sentEmails', 'bulk', 'settings'] as const)
       .withDefault('create')
       .withOptions({ history: 'replace', clearOnDefault: true })
   )
@@ -272,6 +292,42 @@ export default function QuickBooksPaymentLinkCreator() {
       toast.error(err?.message || 'Failed to switch provider')
     } finally {
       setIsSwitchingProvider(false)
+    }
+  }
+
+  // Admin kill switch for the /auth flow's email-OTP step — flip off if MSG91 misbehaves
+  // (wallet runs dry, a throttle block catches a wave of real customers, an outage on their
+  // end) without needing a redeploy. GET is public (the /auth page itself reads it unauthenticated,
+  // same endpoint), only POST needs the admin password.
+  const [otpStepEnabled, setOtpStepEnabled] = useState<boolean | null>(null)
+  const [isTogglingOtp, setIsTogglingOtp] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/otp-settings')
+      .then((res) => res.json())
+      .then((data) => setOtpStepEnabled(data.enabled !== false))
+      .catch(() => {})
+  }, [])
+
+  const toggleOtpStep = async (enabled: boolean) => {
+    if (enabled === otpStepEnabled || isTogglingOtp) return
+    setIsTogglingOtp(true)
+    try {
+      const stored = localStorage.getItem('adminAuth')
+      const passwordHash = stored ? JSON.parse(stored).passwordHash : ''
+      const res = await fetch('/api/otp-settings', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${passwordHash}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update OTP setting')
+      setOtpStepEnabled(enabled)
+      toast.success(enabled ? 'OTP step re-enabled' : 'OTP step disabled — checkout now skips straight from password to order summary')
+    } catch (err: any) {
+      toast.error(err?.message || 'Failed to update OTP setting')
+    } finally {
+      setIsTogglingOtp(false)
     }
   }
 
@@ -2316,35 +2372,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               Admin Dashboard
             </h1>
             <p className="text-sm text-zinc-500 mt-1 font-normal">Generate invoice payment links and view electronic signature audits.</p>
-            <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-800 whitespace-nowrap">
-                <MailWarning size={13} className="text-amber-600 shrink-0" />
-                All sends (manual, bulk, order) via:
-              </span>
-              <button
-                onClick={() => switchEmailProvider('msg91')}
-                disabled={isSwitchingProvider || emailProvider === null}
-                title="Approved transactional templates on MSG91's live account, verified 2026-10-15."
-                className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${emailProvider === 'msg91' ? 'bg-amber-500 text-white' : 'bg-white text-amber-700 border border-amber-300 hover:bg-amber-100 cursor-pointer'}`}
-              >
-                MSG91
-              </button>
-              <button
-                onClick={() => switchEmailProvider('postal')}
-                disabled={isSwitchingProvider || emailProvider === null}
-                title="Our own self-hosted mail server. Added 2026-09-08 — switch here once its deliverability is confirmed."
-                className={`px-2.5 py-1 rounded text-[11px] font-bold whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${emailProvider === 'postal' ? 'bg-amber-500 text-white' : 'bg-white text-amber-700 border border-amber-300 hover:bg-amber-100 cursor-pointer'}`}
-              >
-                Postal
-              </button>
-              {emailProvider === null && <span className="text-[10px] text-amber-600 whitespace-nowrap">Loading…</span>}
-            </div>
           </div>
-          
-          {/* Shadcn Segmented Tab Controller — horizontally scrollable so 6 tabs never
+
+          {/* Shadcn Segmented Tab Controller — horizontally scrollable so 7 tabs never
               wrap mid-label at in-between viewport widths; each button is flex-shrink-0
-              with whitespace-nowrap so a label can never break onto two lines. */}
-          <div className="w-full md:w-auto self-start md:self-auto overflow-x-auto no-scrollbar">
+              with whitespace-nowrap so a label can never break onto two lines. min-w-0 is
+              load-bearing: without it, a flex item's default min-width:auto refuses to
+              shrink below its (now wider, 7-tab) content width, so it spills past the page
+              edge instead of activating overflow-x-auto's internal scroll. A plain (visible)
+              scrollbar is kept deliberately — with 7 tabs some are cut off on narrower
+              screens, and a hidden scrollbar leaves no clue the rest can be reached. */}
+          <div className="w-full md:w-auto min-w-0 self-start md:self-auto overflow-x-auto">
             <div className="inline-flex h-10 items-center justify-center rounded-lg bg-zinc-100 p-1 text-zinc-500 border border-zinc-200/50 font-medium">
               <button
                 onClick={() => setActiveTab('create')}
@@ -2391,6 +2429,13 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 <MessageSquare size={14} className="text-[#2ca01c]" />
                 Surveys
               </NextLink>
+              <button
+                onClick={() => setActiveTab('settings')}
+                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'settings' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
+              >
+                <SettingsIcon size={14} className="text-[#2ca01c]" />
+                Settings
+              </button>
             </div>
           </div>
         </div>
@@ -4570,6 +4615,72 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Tab: Settings */}
+        {activeTab === 'settings' && (
+          <div className="max-w-2xl space-y-6">
+            <div className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8">
+              <div className="flex items-center gap-2 mb-1">
+                <Mail size={16} className="text-[#2ca01c]" />
+                <h2 className="text-base font-bold text-zinc-900">Email Delivery Provider</h2>
+              </div>
+              <p className="text-sm text-zinc-500 mb-5">Which provider handles all sends — manual, bulk, and order-triggered.</p>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => switchEmailProvider('msg91')}
+                  disabled={isSwitchingProvider || emailProvider === null}
+                  className={`flex-1 text-left px-4 py-3 rounded-lg border-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${emailProvider === 'msg91' ? 'border-[#2ca01c] bg-[#2ca01c]/5' : 'border-zinc-200 hover:border-zinc-300'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-zinc-900">MSG91</span>
+                    {emailProvider === 'msg91' && <CheckCircle size={16} className="text-[#2ca01c]" />}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5">Approved transactional templates, live account verified 2026-10-15.</p>
+                </button>
+                <button
+                  onClick={() => switchEmailProvider('postal')}
+                  disabled={isSwitchingProvider || emailProvider === null}
+                  className={`flex-1 text-left px-4 py-3 rounded-lg border-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${emailProvider === 'postal' ? 'border-[#2ca01c] bg-[#2ca01c]/5' : 'border-zinc-200 hover:border-zinc-300'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm text-zinc-900">Postal</span>
+                    {emailProvider === 'postal' && <CheckCircle size={16} className="text-[#2ca01c]" />}
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5">Our own self-hosted mail server.</p>
+                </button>
+              </div>
+              {emailProvider === null && <p className="text-xs text-zinc-400 mt-3">Loading current setting…</p>}
+            </div>
+
+            <div className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8">
+              <div className="flex items-start justify-between gap-6">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <ShieldCheck size={16} className="text-[#2ca01c]" />
+                    <h2 className="text-base font-bold text-zinc-900">Checkout Email OTP Step</h2>
+                  </div>
+                  <p className="text-sm text-zinc-500 max-w-md">
+                    Customers verify their email with a one-time code before reaching checkout. Turn this off to skip
+                    straight from the password step to order summary — use if MSG91 is down, the wallet is empty, or
+                    customers are getting wrongly throttle-blocked.
+                  </p>
+                </div>
+                <Switch
+                  checked={otpStepEnabled === true}
+                  onChange={(next) => toggleOtpStep(next)}
+                  disabled={isTogglingOtp || otpStepEnabled === null}
+                  loading={isTogglingOtp}
+                />
+              </div>
+              {otpStepEnabled === false && (
+                <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <ShieldAlert size={14} className="shrink-0" />
+                  OTP step is currently disabled — all customers skip straight to checkout.
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

