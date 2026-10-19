@@ -30,6 +30,17 @@ function formatDateMMDDYYYY(input: Date | string | number, timeZone?: string): s
   });
 }
 
+/** Turns a snake_case event name (link_opened, otp_verification_failed, ...) into a readable
+ *  label (Link Opened, OTP Verification Failed, ...) for the Consent Logs timeline and the
+ *  Email Log PDF's activity section — "otp" is a fixed acronym, every other word is title-cased. */
+function formatEventLabel(event: string): string {
+  return String(event)
+    .split('_')
+    .filter(Boolean)
+    .map((word) => (word.toLowerCase() === 'otp' ? 'OTP' : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()))
+    .join(' ');
+}
+
 /** Formats a date as 'YYYY-MM-DD' in the given IANA timezone. en-CA happens to format as
  *  YYYY-MM-DD, which is also exactly what `<input type="date">` needs for its value/max/min
  *  attributes, and what a plain string-range comparison against another such key needs. */
@@ -2127,7 +2138,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
           for (const evt of activityData.events || []) {
             const label = evt.event === 'link_opened' ? 'Payment link opened'
               : evt.event === 'email_entered' ? 'Entered email on payment page'
-              : String(evt.event).replace(/_/g, ' ')
+              : formatEventLabel(evt.event)
             activityEvents.push({ at: new Date(evt.timestamp), label })
           }
 
@@ -2908,8 +2919,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                   <span className="text-[10px] text-zinc-500">
                                     Latest:{' '}
                                     <span className="font-bold text-blue-700 uppercase tracking-wider">
-                                      {log.events && log.events.length > 0 
-                                        ? log.events[log.events.length - 1].event.replace('_', ' ') 
+                                      {log.events && log.events.length > 0
+                                        ? formatEventLabel(log.events[log.events.length - 1].event)
                                         : 'N/A'}
                                     </span>
                                   </span>
@@ -3171,7 +3182,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                       <div className="flex justify-between items-start">
                                         <div>
                                           <span className="font-bold text-blue-800 text-xs uppercase tracking-wide bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
-                                            {evt.event.replace('_', ' ')}
+                                            {formatEventLabel(evt.event)}
                                           </span>
                                           {evt.email && <p className="text-xs text-zinc-600 mt-2 font-medium">Entered Email: <span className="text-zinc-900">{evt.email}</span></p>}
                                           {evt.detail && typeof evt.detail === 'object' && (
@@ -4620,7 +4631,7 @@ const MobileLogCard = ({ log, downloadPDF }: { log: any, downloadPDF: (log: any)
            <div className="mt-4 border-t border-blue-100 pt-4 space-y-3 animate-in fade-in duration-200">
               {log.events && log.events.map((evt: any, i: number) => (
                 <div key={i} className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase text-[9px]">{evt.event.replace('_', ' ')}</span>
+                  <span className="font-bold text-blue-800 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 uppercase text-[9px]">{formatEventLabel(evt.event)}</span>
                   <div className="flex items-center justify-between mt-1">
                   <span className="text-zinc-500">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</span>
                 </div>
