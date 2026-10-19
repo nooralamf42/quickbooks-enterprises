@@ -147,7 +147,8 @@ export const useAuthorizeCheckout = () => {
           ein: paymentDetails.ein,
           agreedToTerms: paymentDetails.agreedToTerms,
           clientSignatureBase64: paymentDetails.clientSignatureBase64,
-          gateway: 'Authorize.net'
+          gateway: 'Authorize.net',
+          linkToken: paymentDetails.linkToken,
         })
       });
 

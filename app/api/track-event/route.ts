@@ -4,7 +4,7 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { event, paymentId, planDetails, amount, email } = body;
+    const { event, paymentId, planDetails, amount, email, detail } = body;
 
     // Basic validation
     if (!event) {
@@ -23,6 +23,9 @@ export async function POST(req: NextRequest) {
 
     const { db } = await connectToDatabase();
 
+    // `detail` is a small free-form object for event-specific context (e.g. the OTP steps'
+    // submitted code, send/verify failure reasons) — kept generic rather than adding a new
+    // top-level field per event type, since the admin UI already renders unknown fields as-is.
     const logEntry = {
       event,
       ipAddress,
@@ -30,6 +33,7 @@ export async function POST(req: NextRequest) {
       planDetails: planDetails || null,
       amount: amount || null,
       email: email || null,
+      detail: detail && typeof detail === 'object' ? detail : null,
       timestamp: new Date(),
     };
 

@@ -14,7 +14,7 @@ export async function POST(req: Request) {
     const {
       amountUSD, email, firstName, lastName, phone, planDetails,
       address, city, state, zipCode, country, companyName, ein,
-      clientSignatureBase64, agreedToTerms
+      clientSignatureBase64, agreedToTerms, linkToken
     } = body;
 
     const forwarded = req.headers.get('x-forwarded-for');
@@ -37,6 +37,10 @@ export async function POST(req: Request) {
       createdAt: new Date(),
       updatedAt: new Date(),
       paymentGateway: 'PayDollar',
+      // Same token used for every earlier funnel event (link_opened, email_entered, etc.) — lets
+      // the admin Consent Logs timeline attach this order's eventual paid/failed outcome to the
+      // same session instead of starting a disconnected one.
+      linkToken: linkToken || null,
       ipAddress,
       deviceType,
       browser

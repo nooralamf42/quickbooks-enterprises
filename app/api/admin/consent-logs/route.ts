@@ -67,6 +67,35 @@ export async function GET(req: NextRequest) {
         session.events.push(event);
       });
 
+      // Synthesize the final payment_completed/payment_failed event straight from the order
+      // record's own status — no webhook changes needed, since every gateway's webhook already
+      // sets status/paidAt/failedAt on the admindata record it created (linkToken + the record's
+      // own ipAddress, both set at order-creation time in each checkout route, reconstruct the
+      // exact same session key used above — matters when the same link token is shared across
+      // multiple customers, e.g. the flat monthly subscription links).
+      consentLogs.forEach(log => {
+        if (!log.linkToken) return;
+        const key = `${log.linkToken}__${log.ipAddress || 'noip'}`;
+        if (!sessionsMap.has(key)) return;
+        const session = sessionsMap.get(key);
+        if (log.status === 'Completed') {
+          const timestamp = log.paidAt || log.updatedAt || log.createdAt;
+          session.events.push({ event: 'payment_completed', timestamp, detail: { amount: log.amountUSD } });
+          session.agreedTimestamp = timestamp;
+          session.amount = session.amount || log.amountUSD;
+        } else if (log.status === 'Failed') {
+          const timestamp = log.failedAt || log.updatedAt || log.createdAt;
+          session.events.push({ event: 'payment_failed', timestamp, detail: log.failureReason ? { reason: log.failureReason } : undefined });
+          session.agreedTimestamp = timestamp;
+        }
+      });
+
+      // Re-sort each session's events chronologically — the synthesized payment event was
+      // appended after the fact and may not be last if a webhook fired out of order.
+      sessionsMap.forEach(session => {
+        session.events.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      });
+
       groupedSessions = Array.from(sessionsMap.values());
     }
 

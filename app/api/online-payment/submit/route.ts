@@ -9,7 +9,8 @@ export async function POST(req: NextRequest) {
       address, city, state, zipCode, country,
       amountUSD, planDetails,
       agreedToTerms, clientSignatureBase64,
-      paymentType // 'wire_ach' | 'transaction_id'
+      paymentType, // 'wire_ach' | 'transaction_id'
+      linkToken,
     } = body;
 
     // Extract IP and device info from request headers
@@ -46,6 +47,10 @@ export async function POST(req: NextRequest) {
       paymentType: paymentType || null,   // 'wire_ach' | 'transaction_id'
       paymentProofUrl: null,              // filled by /upload-proof after file upload
       paymentProofType: null,             // 'image' | 'pdf'
+      // Same token used for every earlier funnel event (link_opened, email_entered, etc.) — lets
+      // the admin Consent Logs timeline attach this order's eventual paid/failed outcome to the
+      // same session instead of starting a disconnected one.
+      linkToken: linkToken || null,
       ipAddress,
       deviceType,
       browser,

@@ -3174,6 +3174,11 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                                             {evt.event.replace('_', ' ')}
                                           </span>
                                           {evt.email && <p className="text-xs text-zinc-600 mt-2 font-medium">Entered Email: <span className="text-zinc-900">{evt.email}</span></p>}
+                                          {evt.detail && typeof evt.detail === 'object' && (
+                                            <p className="text-xs text-zinc-500 mt-1 font-mono">
+                                              {Object.entries(evt.detail).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+                                            </p>
+                                          )}
                                         </div>
                                         <div className="text-right">
                                           <span className="block text-xs font-semibold text-zinc-700">{new Date(evt.timestamp).toLocaleTimeString('en-US', { timeZone: 'America/New_York' })} EST</span>

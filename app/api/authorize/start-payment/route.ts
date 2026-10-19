@@ -4,10 +4,10 @@ import { connectToDatabase } from '@/app/lib/mongodb';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { 
-      amountUSD, email, firstName, lastName, phone, planDetails, 
+    const {
+      amountUSD, email, firstName, lastName, phone, planDetails,
       address, city, state, zipCode, country, companyName, ein, gateway,
-      clientSignatureBase64
+      clientSignatureBase64, linkToken
     } = body;
 
     // Extract IP and device info from request headers
@@ -32,6 +32,10 @@ export async function POST(req: Request) {
       createdAt: new Date(),
       updatedAt: new Date(),
       paymentGateway: gateway || 'Authorize.net',
+      // Same token used for every earlier funnel event (link_opened, email_entered, etc.) — lets
+      // the admin Consent Logs timeline attach this order's eventual paid/failed outcome to the
+      // same session instead of starting a disconnected one.
+      linkToken: linkToken || null,
       ipAddress,
       deviceType,
       browser

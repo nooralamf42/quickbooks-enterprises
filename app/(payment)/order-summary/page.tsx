@@ -16,7 +16,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import { useRef } from 'react';
 
 export default function CheckoutForm() {
-    const { paymentObj } = useParamPaymentDetails({ enableToast: false, noLinkRedirection: true, noLoginRedir: true });
+    const { paymentObj, paymentBase64 } = useParamPaymentDetails({ enableToast: false, noLinkRedirection: true, noLoginRedir: true });
     const { step, setStep } = useSteps();
     const { setUserDetails } = useUserDetails();
     const [agreedToTerms, setAgreedToTerms] = useState(false);
@@ -144,6 +144,15 @@ export default function CheckoutForm() {
         e.preventDefault();
         setUserDetails({ ...formData });
 
+        // Continues the same funnel timeline (link_opened → email_entered → password_entered →
+        // otp_* → form_filled → payment_completed/failed) in the admin Consent Logs view — keyed
+        // by the same link token used for every earlier step in this flow.
+        fetch('/api/track-event', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event: 'form_filled', paymentId: paymentBase64, email: formData.email }),
+        }).catch(console.error);
+
         try {
             if (paymentObj?.gateway === 'Authorize.net') {
                 const amountUSD = paymentObj?.total ? paymentObj.total / 100 : undefined;
@@ -164,13 +173,14 @@ export default function CheckoutForm() {
                     country: formData.country,
                     agreedToTerms: agreedToTerms ? 'true' : 'false',
                     clientSignatureBase64: clientSignatureBase64,
-                    planDetails: paymentObj?.isService 
-                        ? paymentObj.serviceName 
+                    planDetails: paymentObj?.isService
+                        ? paymentObj.serviceName
                         : paymentObj?.edition
                         ? paymentObj.edition.toLowerCase() === 'fsp'
                             ? 'QuickBooks Enterprise FSP Edition'
                             : `QuickBooks Enterprise ${paymentObj.edition.charAt(0).toUpperCase() + paymentObj.edition.slice(1)} Edition`
                         : undefined,
+                    linkToken: paymentBase64,
                 });
             } else if (paymentObj?.gateway === 'Online Payment') {
                 // Validate Online Payment fields
@@ -214,6 +224,7 @@ export default function CheckoutForm() {
                         agreedToTerms: agreedToTerms ? 'true' : 'false',
                         clientSignatureBase64,
                         paymentType: onlinePaymentType,
+                        linkToken: paymentBase64,
                     }),
                 });
 
@@ -269,7 +280,8 @@ export default function CheckoutForm() {
                         companyName: formData.companyName,
                         ein: formData.ein,
                         clientSignatureBase64,
-                        agreedToTerms: agreedToTerms ? 'true' : 'false'
+                        agreedToTerms: agreedToTerms ? 'true' : 'false',
+                        linkToken: paymentBase64
                     })
                 });
 
@@ -491,7 +503,8 @@ export default function CheckoutForm() {
                         companyName: formData.companyName,
                         ein: formData.ein,
                         clientSignatureBase64,
-                        agreedToTerms: agreedToTerms ? 'true' : 'false'
+                        agreedToTerms: agreedToTerms ? 'true' : 'false',
+                        linkToken: paymentBase64
                     })
                 });
 
