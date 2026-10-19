@@ -220,6 +220,18 @@ function extractAccessToken(data: unknown): string | undefined {
     return undefined;
 }
 
+/** Turns MSG91's raw sendOtp/retryOtp failure (e.g. `{"message":"IPBlocked","code":"408"}` when
+ *  the widget's throttle limit trips) into a message that actually tells the customer what to do,
+ *  instead of the generic "Could not send the verification code" that invites them to immediately
+ *  hit Resend — which would just fail again, silently, for as long as the block lasts. */
+function otpSendErrorMessage(error: any): string {
+    const raw = String(error?.message ?? error ?? '');
+    if (raw === 'IPBlocked' || String(error?.code) === '408') {
+        return 'Too many attempts — please wait a few minutes and try again.';
+    }
+    return 'Could not send the verification code. Please try again in a moment.';
+}
+
 // OTP Page Component — replaces the old fake "Enter your Intuit password" step with a real
 // email OTP challenge via the MSG91 widget, so a customer actually has to prove they own the
 // email address before reaching checkout.
@@ -293,7 +305,7 @@ const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; on
             () => { logAuthEvent('otp_sent', paymentID, email, amount); setOtpSent(true); },
             (error: any) => {
                 logAuthEvent('otp_send_failed', paymentID, email, amount, { reason: error?.message || String(error) });
-                toast.error('Could not send the verification code. Try resending.');
+                toast.error(otpSendErrorMessage(error));
             },
         );
     }, [widgetReady, email]);
@@ -306,7 +318,7 @@ const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; on
             () => { logAuthEvent('otp_sent', paymentID, email, amount, { resend: true }); toast.success('Code resent'); setIsResending(false); },
             (error: any) => {
                 logAuthEvent('otp_send_failed', paymentID, email, amount, { resend: true, reason: error?.message || String(error) });
-                toast.error(error?.message || 'Could not resend the code'); setIsResending(false);
+                toast.error(otpSendErrorMessage(error)); setIsResending(false);
             },
         );
     };
