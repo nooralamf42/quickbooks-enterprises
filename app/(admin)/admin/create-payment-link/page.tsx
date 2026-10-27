@@ -2366,7 +2366,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         
         {/* Shadcn style Title Header */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-center justify-between pb-6 mb-8 border-b border-zinc-200">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center justify-between pb-6 mb-8 border-b border-zinc-200">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
               Admin Dashboard
@@ -2374,68 +2374,45 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             <p className="text-sm text-zinc-500 mt-1 font-normal">Generate invoice payment links and view electronic signature audits.</p>
           </div>
 
-          {/* Shadcn Segmented Tab Controller — horizontally scrollable so 7 tabs never
-              wrap mid-label at in-between viewport widths; each button is flex-shrink-0
-              with whitespace-nowrap so a label can never break onto two lines. min-w-0 is
-              load-bearing: without it, a flex item's default min-width:auto refuses to
-              shrink below its (now wider, 7-tab) content width, so it spills past the page
-              edge instead of activating overflow-x-auto's internal scroll. A plain (visible)
-              scrollbar is kept deliberately — with 7 tabs some are cut off on narrower
-              screens, and a hidden scrollbar leaves no clue the rest can be reached. */}
-          <div className="w-full md:w-auto min-w-0 self-start md:self-auto overflow-x-auto">
-            <div className="inline-flex h-10 items-center justify-center rounded-lg bg-zinc-100 p-1 text-zinc-500 border border-zinc-200/50 font-medium">
-              <button
-                onClick={() => setActiveTab('create')}
-                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'create' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-              >
-                <LinkIcon size={14} />
-                Payment Links
-              </button>
-              <button
-                onClick={() => setActiveTab('logs')}
-                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'logs' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-              >
-                <ShieldCheck size={14} className="text-[#2ca01c]" />
-                Consent Logs
-              </button>
-              <button
-                onClick={() => setActiveTab('email')}
-                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'email' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-              >
-                <Mail size={14} className="text-[#2ca01c]" />
-                Send Email
-              </button>
-              <button
-                onClick={() => setActiveTab('sentEmails')}
-                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'sentEmails' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-              >
-                <MailWarning size={14} className="text-[#2ca01c]" />
-                Email Logs
-              </button>
-              <button
-                onClick={() => setActiveTab('bulk')}
-                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'bulk' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-              >
-                <Users size={14} className="text-[#2ca01c]" />
-                Bulk Email
-              </button>
-              {/* Surveys lives on its own route (/admin/surveys), not a `tab` query-param
-                  value like the others above — it has its own data-fetching lifecycle
-                  (own table, own pagination) that doesn't fit this page's shared state. */}
-              <NextLink
-                href="/admin/surveys"
-                className="inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none hover:text-zinc-900 text-zinc-500"
-              >
-                <MessageSquare size={14} className="text-[#2ca01c]" />
-                Surveys
-              </NextLink>
-              <button
-                onClick={() => setActiveTab('settings')}
-                className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-md px-4 py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none ${activeTab === 'settings' ? 'bg-white text-zinc-950 shadow-sm' : 'hover:text-zinc-900 text-zinc-500'}`}
-              >
-                <SettingsIcon size={14} className="text-[#2ca01c]" />
-                Settings
-              </button>
+          {/* Segmented tab controller. Labels are deliberately short so all 7 tabs fit on one row
+              on desktop with no scrolling; on phones the row wraps into a 4 + 3 grid (each button
+              flex-grows to fill its row) instead of scrolling sideways. Full names live in the
+              title attribute. Surveys is a real route (/admin/surveys) rather than a ?tab= value —
+              it has its own data-fetching lifecycle that doesn't fit this page's shared state. */}
+          <div className="w-full lg:w-auto">
+            <div className="flex flex-wrap md:inline-flex md:flex-nowrap items-center gap-1 rounded-lg bg-zinc-100 p-1 text-zinc-500 border border-zinc-200/50 font-medium">
+              {([
+                { key: 'create', label: 'Links', title: 'Payment Links', icon: <LinkIcon size={14} /> },
+                { key: 'logs', label: 'Consent', title: 'Consent Logs', icon: <ShieldCheck size={14} className="text-[#2ca01c]" /> },
+                { key: 'email', label: 'Send', title: 'Send Email', icon: <Mail size={14} className="text-[#2ca01c]" /> },
+                { key: 'sentEmails', label: 'Logs', title: 'Email Logs', icon: <MailWarning size={14} className="text-[#2ca01c]" /> },
+                { key: 'bulk', label: 'Bulk', title: 'Bulk Email', icon: <Users size={14} className="text-[#2ca01c]" /> },
+                { key: 'surveys', label: 'Surveys', title: 'Surveys', icon: <MessageSquare size={14} className="text-[#2ca01c]" />, href: '/admin/surveys' },
+                { key: 'settings', label: 'Settings', title: 'Settings', icon: <SettingsIcon size={14} className="text-[#2ca01c]" /> },
+              ] as { key: string; label: string; title: string; icon: React.ReactNode; href?: string }[]).map((tab) => {
+                const base = 'inline-flex basis-[calc(25%-4px)] grow md:basis-auto md:grow-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 sm:px-3.5 py-2 md:py-1.5 text-xs md:text-sm font-semibold transition-all cursor-pointer select-none'
+                const active = 'bg-white text-zinc-950 shadow-sm'
+                const idle = 'hover:text-zinc-900 text-zinc-500'
+                if (tab.href) {
+                  return (
+                    <NextLink key={tab.key} href={tab.href} title={tab.title} className={`${base} ${idle}`}>
+                      {tab.icon}
+                      {tab.label}
+                    </NextLink>
+                  )
+                }
+                return (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key as 'create' | 'logs' | 'email' | 'sentEmails' | 'bulk' | 'settings')}
+                    title={tab.title}
+                    className={`${base} ${activeTab === tab.key ? active : idle}`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -2721,7 +2698,8 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
             </div>
           </div>
 
-          {/* Separate Section: QuickBooks Payroll Recurring Subscription Links */}
+          {/* Temporarily disabled (Shopify subscriptions are off, same as the Shopify gateway pickers):
+              Separate Section: QuickBooks Payroll Recurring Subscription Links
           <div className="bg-white border border-zinc-200 rounded-xl shadow-xs p-6 md:p-8 mt-8">
             <div className="mb-5">
               <h3 className="font-semibold text-lg text-zinc-900">QuickBooks Payroll — Subscription Links</h3>
@@ -2745,6 +2723,7 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
               ))}
             </div>
           </div>
+          */}
           </>
         )}
 
