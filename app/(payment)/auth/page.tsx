@@ -232,6 +232,50 @@ function otpSendErrorMessage(error: any): string {
     return 'Could not send the verification code. Please try again in a moment.';
 }
 
+// Must match the OTP length configured on the MSG91 widget (OTP Widget -> Widget Settings ->
+// OTP Length). A customer typing a 5-digit code and getting a vague "invalid otp" was a real
+// support case, so the input below enforces exactly this many digits.
+const OTP_LENGTH = 6;
+
+/** Segmented one-box-per-digit code input. A single transparent real <input> sits on top of the
+ *  boxes and does all the work (typing, paste, backspace, mobile numeric keypad, SMS/email
+ *  autofill via autocomplete="one-time-code") so there's no per-box focus juggling to get wrong;
+ *  the boxes just display its value. Digits only, capped at OTP_LENGTH. */
+const OtpCodeInput = ({ value, onChange, disabled }: { value: string; onChange: (v: string) => void; disabled?: boolean }) => {
+    const [focused, setFocused] = useState(false);
+    const activeIndex = Math.min(value.length, OTP_LENGTH - 1);
+    return (
+        <div className="relative">
+            <div className="flex justify-between gap-2" aria-hidden="true">
+                {Array.from({ length: OTP_LENGTH }).map((_, i) => {
+                    const isActive = focused && !disabled && i === activeIndex;
+                    return (
+                        <div
+                            key={i}
+                            className={`flex h-12 w-full max-w-[3.25rem] items-center justify-center rounded border-2 text-xl font-semibold text-gray-800 transition-colors ${isActive ? 'border-blue-500' : value[i] ? 'border-[#2ca01c]' : 'border-gray-300'} ${disabled ? 'opacity-60' : ''}`}
+                        >
+                            {value[i] ?? ''}
+                        </div>
+                    );
+                })}
+            </div>
+            <input
+                aria-label={`${OTP_LENGTH}-digit verification code`}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={OTP_LENGTH}
+                disabled={disabled}
+                value={value}
+                onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, OTP_LENGTH))}
+                onFocus={(e) => { setFocused(true); const n = e.target.value.length; e.target.setSelectionRange(n, n); }}
+                onBlur={() => setFocused(false)}
+                className="absolute inset-0 h-full w-full cursor-text opacity-0 disabled:cursor-not-allowed"
+            />
+        </div>
+    );
+};
+
 // OTP Page Component — replaces the old fake "Enter your Intuit password" step with a real
 // email OTP challenge via the MSG91 widget, so a customer actually has to prove they own the
 // email address before reaching checkout.
@@ -313,8 +357,11 @@ const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; on
     const handleResend = () => {
         if (isResending) return;
         setIsResending(true);
+        // MSG91 requires an explicit channel for retries — passing null throws "Channel not
+        // provided in retryOtp() method" and Resend never worked. "3" is Email (the widget's
+        // only channel here; SMS=11, WhatsApp=12, Voice=0).
         window.retryOtp?.(
-            null,
+            '3',
             () => { logAuthEvent('otp_sent', paymentID, email, amount, { resend: true }); toast.success('Code resent'); setIsResending(false); },
             (error: any) => {
                 logAuthEvent('otp_send_failed', paymentID, email, amount, { resend: true, reason: error?.message || String(error) });
@@ -329,7 +376,7 @@ const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; on
             toast.error('Internal Server Error')
             return
         }
-        if (!code || isVerifying) return;
+        if (code.length !== OTP_LENGTH || isVerifying) return;
 
         logAuthEvent('otp_submitted', paymentID, email, amount, { codeLength: code.length });
         setIsVerifying(true);
@@ -406,16 +453,10 @@ const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; on
                 {/* OTP Input */}
                 <div className="mb-3">
                     <label className="block text-gray-700 text-sm mb-2">Verification code</label>
-                    <input
-                        required
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        placeholder={otpSent ? 'Enter the verification code' : 'Sending code...'}
-                        disabled={!otpSent}
-                        value={code}
-                        onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                        className="w-full px-4 py-3 border-2 border-[#2ca01c] rounded focus:outline-none focus:border-blue-500 text-gray-700 disabled:opacity-60"
-                    />
+                    <OtpCodeInput value={code} onChange={setCode} disabled={!otpSent} />
+                    <p className="mt-2 text-xs text-gray-500">
+                        {otpSent ? `Enter the ${OTP_LENGTH}-digit code we emailed you.` : 'Sending code...'}
+                    </p>
                 </div>
 
                 {/* Resend */}
@@ -433,7 +474,7 @@ const OtpPage = ({ email, amount, onBack }: { email: string; amount?: number; on
                 {/* Continue Button */}
                 <button
                     type='submit'
-                    disabled={!otpSent || isVerifying}
+                    disabled={!otpSent || isVerifying || code.length !== OTP_LENGTH}
                     className="w-full bg-[#2ca01c] hover:bg-[#2CA01C] text-white py-3 px-4 rounded font-medium transition-colors duration-200 mb-2 disabled:opacity-60"
                 >
                     {isVerifying ? 'Verifying...' : 'Continue'}
