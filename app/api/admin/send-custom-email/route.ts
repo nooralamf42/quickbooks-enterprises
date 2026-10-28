@@ -277,7 +277,10 @@ export async function POST(req: NextRequest) {
         toEmail,
         customerName: name,
         orderId: fallbackOrderId,
-        planDetails,
+        // A query email isn't about a plan. The admin form has no product picker for this type,
+        // but its hidden Product state defaults to Silver, which used to get saved here and show
+        // "QuickBooks Enterprise Silver Edition" on every query row in Email Logs. Never log one.
+        planDetails: undefined,
         amountUSD: 0,
         subject: String(subject).trim(),
         trigger: 'admin-manual',

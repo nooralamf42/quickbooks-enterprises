@@ -714,6 +714,10 @@ export default function QuickBooksPaymentLinkCreator() {
       } else if (emailType === 'query') {
         payload.subject = emailForm.queryTitle
         payload.bodyText = emailForm.queryBody
+        // Query emails have no product picker — don't send the hidden Product state (defaults to Silver).
+        delete payload.planDetails
+        delete payload.numUsers
+        delete payload.contractYears
       }
 
       const response = await fetch('/api/admin/send-custom-email', {
