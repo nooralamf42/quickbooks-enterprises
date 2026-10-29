@@ -61,6 +61,14 @@ function Switch({ checked, onChange, disabled, loading }: { checked: boolean; on
   );
 }
 
+/** Adds whole days to a 'YYYY-MM-DD' key and returns a 'YYYY-MM-DD' key (calendar math in UTC
+ *  noon so DST shifts can't move the result by a day). */
+function addDaysToDateKey(key: string, days: number): string {
+  const d = new Date(`${key}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 /** Formats a date as 'YYYY-MM-DD' in the given IANA timezone. en-CA happens to format as
  *  YYYY-MM-DD, which is also exactly what `<input type="date">` needs for its value/max/min
  *  attributes, and what a plain string-range comparison against another such key needs. */
@@ -116,7 +124,7 @@ function isoToMmDdYyyy(iso: string): string {
  *  Keeps its own display-text state while the admin is mid-typing, and only commits a
  *  complete, valid date up to the parent (clamped to `maxIso`) once it fully parses —
  *  partial input like "09/2" is shown but never fetched against. */
-function DateFilterInput({ value, onChange, maxIso, className }: { value: string, onChange: (iso: string) => void, maxIso: string, className?: string }) {
+function DateFilterInput({ value, onChange, maxIso, className, required }: { value: string, onChange: (iso: string) => void, maxIso?: string, className?: string, required?: boolean }) {
   const [display, setDisplay] = useState(isoToMmDdYyyy(value));
 
   useEffect(() => {
@@ -133,12 +141,17 @@ function DateFilterInput({ value, onChange, maxIso, className }: { value: string
         const masked = maskMmDdYyyyInput(e.target.value);
         setDisplay(masked);
         if (masked === '') {
+          e.target.setCustomValidity('');
           onChange('');
           return;
         }
         const parsed = parseMmDdYyyy(masked);
-        if (parsed) onChange(parsed > maxIso ? maxIso : parsed);
+        // When used as a required form field, a half-typed date must block submit instead of
+        // silently leaving the previous value in place.
+        if (required) e.target.setCustomValidity(parsed ? '' : 'Enter a full date as mm/dd/yyyy');
+        if (parsed) onChange(maxIso && parsed > maxIso ? maxIso : parsed);
       }}
+      required={required}
       className={className}
     />
   );
@@ -396,13 +409,16 @@ export default function QuickBooksPaymentLinkCreator() {
     licenseNumber: '',
     productNumber: '',
     amountUSD: '',
-    paidAt: new Date().toISOString().slice(0, 10),
+    paidAt: getTodayDateString('America/New_York'),
     amountDueUSD: '',
-    cancellationDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-    // Default to a month out — the typical subscription cycle. Shown as "Due date:".
-    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    // Reminder defaults: due today, cancellation a week after the due date. Dates are US
+    // Eastern like everywhere else on this dashboard.
+    cancellationDate: addDaysToDateKey(getTodayDateString('America/New_York'), 7),
+    dueDate: getTodayDateString('America/New_York'),
+    // Receipt's optional "Due date" (next billing) — the typical subscription cycle, a month out.
+    receiptDueDate: addDaysToDateKey(getTodayDateString('America/New_York'), 30),
     refundAmountUSD: '',
-    refundedAt: new Date().toISOString().slice(0, 10),
+    refundedAt: getTodayDateString('America/New_York'),
     refundReason: '',
     // "Query" tab — a free-form message, admin-written subject + body, no NPS scoring.
     queryTitle: '',
@@ -699,7 +715,7 @@ export default function QuickBooksPaymentLinkCreator() {
         payload.paidAt = emailForm.paidAt
         payload.licenseNumber = emailForm.licenseNumber
         payload.productNumber = emailForm.productNumber
-        payload.dueDate = emailForm.dueDate
+        payload.dueDate = emailForm.receiptDueDate
       } else if (emailType === 'refund') {
         payload.refundAmountUSD = emailForm.refundAmountUSD
         payload.refundedAt = emailForm.refundedAt
@@ -3738,19 +3754,17 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   </div>
                   <div>
                     <label className="block mb-1.5 font-medium text-xs text-zinc-500">Payment Date</label>
-                    <input
-                      type="date"
+                    <DateFilterInput
                       value={emailForm.paidAt}
-                      onChange={(e) => updateEmailForm('paidAt', e.target.value)}
+                      onChange={(iso) => updateEmailForm('paidAt', iso)}
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                     />
                   </div>
                   <div>
                     <label className="block mb-1.5 font-medium text-xs text-zinc-500">Due Date <span className="text-zinc-300">(optional)</span></label>
-                    <input
-                      type="date"
-                      value={emailForm.dueDate}
-                      onChange={(e) => updateEmailForm('dueDate', e.target.value)}
+                    <DateFilterInput
+                      value={emailForm.receiptDueDate}
+                      onChange={(iso) => updateEmailForm('receiptDueDate', iso)}
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-[#2ca01c]/30 focus:border-[#2ca01c]"
                     />
                   </div>
@@ -3772,10 +3786,9 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   </div>
                   <div>
                     <label className="block mb-1.5 font-medium text-xs text-zinc-500">Refund Date</label>
-                    <input
-                      type="date"
+                    <DateFilterInput
                       value={emailForm.refundedAt}
-                      onChange={(e) => updateEmailForm('refundedAt', e.target.value)}
+                      onChange={(iso) => updateEmailForm('refundedAt', iso)}
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-sky-600/30 focus:border-sky-600"
                     />
                   </div>
@@ -3822,21 +3835,19 @@ By making a payment to QB Enterprise, you acknowledge that you have read, unders
                   </div>
                   <div>
                     <label className="block mb-1.5 font-medium text-xs text-zinc-500">Due Date *</label>
-                    <input
-                      type="date"
-                      required
+                    <DateFilterInput
                       value={emailForm.dueDate}
-                      onChange={(e) => updateEmailForm('dueDate', e.target.value)}
+                      onChange={(iso) => updateEmailForm('dueDate', iso)}
+                      required
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                     />
                   </div>
                   <div>
                     <label className="block mb-1.5 font-medium text-xs text-zinc-500">Cancellation Date *</label>
-                    <input
-                      type="date"
-                      required
+                    <DateFilterInput
                       value={emailForm.cancellationDate}
-                      onChange={(e) => updateEmailForm('cancellationDate', e.target.value)}
+                      onChange={(iso) => updateEmailForm('cancellationDate', iso)}
+                      required
                       className="flex h-10 w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800 shadow-xs focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
                     />
                   </div>
